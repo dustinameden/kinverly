@@ -941,5 +941,131 @@ window.KinverlyProfile = (function () {
 
   </script>
   <script type="module" src="js/app.js"></script>
+
+  <!-- STANDALONE JOIN FLOW — no dependencies, no inline onclick -->
+  <script>
+  (function() {
+    // Override the broken showNewMemberFlow with a clean version
+    function buildJoinFlow() {
+      var overlay = document.getElementById('login-overlay');
+      if (!overlay) return;
+
+      var A = window.Animals;
+      var allAnimals = ['fox','bear','bunny','owl','cat','panda','frog','penguin','hedgehog','deer'];
+      var animalNames = {fox:'Fox',bear:'Bear',bunny:'Bunny',owl:'Owl',cat:'Cat',panda:'Panda',frog:'Frog',penguin:'Penguin',hedgehog:'Hedgehog',deer:'Deer'};
+      var takenAnimals = (window.KinverlyData && window.KinverlyData.members || []).map(function(m){ return m.animal; });
+      var animals = allAnimals.filter(function(a){ return !takenAnimals.includes(a); });
+      if (animals.length === 0) animals = allAnimals;
+
+      // 1. Build the shell with innerHTML
+      overlay.innerHTML = [
+        '<div style="display:flex;flex-direction:column;align-items:center;width:100%;max-width:390px;padding:0 20px">',
+          '<div style="font-family:Fredoka One,cursive;font-size:36px;color:#F0C030;margin-bottom:4px">Kinverly.</div>',
+          '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:.1em;margin-bottom:24px">JOIN THE FLOCK</div>',
+
+          '<div style="width:100%;margin-bottom:14px">',
+            '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your name</div>',
+            '<input id="jf-name" type="text" placeholder="e.g. Sara" style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;outline:none">',
+            '<div id="jf-name-err" style="display:none;color:#F0C030;font-size:12px;margin-top:5px;font-weight:600">Please enter your name</div>',
+          '</div>',
+
+          '<div style="width:100%;margin-bottom:14px">',
+            '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your city</div>',
+            '<input id="jf-city" type="text" placeholder="e.g. Portland, OR" style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;outline:none">',
+          '</div>',
+
+          '<div style="width:100%;margin-bottom:14px">',
+            '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Pick your animal</div>',
+            '<div id="jf-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%"></div>',
+            '<div id="jf-animal-err" style="display:none;color:#F0C030;font-size:12px;margin-top:6px;font-weight:600">Please pick an animal</div>',
+          '</div>',
+
+          '<button id="jf-submit" style="width:100%;padding:13px;border-radius:12px;background:#F0C030;color:#1E1433;font-size:15px;font-weight:800;border:none;cursor:pointer;margin-bottom:10px">Join the flock!</button>',
+          '<div id="jf-back" style="color:rgba(255,255,255,0.45);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px">Back to member list</div>',
+        '</div>'
+      ].join('');
+
+      // 2. Build animal cards as real DOM nodes
+      var pickedAnimal = null;
+      var grid = document.getElementById('jf-grid');
+
+      animals.forEach(function(a) {
+        var card = document.createElement('div');
+        card.style.cssText = 'border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;border:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);transition:border-color .15s,background .15s';
+
+        var svgHTML = (A && A.paths) ? A.paths(a) : '';
+        card.innerHTML = '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;margin:0 auto 4px"><svg viewBox="0 0 100 100" width="44" height="44">' + svgHTML + '</svg></div><div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.7)">' + (animalNames[a] || a) + '</div>';
+
+        card.addEventListener('click', function() {
+          for (var i = 0; i < grid.children.length; i++) {
+            grid.children[i].style.borderColor = 'rgba(255,255,255,0.15)';
+            grid.children[i].style.background = 'rgba(255,255,255,0.08)';
+          }
+          card.style.borderColor = '#F0C030';
+          card.style.background = 'rgba(240,192,48,0.18)';
+          pickedAnimal = a;
+          document.getElementById('jf-animal-err').style.display = 'none';
+        });
+
+        grid.appendChild(card);
+      });
+
+      // 3. Wire submit button
+      document.getElementById('jf-submit').addEventListener('click', function() {
+        var name = document.getElementById('jf-name').value.trim();
+        var city = document.getElementById('jf-city').value.trim() || 'Somewhere wonderful';
+        var ok = true;
+        if (!name) { document.getElementById('jf-name-err').style.display = 'block'; ok = false; }
+        if (!pickedAnimal) { document.getElementById('jf-animal-err').style.display = 'block'; ok = false; }
+        if (!ok) return;
+
+        var id = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '_' + Date.now().toString(36);
+        var member = { id:id, name:name, animal:pickedAnimal, location:city, online:false, mode:'in-person', pct:0 };
+
+        if (window.KinverlyData) {
+          window.KinverlyData.members = window.KinverlyData.members || [];
+          window.KinverlyData.members.push(member);
+        }
+        localStorage.setItem('kinverly_user_id', id);
+        localStorage.setItem('kinverly_user_name', name);
+
+        // Update me
+        if (window.KinverlyData && window.KinverlyData.me) {
+          window.KinverlyData.me.id = id;
+          window.KinverlyData.me.name = name;
+          window.KinverlyData.me.animal = pickedAnimal;
+          window.KinverlyData.me.location = city;
+        }
+
+        overlay.style.display = 'none';
+        if (window.KinverlyApp) {
+          window.KinverlyApp.renderPage('home');
+          window.KinverlyApp.renderPage('profile');
+          window.KinverlyApp.showToast('Welcome to the flock, ' + name + '!');
+        }
+      });
+
+      // 4. Wire back button
+      document.getElementById('jf-back').addEventListener('click', function() {
+        if (window.KinverlyProfile && window.KinverlyProfile.showLoginScreen) {
+          window.KinverlyProfile.showLoginScreen();
+        }
+      });
+    }
+
+    // Wait for DOM then attach
+    document.addEventListener('DOMContentLoaded', function() {
+      // Patch showNewMemberFlow on KinverlyProfile once it exists
+      var check = setInterval(function() {
+        if (window.KinverlyProfile) {
+          window.KinverlyProfile.showNewMemberFlow = buildJoinFlow;
+          clearInterval(check);
+        }
+      }, 50);
+    });
+
+  })();
+  </script>
+
 </body>
 </html>
