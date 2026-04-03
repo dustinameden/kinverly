@@ -143,8 +143,8 @@ img,svg{display:block}
 .subpage.active{display:block;animation:fadeUp .18s ease}
 
 /* App fade-in on load */
-#app{opacity:0;transition:opacity .25s ease}
-#app.ready{opacity:1}
+#app{opacity:1;transition:opacity .3s ease}
+#app.loading{opacity:0}
 
 /* ═══════════════════════════════════════════════
    SHARED COMPONENTS
@@ -2726,8 +2726,8 @@ document.getElementById('flock-sheet-overlay').addEventListener('click', functio
   updateCountdown();
   setInterval(updateCountdown, 60000);
 
-  // Fade app in smoothly
-  (function(){ var a = document.getElementById('app'); if(a) setTimeout(function(){ a.classList.add('ready'); }, 50); })();
+  // Smooth content reveal (app is already visible, just animate pages)
+  (function(){ var a = document.getElementById('app'); if(a){ a.style.opacity='0'; setTimeout(function(){ a.style.opacity='1'; a.style.transition='opacity .3s ease'; }, 80); } })();
 
   // Decide what to show on startup
   setTimeout(function() {
