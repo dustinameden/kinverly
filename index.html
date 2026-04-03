@@ -3,8 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta property="og:title" content="Kinverly — Your People. Your Place. Your Turn.">
+<meta property="og:description" content="The app that keeps your family gatherings actually happening. Plan, coordinate, and celebrate together.">
+<meta property="og:url" content="https://kinverly.com">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://kinverly.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Kinverly">
+<meta name="twitter:description" content="Your family gathering app. Your people. Your place. Your turn.">
 <title>Kinverly — Your People. Your Place. Your Turn.</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3D2B6E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kinverly">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%233D2B6E'/><text y='.9em' font-size='72' x='50%' text-anchor='middle' font-family='serif'>K</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%233D2B6E'/><text y='.9em' font-size='72' x='50%' text-anchor='middle' fill='%23F0C030' font-family='serif'>K</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════════════════════════════════
@@ -824,6 +840,19 @@ img,svg{display:block}
 .flock-list-sub{font-size:11px;color:var(--text2);margin-top:2px}
 .flock-list-check{width:20px;height:20px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;margin-left:auto;flex-shrink:0}
 
+
+/* ── CREATE GATHERING SHEET ─────────────────── */
+.create-sheet-body{padding:16px 20px;overflow-y:auto;flex:1}
+.field-group{margin-bottom:16px}
+.field-label-sm{font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+.gathering-type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:4px}
+.gtype-card{border:1.5px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;transition:all .15s;text-align:center}
+.gtype-card:hover{border-color:var(--brand2)}
+.gtype-card.selected{border-color:var(--brand);border-width:2px;background:#ede8ff}
+.gtype-icon{font-size:24px;margin-bottom:4px}
+.gtype-label{font-size:12px;font-weight:800;color:var(--text1)}
+.gtype-sub{font-size:10px;color:var(--text2);margin-top:2px}
+.date-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 </style>
 </head>
 <body>
@@ -848,7 +877,6 @@ img,svg{display:block}
     <div class="topbar-right">
       <button class="notif-btn" id="notif-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="notif-badge">3</span>
       </button>
       <div class="topbar-av" id="topbar-av"></div>
     </div>
@@ -1025,6 +1053,20 @@ img,svg{display:block}
   </div>
 </div>
 
+
+<!-- CREATE GATHERING OVERLAY -->
+<div class="overlay hidden" id="create-gathering-overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-title">Plan a gathering</div>
+      <button class="sheet-close" id="create-gathering-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="create-sheet-body" id="create-gathering-body"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- ═══════════════════════════════════════════════
@@ -1089,16 +1131,16 @@ var DATA = {
      type:'planned',status:'next',theme:'BBQ + games',themePill:'pill-amber',hybrid:true,progress:72,
      attending:['sara','marcus','jen','david','tom','lily'],
      tasks:[
-       {id:'t1',title:'Pick & reserve the location',owner:'marcus',note:'Piedmont Park ? Shelter B',done:true},
+       {id:'t1',title:'Pick & reserve the location',owner:'marcus',note:'Piedmont Park · Shelter B',done:true},
        {id:'t2',title:'Organize grill & equipment',owner:'tom',note:'Charcoal, tools, cooler',done:true},
        {id:'t3',title:'Set up video call for David',owner:'sara',note:'Tablet + good wifi spot',done:true},
        {id:'t4',title:'Mail remote kit to David',owner:'lily',note:'Snacks, game card, photo',done:true},
-       {id:'t5',title:'Plan the group activity',owner:'jen',note:'Trivia night ? in progress',done:false},
+       {id:'t5',title:'Plan the group activity',owner:'jen',note:'Trivia night — in progress',done:false},
        {id:'t6',title:'Collect food sign-up list',owner:'grace',note:'Waiting on RSVP first',done:false},
        {id:'t7',title:'Create shared photo album',owner:'amy',note:'Shared after the event',done:false},
        {id:'t8',title:'Send directions + parking info',owner:'marcus',note:'1 week before + day-of',done:false},
      ]},
-    {id:'beach',name:'Summer Beach Week',month:'Jul',day:19,location:'TBD ? voting in progress',
+    {id:'beach',name:'Summer Beach Week',month:'Jul',day:19,location:'TBD — voting in progress',
      host:'mom',type:'bonus',status:'planning',theme:'Beach rental',themePill:'pill-blue',
      progress:15,beachMode:true,attending:[],
      windows:[
@@ -1111,7 +1153,7 @@ var DATA = {
        {id:'david',status:'pending'},{id:'amy',status:'pending'},{id:'tom',status:'pending'},
        {id:'lily',status:'pending'},{id:'grace',status:'pending'},
      ]},
-    {id:'fall',name:'Fall Harvest',month:'Oct',day:5,location:'TBD ? your turn!',host:'mom',
+    {id:'fall',name:'Fall Harvest',month:'Oct',day:5,location:'TBD — your turn!',host:'mom',
      type:'planned',status:'upcoming',theme:'Planning opens Aug 1',themePill:'pill-amber',attending:[],progress:0},
     {id:'winter',name:'Winter Celebration',month:'Dec',day:21,location:'TBD',host:'jen',
      type:'planned',status:'upcoming',theme:'Coming soon',themePill:'pill-gray',attending:[],progress:0},
@@ -1124,7 +1166,7 @@ var DATA = {
     {id:'i5',icon:'?',title:'Camping weekend',sub:'National park, cabins for those who prefer',votes:3,pct:36,voted:false},
   ],
   fairness:{
-    gathering:'Summer Cookout ? Atlanta, GA',
+    gathering:'Summer Cookout · Atlanta, GA',
     members:[
       {id:'sara',  cost:0,   pct:4,  label:'Local',   color:'#3B8A4A'},
       {id:'marcus',cost:0,   pct:4,  label:'Host',    color:'#3B8A4A'},
@@ -1147,8 +1189,8 @@ var DATA = {
   },
   activity:[
     {member:'amy',  text:'added "Escape room challenge" to the idea bank',         time:'2h ago'},
-    {member:'david',text:"RSVP'd to Summer Cookout ? joining virtually",           time:'5h ago'},
-    {member:'sara', text:'voted on 3 ideas ? "Trivia night" is leading!',          time:'Yesterday'},
+    {member:'david',text:"RSVP'd to Summer Cookout — joining virtually",           time:'5h ago'},
+    {member:'sara', text:'voted on 3 ideas — "Trivia night" is leading!',          time:'Yesterday'},
     {member:'tom',  text:'booked flights ? arriving Jul 18',                       time:'2 days ago'},
     {member:'marcus',text:'confirmed Piedmont Park Shelter B ? reserved all day',  time:'3 days ago'},
   ]
@@ -1369,7 +1411,7 @@ function renderGatherings() {
         '<button class="btn-primary" style="max-width:240px;margin:0 auto" id="first-gathering-btn">+ Plan a gathering</button>'+
       '</div>';
     var fg = document.getElementById('first-gathering-btn');
-    if (fg) fg.addEventListener('click', function(){ toast('Gathering creator coming soon!'); });
+    if (fg) fg.addEventListener('click', openCreateGathering);
   }
 }
 
@@ -2336,6 +2378,12 @@ function generateFlockId() {
 
 function saveFlockState() {
   try {
+    // Persist current flock's data back into FLOCKS object
+    if (currentFlockId && FLOCKS[currentFlockId]) {
+      FLOCKS[currentFlockId].gatherings = DATA.gatherings;
+      FLOCKS[currentFlockId].ideas = DATA.ideas;
+      FLOCKS[currentFlockId].activity = DATA.activity;
+    }
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
     localStorage.setItem('kinverly_current_flock', currentFlockId || '');
   } catch(e) {}
@@ -2360,14 +2408,35 @@ function switchToFlock(flockId) {
   if (!flock) return;
   var nameEl = document.getElementById('topbar-flock-name');
   if (nameEl) nameEl.textContent = flock.name;
+
+  // Load flock members
   if (flock.members && Object.keys(flock.members).length > 0) {
     DATA.members = Object.values(flock.members);
   }
+
+  // Load flock-specific gatherings and ideas, or start fresh
+  if (flock.gatherings && flock.gatherings.length > 0) {
+    DATA.gatherings = flock.gatherings;
+  } else {
+    DATA.gatherings = []; // fresh flock starts empty
+  }
+  if (flock.ideas && flock.ideas.length > 0) {
+    DATA.ideas = flock.ideas;
+  } else {
+    DATA.ideas = [];
+  }
+  if (flock.activity) {
+    DATA.activity = flock.activity;
+  } else {
+    DATA.activity = [];
+  }
+
   renderHome();
   renderGatherings();
   renderIdeas();
+  renderFairness();
   renderProfile();
-  toast(flock.emoji + ' Switched to ' + flock.name);
+  toast(flock.emoji + ' ' + flock.name);
 }
 
 function createFlock(name, emoji) {
@@ -2412,6 +2481,8 @@ function addMeToFlock(flockId) {
   flock.members[DATA.me.id] = me;
   if (flock.memberIds.indexOf(DATA.me.id) === -1) flock.memberIds.push(DATA.me.id);
   saveFlockState();
+  // Sync to Firestore so other members see this person appear
+  if (window.__saveMemberToFlock) window.__saveMemberToFlock(flockId, me);
 }
 
 async function saveFlockToFirebase(flock, creator) {
@@ -2436,7 +2507,7 @@ function hideFlockOverlay() {
   document.getElementById('flock-overlay').style.display = 'none';
 }
 
-var FLOCK_EMOJIS = ['?','?','?','?','?','?','?','?','?','?'];
+var FLOCK_EMOJIS = ['🏠','🌊','🏕','🎉','⭐','🌿','🦋','🔥','🌸','🎯'];
 
 function renderFlockWelcome() {
   var inner = document.getElementById('flock-inner');
@@ -2567,6 +2638,7 @@ function renderFlockJoin() {
 
   var ci = document.createElement('input');
   ci.className = 'code-input';
+  ci.id = 'jf-code-input';
   ci.style.cssText = 'width:100%;padding:14px;border-radius:12px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:24px;font-weight:800;font-family:monospace;letter-spacing:6px;text-transform:uppercase;outline:none;text-align:center;margin-bottom:4px;box-sizing:border-box;transition:border-color .15s';
   ci.placeholder = 'XXX-XXX';
   ci.maxLength = 7;
@@ -2644,19 +2716,37 @@ function showFlockSheet() {
             (flock.inviteCode ? ' &middot; <span style="font-family:monospace;font-weight:800;color:var(--brand)">'+flock.inviteCode+'</span>' : '')+
           '</div>'+
         '</div>'+
-        (flock.inviteCode ? '<button class="code-copy-sm" data-code="'+flock.inviteCode+'" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;flex-shrink:0;white-space:nowrap;margin-right:6px">Copy</button>' : '')+
+        (flock.inviteCode ? '<div style="display:flex;gap:4px;flex-shrink:0"><button class="code-copy-sm" data-code="'+flock.inviteCode+'" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;white-space:nowrap">Copy</button><button class="code-share-sm" data-code="'+flock.inviteCode+'" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;white-space:nowrap">Share</button></div>' : '')+
         (isActive ? '<div class="flock-list-check"><svg width="10" height="10" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' : '');
 
-      // Wire copy button (separate from item click)
+      // Wire copy button
       var copySmBtn = item.querySelector('.code-copy-sm');
       if (copySmBtn) {
         copySmBtn.addEventListener('click', function(e) {
           e.stopPropagation();
           var code = this.dataset.code;
           if (navigator.clipboard) navigator.clipboard.writeText(code);
-          this.textContent = '? Copied';
+          this.textContent = '✓ Copied';
           var btn = this;
           setTimeout(function(){ btn.textContent = 'Copy'; }, 2000);
+        });
+      }
+      // Wire share button
+      var shareSmBtn = item.querySelector('.code-share-sm');
+      if (shareSmBtn) {
+        shareSmBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var code = this.dataset.code;
+          var shareUrl = 'https://kinverly.com/?join=' + code;
+          var shareText = 'Join my Kinverly flock! Tap this link or enter code ' + code + ' at kinverly.com';
+          if (navigator.share) {
+            navigator.share({ title: 'Join Kinverly', text: shareText, url: shareUrl });
+          } else if (navigator.clipboard) {
+            navigator.clipboard.writeText(shareUrl);
+            this.textContent = '✓ Link copied!';
+            var btn = this;
+            setTimeout(function(){ btn.textContent = 'Share'; }, 2000);
+          }
         });
       }
 
@@ -2671,12 +2761,12 @@ function showFlockSheet() {
   var div = document.createElement('div'); div.style.cssText = 'height:1px;background:var(--border);margin:12px 0'; body.appendChild(div);
 
   var cb = document.createElement('button'); cb.className = 'btn-primary'; cb.style.marginBottom = '8px';
-  cb.innerHTML = '? Create a new flock';
+  cb.innerHTML = '✨ Create a new flock';
   cb.addEventListener('click', function() { document.getElementById('flock-sheet-overlay').classList.add('hidden'); showFlockOnboarding(); renderFlockCreate(); });
   body.appendChild(cb);
 
   var jb = document.createElement('button'); jb.className = 'btn-secondary';
-  jb.innerHTML = '? Join with invite code';
+  jb.innerHTML = '🔑 Join with invite code';
   jb.addEventListener('click', function() { document.getElementById('flock-sheet-overlay').classList.add('hidden'); showFlockOnboarding(); renderFlockJoin(); });
   body.appendChild(jb);
 
@@ -2698,10 +2788,123 @@ document.getElementById('flock-sheet-overlay').addEventListener('click', functio
   if (e.target === this) this.classList.add('hidden');
 });
 
+
+// ── CREATE GATHERING ────────────────────────────
+function openCreateGathering() {
+  var body = document.getElementById('create-gathering-body');
+  if (!body) return;
+
+  var types = [
+    {id:'planned', icon:'&#127881;', label:'Planned', sub:'Regular family gathering'},
+    {id:'bonus',   icon:'&#9889;',   label:'Bonus',   sub:'Spontaneous extra event'},
+    {id:'beach',   icon:'&#127958;', label:'Trip',    sub:'Multi-day trip or vacation'},
+    {id:'holiday', icon:'&#127978;', label:'Holiday', sub:'Holiday celebration'},
+  ];
+
+  body.innerHTML = '';
+  var selectedType = 'planned';
+
+  // Type selector
+  var tl = document.createElement('div'); tl.className = 'field-label-sm'; tl.textContent = 'Type'; body.appendChild(tl);
+  var tg = document.createElement('div'); tg.className = 'gathering-type-grid';
+  types.forEach(function(t) {
+    var card = document.createElement('div');
+    card.className = 'gtype-card' + (t.id === selectedType ? ' selected' : '');
+    card.innerHTML = '<div class="gtype-icon">' + t.icon + '</div><div class="gtype-label">' + t.label + '</div><div class="gtype-sub">' + t.sub + '</div>';
+    card.addEventListener('click', function() {
+      selectedType = t.id;
+      tg.querySelectorAll('.gtype-card').forEach(function(c){ c.classList.remove('selected'); });
+      card.classList.add('selected');
+    });
+    tg.appendChild(card);
+  });
+  body.appendChild(tg);
+
+  // Name
+  var nl = document.createElement('div'); nl.className = 'field-group';
+  nl.innerHTML = '<div class="field-label-sm">Name</div><input class="input-field" id="cg-name" type="text" placeholder="e.g. Summer Cookout, Beach Week...">';
+  body.appendChild(nl);
+
+  // Date row
+  var dr = document.createElement('div'); dr.className = 'field-group';
+  dr.innerHTML = '<div class="field-label-sm">Date</div><div class="date-row"><input class="input-field" id="cg-month" type="text" placeholder="Month (e.g. Jul)"><input class="input-field" id="cg-day" type="number" placeholder="Day" min="1" max="31"></div>';
+  body.appendChild(dr);
+
+  // Location
+  var ll = document.createElement('div'); ll.className = 'field-group';
+  ll.innerHTML = '<div class="field-label-sm">Location</div><input class="input-field" id="cg-location" type="text" placeholder="e.g. Atlanta, GA or TBD">';
+  body.appendChild(ll);
+
+  // Host
+  var hl = document.createElement('div'); hl.className = 'field-group';
+  var memberOpts = DATA.members.map(function(m){
+    return '<option value="'+m.id+'">'+m.name+'</option>';
+  }).join('');
+  hl.innerHTML = '<div class="field-label-sm">Host</div><select class="input-field" id="cg-host"><option value="">Select host...</option>' + memberOpts + '</select>';
+  body.appendChild(hl);
+
+  // Save button
+  var sb = document.createElement('button');
+  sb.className = 'btn-primary';
+  sb.style.marginTop = '8px';
+  sb.style.marginBottom = '32px';
+  sb.textContent = 'Add to calendar';
+  sb.addEventListener('click', function() {
+    var name = document.getElementById('cg-name').value.trim();
+    var month = document.getElementById('cg-month').value.trim();
+    var day = parseInt(document.getElementById('cg-day').value) || 1;
+    var location = document.getElementById('cg-location').value.trim() || 'TBD';
+    var host = document.getElementById('cg-host').value;
+
+    if (!name) { toast('Please enter a name'); return; }
+    if (!month) { toast('Please enter a month'); return; }
+
+    var id = 'g_' + Date.now().toString(36);
+    var newG = {
+      id: id, name: name, month: month, day: day,
+      location: location, host: host,
+      type: selectedType === 'bonus' ? 'bonus' : 'planned',
+      beachMode: selectedType === 'beach',
+      status: 'upcoming', theme: 'Planning starts now',
+      themePill: 'pill-amber', progress: 0,
+      attending: [], tasks: []
+    };
+
+    DATA.gatherings.unshift(newG);
+    saveFlockState();
+
+    document.getElementById('create-gathering-overlay').classList.add('hidden');
+    renderGatherings();
+    renderHome();
+    toast('&#127881; ' + name + ' added!');
+    showDetail(id);
+  });
+  body.appendChild(sb);
+
+  document.getElementById('create-gathering-overlay').classList.remove('hidden');
+}
+
+document.getElementById('create-gathering-close').addEventListener('click', function(){
+  document.getElementById('create-gathering-overlay').classList.add('hidden');
+});
+document.getElementById('create-gathering-overlay').addEventListener('click', function(e){
+  if (e.target === this) this.classList.add('hidden');
+});
+
 // -- BOOT -----------------------------------------
 (function init() {
   // Load flock state first
   loadFlockState();
+
+  // Check for invite code in URL (?join=XXX-XXX)
+  var urlParams = new URLSearchParams(window.location.search);
+  var joinCode = urlParams.get('join');
+  if (joinCode) {
+    // Store it to use after login
+    window._pendingJoinCode = joinCode.toUpperCase();
+    // Clean URL without reload
+    history.replaceState({}, '', '/');
+  }
 
   var isLoggedIn = restoreSession();
 
@@ -2816,6 +3019,37 @@ try {
 
   // Expose for flock join-by-code lookup
   window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion };
+
+  // Listen for flock member updates in real time
+  if (window._currentFlockListener) window._currentFlockListener();
+  var flockId = window.currentFlockId || localStorage.getItem('kinverly_current_flock');
+  if (flockId) {
+    window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
+      if (!snap.exists()) return;
+      var flockData = snap.data();
+      if (flockData.members) {
+        var members = Object.values(flockData.members);
+        if (members.length > 0) {
+          DATA.members = members;
+          if (window.FLOCKS && window.FLOCKS[flockId]) {
+            window.FLOCKS[flockId].members = flockData.members;
+            window.FLOCKS[flockId].memberIds = flockData.memberIds || members.map(function(m){ return m.id; });
+          }
+          renderHome();
+        }
+      }
+    });
+  }
+
+  // Save member to Firestore when they join a flock
+  window.__saveMemberToFlock = async function(flockId, member) {
+    try {
+      var update = {};
+      update['members.' + member.id] = member;
+      update['memberIds'] = arrayUnion(member.id);
+      await updateDoc(doc(db, 'flocks', flockId), update);
+    } catch(e) { console.warn('[Kinverly] Member save offline'); }
+  };
 
   seedIfEmpty();
   console.log('[Kinverly] Firebase connected');
