@@ -1067,6 +1067,50 @@ img,svg{display:block}
   color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:8px;
 }
+
+/* ── GATHER CREATOR SHEET ──────────────────────── */
+.gc-field-label{
+  font-size:11px;font-weight:800;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.06em;
+  margin-bottom:6px;margin-top:14px;display:block;
+}
+.gc-input{
+  width:100%;padding:12px 14px;border-radius:12px;
+  border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text1);
+  font-size:16px;font-weight:600;font-family:inherit;
+  outline:none;box-sizing:border-box;transition:border-color .15s;
+}
+.gc-input:focus{border-color:var(--brand2);}
+.gc-input::placeholder{color:var(--text3);font-weight:500;}
+.gc-err{font-size:12px;color:var(--red);font-weight:700;margin-top:4px;display:none;}
+.gc-type-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px;}
+.gc-type-btn{
+  border:1.5px solid var(--border);background:var(--surface2);
+  border-radius:12px;padding:11px 8px;text-align:center;
+  cursor:pointer;transition:all .15s;font-family:inherit;
+}
+.gc-type-btn .gc-type-icon{font-size:22px;display:block;margin-bottom:4px;}
+.gc-type-btn .gc-type-lbl{font-size:12px;font-weight:700;color:var(--text2);}
+.gc-type-btn.selected{border-color:var(--brand2);background:#ede8ff;}
+.gc-type-btn.selected .gc-type-lbl{color:var(--brand);}
+.gc-emoji-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+.gc-emoji-btn{
+  width:42px;height:42px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--surface2);
+  font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.gc-emoji-btn.selected{border-color:var(--brand2);background:#ede8ff;}
+.gc-save-btn{
+  width:100%;padding:14px;border-radius:14px;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  color:#fff;font-size:16px;font-weight:800;border:none;
+  cursor:pointer;margin-top:18px;font-family:"Fredoka One",cursive;
+  letter-spacing:.02em;transition:opacity .15s;
+}
+.gc-save-btn:active{opacity:.85;}
+.gc-hint{font-size:12px;color:var(--text3);margin-top:8px;text-align:center;line-height:1.5;}
 </style>
 </head>
 <body>
@@ -1541,7 +1585,7 @@ document.getElementById('view-gatherings-btn').addEventListener('click', functio
 
 // New gathering btn
 document.getElementById('new-gathering-btn').addEventListener('click', function(){
-  toast('Gathering creator coming soon!');
+  openGatherCreator();
 });
 
 // Add idea btn
@@ -4090,7 +4134,226 @@ try {
 } catch(e) {
   console.warn('[Kinverly] Firebase offline:', e.message);
 }
+
+// ── GATHER CREATOR ──────────────────────────────
+(function(){
+  var selEmoji = '🏠';
+  var selType  = 'in-person';
+
+  function openGatherCreator() {
+    // Populate host select with flock members
+    var hostSel = document.getElementById('gc-host');
+    hostSel.innerHTML = '<option value="me">Me</option><option value="rotating">Rotating — decide later</option>';
+    if (DATA && DATA.members) {
+      DATA.members.forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name;
+        hostSel.appendChild(opt);
+      });
+    }
+
+    // Reset form
+    document.getElementById('gc-name').value = '';
+    document.getElementById('gc-loc').value = '';
+    document.getElementById('gc-date').value = '';
+    document.getElementById('gc-theme').value = '';
+    document.getElementById('gc-name-err').style.display = 'none';
+
+    // Reset type selection
+    selType = 'in-person';
+    document.querySelectorAll('.gc-type-btn').forEach(function(b){
+      b.classList.toggle('selected', b.dataset.type === selType);
+    });
+
+    // Reset emoji selection
+    selEmoji = '🏠';
+    document.querySelectorAll('.gc-emoji-btn').forEach(function(b){
+      b.classList.toggle('selected', b.dataset.emoji === selEmoji);
+    });
+
+    document.getElementById('gather-overlay').classList.remove('hidden');
+    setTimeout(function(){ document.getElementById('gc-name').focus(); }, 300);
+  }
+
+  window.openGatherCreator = openGatherCreator;
+
+  // Close button
+  document.getElementById('gather-close').addEventListener('click', function(){
+    document.getElementById('gather-overlay').classList.add('hidden');
+  });
+
+  // Close on backdrop tap
+  document.getElementById('gather-overlay').addEventListener('click', function(e){
+    if (e.target === this) this.classList.add('hidden');
+  });
+
+  // Type buttons
+  document.querySelectorAll('.gc-type-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      selType = this.dataset.type;
+      document.querySelectorAll('.gc-type-btn').forEach(function(b){
+        b.classList.toggle('selected', b.dataset.type === selType);
+      });
+      // Show/hide location label hint
+      var locInput = document.getElementById('gc-loc');
+      if (selType === 'virtual') {
+        locInput.placeholder = 'Zoom, Meet, or FaceTime link…';
+      } else if (selType === 'hybrid') {
+        locInput.placeholder = 'Location + video link for remote folks…';
+      } else {
+        locInput.placeholder = 'City, address, or neighbourhood…';
+      }
+    });
+  });
+
+  // Emoji buttons
+  document.querySelectorAll('.gc-emoji-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      selEmoji = this.dataset.emoji;
+      document.querySelectorAll('.gc-emoji-btn').forEach(function(b){
+        b.classList.toggle('selected', b.dataset.emoji === selEmoji);
+      });
+    });
+  });
+
+  // Save
+  document.getElementById('gc-save').addEventListener('click', function(){
+    var name = document.getElementById('gc-name').value.trim();
+    if (!name) {
+      document.getElementById('gc-name-err').style.display = 'block';
+      document.getElementById('gc-name').focus();
+      return;
+    }
+    document.getElementById('gc-name-err').style.display = 'none';
+
+    var dateVal  = document.getElementById('gc-date').value;
+    var locVal   = document.getElementById('gc-loc').value.trim();
+    var themeVal = document.getElementById('gc-theme').value.trim();
+    var hostVal  = document.getElementById('gc-host').value;
+
+    // Parse date → month/day display strings
+    var monthStr = 'TBD', dayStr = '?';
+    if (dateVal) {
+      var d = new Date(dateVal + 'T12:00:00');
+      monthStr = d.toLocaleString('en-US', {month:'short'}).toUpperCase();
+      dayStr   = String(d.getDate());
+    }
+
+    // Resolve host label
+    var hostLabel = 'me';
+    if (hostVal === 'me') {
+      hostLabel = DATA.me ? DATA.me.id : 'me';
+    } else {
+      hostLabel = hostVal;
+    }
+
+    // Build a new gathering object matching DATA schema
+    var newId = 'g' + Date.now();
+    var newG = {
+      id:       newId,
+      name:     name,
+      month:    monthStr,
+      day:      dayStr,
+      location: locVal || 'TBD',
+      host:     hostLabel,
+      type:     'planned',
+      status:   dateVal ? 'planning' : 'planning',
+      theme:    themeVal || 'Gathering',
+      themePill:'pill-amber',
+      hybrid:   selType === 'hybrid',
+      virtual:  selType === 'virtual',
+      progress: 0,
+      emoji:    selEmoji,
+      attending:[],
+      tasks:    [],
+    };
+
+    // Add to DATA
+    if (!DATA.gatherings) DATA.gatherings = [];
+    DATA.gatherings.unshift(newG);
+
+    // Close sheet
+    document.getElementById('gather-overlay').classList.add('hidden');
+
+    // Refresh gatherings list if visible
+    if (document.getElementById('gatherings-list')) {
+      renderGatherings();
+    }
+
+    toast('Gathering added! Fill in the details anytime. 🎉');
+  });
+})();
+
 </script>
+
+
+<!-- GATHER CREATOR OVERLAY -->
+<div class="overlay hidden" id="gather-overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-title">Plan a gathering</div>
+      <button class="sheet-close" id="gather-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="gather-body">
+
+      <!-- Name -->
+      <label class="gc-field-label" for="gc-name">What are you calling it?</label>
+      <input class="gc-input" id="gc-name" type="text" placeholder="e.g. Summer Cookout, Holiday Weekend…" maxlength="60">
+      <div class="gc-err" id="gc-name-err">Give your gathering a name</div>
+
+      <!-- Type -->
+      <span class="gc-field-label">Type</span>
+      <div class="gc-type-row">
+        <button class="gc-type-btn selected" data-type="in-person">
+          <span class="gc-type-icon">📍</span>
+          <span class="gc-type-lbl">In person</span>
+        </button>
+        <button class="gc-type-btn" data-type="virtual">
+          <span class="gc-type-icon">💻</span>
+          <span class="gc-type-lbl">Virtual</span>
+        </button>
+        <button class="gc-type-btn" data-type="hybrid">
+          <span class="gc-type-icon">🌐</span>
+          <span class="gc-type-lbl">Hybrid</span>
+        </button>
+      </div>
+
+      <!-- Location -->
+      <label class="gc-field-label" for="gc-loc">Location or link</label>
+      <input class="gc-input" id="gc-loc" type="text" placeholder="City, address, or Zoom link…">
+
+      <!-- Date -->
+      <label class="gc-field-label" for="gc-date">Date</label>
+      <input class="gc-input" id="gc-date" type="date">
+      <div class="gc-hint" style="text-align:left;margin-top:4px;">Not sure yet? Leave blank — you can collect availability first.</div>
+
+      <!-- Theme -->
+      <label class="gc-field-label" for="gc-theme">Theme or vibe</label>
+      <input class="gc-input" id="gc-theme" type="text" placeholder="e.g. BBQ + games, beach week, holiday…" maxlength="40">
+
+      <!-- Emoji -->
+      <span class="gc-field-label">Pick an emoji</span>
+      <div class="gc-emoji-row" id="gc-emoji-row">
+        <button class="gc-emoji-btn" data-emoji="🏠">🏠</button><button class="gc-emoji-btn" data-emoji="🌊">🌊</button><button class="gc-emoji-btn" data-emoji="🏕">🏕</button><button class="gc-emoji-btn" data-emoji="🎉">🎉</button><button class="gc-emoji-btn" data-emoji="⭐">⭐</button><button class="gc-emoji-btn" data-emoji="🌿">🌿</button><button class="gc-emoji-btn" data-emoji="🦋">🦋</button><button class="gc-emoji-btn" data-emoji="🔥">🔥</button><button class="gc-emoji-btn" data-emoji="🌸">🌸</button><button class="gc-emoji-btn" data-emoji="🎯">🎯</button><button class="gc-emoji-btn" data-emoji="🏡">🏡</button><button class="gc-emoji-btn" data-emoji="🍂">🍂</button>
+      </div>
+
+      <!-- Who's hosting -->
+      <label class="gc-field-label" for="gc-host">Who's hosting?</label>
+      <select class="gc-input" id="gc-host">
+        <option value="me">Me</option>
+        <option value="rotating">Rotating — decide later</option>
+        <!-- members added by JS -->
+      </select>
+
+      <button class="gc-save-btn" id="gc-save">Add to gatherings ✨</button>
+      <p class="gc-hint">You can fill in tasks, RSVPs and more details after adding.</p>
+
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
