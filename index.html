@@ -914,6 +914,110 @@ img,svg{display:block}
   transition:all .15s;
 }
 .welcome-btn-outline:hover{border-color:rgba(255,255,255,0.45);color:#fff}
+
+/* ── RSVP SHEET ──────────────────────────────── */
+.rsvp-status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.rsvp-option{
+  border:2px solid var(--border);border-radius:14px;
+  padding:14px 8px;text-align:center;cursor:pointer;
+  transition:all .15s;background:var(--surface2);
+}
+.rsvp-option:hover{border-color:var(--brand2)}
+.rsvp-option.selected{border-color:var(--brand);border-width:2.5px;background:#ede8ff}
+.rsvp-option.selected-virtual{border-color:var(--blue);background:var(--blue-bg)}
+.rsvp-option.selected-no{border-color:var(--red);background:var(--red-bg)}
+.rsvp-icon{font-size:26px;margin-bottom:6px}
+.rsvp-label{font-size:11px;font-weight:800;color:var(--text1)}
+.rsvp-sub{font-size:10px;color:var(--text2);margin-top:2px}
+.rsvp-detail-section{animation:fadeUp .2s ease}
+.rsvp-member-status{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border)}
+.rsvp-member-status:last-child{border-bottom:none}
+.rsvp-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.rsvp-confirmed{background:var(--green)}
+.rsvp-virtual{background:var(--blue)}
+.rsvp-declined{background:var(--red)}
+.rsvp-pending{background:var(--text3)}
+
+/* ── TASK CLAIMING ───────────────────────────── */
+.task-detail-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center}
+.task-detail-overlay.hidden{display:none}
+.task-sheet{background:var(--surface);border-radius:22px 22px 0 0;width:100%;max-width:430px;padding:20px;animation:sheetUp .25s ease}
+.task-detail-title{font-size:17px;font-weight:800;color:var(--text1);margin-bottom:6px}
+.task-detail-owner{font-size:12px;color:var(--text2);margin-bottom:14px}
+.task-claim-btn{width:100%;padding:12px;border-radius:12px;background:var(--brand);color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;margin-bottom:8px;transition:background .15s}
+.task-claim-btn:hover{background:#2A1B52}
+.task-unclaim-btn{width:100%;padding:11px;border-radius:12px;background:transparent;color:var(--text2);font-size:13px;font-weight:700;border:1.5px solid var(--border);cursor:pointer}
+.task-done-btn{width:100%;padding:12px;border-radius:12px;background:var(--green);color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;margin-bottom:8px}
+.task-section-label{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 6px}
+
+/* ── GATHERING CHAT ──────────────────────────── */
+.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:300px}
+.chat-messages{flex:1;overflow-y:auto;padding:0 0 8px;-webkit-overflow-scrolling:touch}
+.chat-msg{display:flex;gap:8px;margin-bottom:12px;align-items:flex-start}
+.chat-msg.mine{flex-direction:row-reverse}
+.chat-bubble{max-width:72%;padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.5;color:var(--text1);background:var(--surface2);border:1px solid var(--border)}
+.chat-msg.mine .chat-bubble{background:var(--brand);color:#fff;border:none}
+.chat-meta{font-size:10px;color:var(--text3);margin-top:3px}
+.chat-msg.mine .chat-meta{text-align:right}
+.chat-input-row{display:flex;gap:8px;padding:10px 0 4px;border-top:1px solid var(--border);flex-shrink:0}
+.chat-input{flex:1;padding:10px 14px;border-radius:22px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.chat-input:focus{border-color:var(--brand)}
+.chat-send-btn{width:40px;height:40px;border-radius:50%;background:var(--brand);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s}
+.chat-send-btn:hover{background:#2A1B52}
+.chat-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;text-align:center;color:var(--text3)}
+.chat-empty-icon{font-size:36px;margin-bottom:10px}
+.chat-empty-text{font-size:13px;font-weight:700;color:var(--text2)}
+.chat-empty-sub{font-size:12px;margin-top:4px}
+.gathering-tabs{display:flex;border-bottom:1.5px solid var(--border);margin-bottom:14px;gap:0}
+.gtab{flex:1;padding:10px 4px;font-size:12px;font-weight:700;color:var(--text2);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s}
+.gtab.active{color:var(--brand);border-bottom-color:var(--brand)}
+
+/* ── PHOTO ALBUM ─────────────────────────────── */
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:14px}
+.photo-thumb{aspect-ratio:1;overflow:hidden;border-radius:6px;cursor:pointer;position:relative;background:var(--surface2)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;transition:transform .2s}
+.photo-thumb:hover img{transform:scale(1.05)}
+.photo-uploader{position:absolute;bottom:4px;left:4px;width:20px;height:20px;border-radius:50%;overflow:hidden;border:1.5px solid #fff}
+.photo-upload-btn{
+  aspect-ratio:1;border-radius:6px;border:2px dashed var(--border);
+  background:var(--surface2);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;cursor:pointer;
+  color:var(--text2);font-size:10px;font-weight:700;gap:4px;
+  transition:all .15s;
+}
+.photo-upload-btn:hover{border-color:var(--brand);color:var(--brand);background:#ede8ff}
+.photo-lightbox{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center}
+.photo-lightbox.hidden{display:none}
+.photo-lightbox img{max-width:94vw;max-height:85vh;border-radius:8px;object-fit:contain}
+.photo-lightbox-close{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.photo-lightbox-meta{position:absolute;bottom:24px;left:0;right:0;text-align:center;color:rgba(255,255,255,0.7);font-size:12px;font-weight:600}
+.photo-empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.photo-empty-icon{font-size:40px;margin-bottom:10px}
+
+/* ── GATHERING RECAP ─────────────────────────── */
+.recap-card{
+  background:linear-gradient(135deg,var(--brand) 0%,#5C4299 100%);
+  border-radius:var(--radius-lg);padding:24px;color:#fff;
+  position:relative;overflow:hidden;margin-bottom:14px;
+}
+.recap-eyebrow{font-size:10px;font-weight:800;color:rgba(240,192,48,.8);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.recap-title{font-family:'Fredoka One',cursive;font-size:28px;color:#fff;margin-bottom:2px}
+.recap-date{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:16px}
+.recap-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.recap-stat{background:rgba(255,255,255,.1);border-radius:10px;padding:10px;text-align:center}
+.recap-stat-n{font-size:22px;font-weight:300;color:#fff}
+.recap-stat-l{font-size:9px;color:rgba(240,192,48,.8);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.recap-photos-row{display:flex;gap:6px;margin-bottom:16px}
+.recap-photo{width:64px;height:64px;border-radius:10px;object-fit:cover;border:2px solid rgba(255,255,255,.3)}
+.recap-note-area{background:rgba(255,255,255,.1);border-radius:10px;padding:10px;font-size:12px;color:rgba(255,255,255,.8);font-style:italic;line-height:1.5}
+.recap-note-area.editable{cursor:text;border:1px dashed rgba(255,255,255,.3)}
+.recap-attendees{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
+.wrap-up-btn{
+  width:100%;padding:13px;border-radius:var(--radius-sm);
+  background:linear-gradient(135deg,var(--brand),#5C4299);
+  color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
 </style>
 </head>
 <body>
@@ -1126,6 +1230,34 @@ img,svg{display:block}
     </div>
     <div class="create-sheet-body" id="create-gathering-body"></div>
   </div>
+</div>
+
+
+<!-- RSVP OVERLAY -->
+<div class="overlay hidden" id="rsvp-overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-title" id="rsvp-sheet-title">Your RSVP</div>
+      <button class="sheet-close" id="rsvp-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="rsvp-body"></div>
+  </div>
+</div>
+
+
+<!-- TASK DETAIL OVERLAY -->
+<div class="task-detail-overlay hidden" id="task-detail-overlay">
+  <div class="task-sheet" id="task-sheet-body"></div>
+</div>
+
+
+<!-- PHOTO LIGHTBOX -->
+<div class="photo-lightbox hidden" id="photo-lightbox">
+  <button class="photo-lightbox-close" id="photo-lightbox-close">&#10005;</button>
+  <img id="photo-lightbox-img" src="" alt="">
+  <div class="photo-lightbox-meta" id="photo-lightbox-meta"></div>
 </div>
 
 <div id="toast"></div>
@@ -1479,7 +1611,63 @@ function renderGatherings() {
 // -- GATHERING DETAIL ----------------------------
 function renderDetail(g) {
   var el = document.getElementById('detail-content');
-  el.innerHTML = g.beachMode ? buildBeachDetail(g) : buildStandardDetail(g);
+
+  // Build tab container
+  el.innerHTML = '';
+
+  // Tabs
+  var tabs = document.createElement('div');
+  tabs.className = 'gathering-tabs';
+  var tabDefs = [
+    {id:'overview', label:'Overview'},
+    {id:'tasks',    label:'Tasks'},
+    {id:'chat',     label:'Chat'},
+    {id:'photos',   label:'Photos'},
+    {id:'recap',    label:'Recap'},
+  ];
+
+  var activeTab = 'overview';
+  var contentArea = document.createElement('div');
+  contentArea.id = 'gtab-content';
+
+  function showTab(tabId) {
+    activeTab = tabId;
+    tabs.querySelectorAll('.gtab').forEach(function(t){
+      t.classList.toggle('active', t.dataset.tab === tabId);
+    });
+    contentArea.innerHTML = '';
+    if (tabId === 'overview') {
+      contentArea.innerHTML = g.beachMode ? buildBeachDetail(g) : buildStandardDetail(g);
+      wireDetailButtons(g);
+    } else if (tabId === 'tasks') {
+      contentArea.innerHTML = buildTasksTab(g);
+      wireTaskButtons(g);
+    } else if (tabId === 'chat') {
+      contentArea.appendChild(renderGatheringChat(g.id));
+    } else if (tabId === 'photos') {
+      contentArea.appendChild(renderPhotoAlbum(g.id));
+    } else if (tabId === 'recap') {
+      contentArea.appendChild(renderGatheringRecap(g.id));
+    }
+  }
+
+  tabDefs.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.className = 'gtab' + (t.id === activeTab ? ' active' : '');
+    btn.dataset.tab = t.id;
+    btn.textContent = t.label;
+    btn.addEventListener('click', function(){ showTab(t.id); });
+    tabs.appendChild(btn);
+  });
+
+  el.appendChild(tabs);
+  el.appendChild(contentArea);
+
+  // Show overview by default
+  showTab('overview');
+}
+
+function wireDetailButtons(g) {
 
   // Wire task checkboxes
   if (g.tasks) {
@@ -2995,6 +3183,682 @@ document.getElementById('create-gathering-overlay').addEventListener('click', fu
   if (e.target === this) this.classList.add('hidden');
 });
 
+
+// ════════════════════════════════════════════════
+//  FEATURE 3: RSVP FLOW
+// ════════════════════════════════════════════════
+
+var rsvpData = {}; // gId -> { memberId -> {status, guests, dietary, travelFrom, travelTo} }
+
+function openRSVP(gatheringId) {
+  var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
+  if (!g) return;
+  var me = DATA.me;
+  var myRsvp = (rsvpData[gatheringId] && rsvpData[gatheringId][me.id]) || {};
+
+  document.getElementById('rsvp-sheet-title').textContent = g.name;
+  var body = document.getElementById('rsvp-body');
+
+  // Current RSVP status
+  var currentStatus = myRsvp.status || '';
+
+  body.innerHTML = '';
+
+  // Status options
+  var statusLabel = document.createElement('div');
+  statusLabel.className = 'field-label';
+  statusLabel.style.marginBottom = '10px';
+  statusLabel.textContent = 'Are you coming?';
+  body.appendChild(statusLabel);
+
+  var grid = document.createElement('div');
+  grid.className = 'rsvp-status-grid';
+
+  var options = [
+    {id:'yes',      icon:'&#127881;', label:'In person', sub:'I will be there!', selClass:'selected'},
+    {id:'virtual',  icon:'&#128187;', label:'Virtually', sub:'Joining by video',  selClass:'selected-virtual'},
+    {id:'no',       icon:'&#128148;', label:'Cannot make it', sub:'Will be missed', selClass:'selected-no'},
+  ];
+
+  var selectedStatus = currentStatus;
+
+  options.forEach(function(opt) {
+    var card = document.createElement('div');
+    card.className = 'rsvp-option' + (currentStatus === opt.id ? ' ' + opt.selClass : '');
+    card.innerHTML = '<div class="rsvp-icon">' + opt.icon + '</div><div class="rsvp-label">' + opt.label + '</div><div class="rsvp-sub">' + opt.sub + '</div>';
+    card.addEventListener('click', function() {
+      selectedStatus = opt.id;
+      grid.querySelectorAll('.rsvp-option').forEach(function(c){
+        c.className = 'rsvp-option';
+      });
+      card.className = 'rsvp-option ' + opt.selClass;
+      renderRsvpDetails(body, detailSection, opt.id, myRsvp);
+    });
+    grid.appendChild(card);
+  });
+  body.appendChild(grid);
+
+  // Detail section
+  var detailSection = document.createElement('div');
+  detailSection.id = 'rsvp-detail-section';
+  body.appendChild(detailSection);
+
+  if (currentStatus) {
+    renderRsvpDetails(body, detailSection, currentStatus, myRsvp);
+  }
+
+  // Save button
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.style.marginBottom = '32px';
+  saveBtn.textContent = 'Save RSVP';
+  saveBtn.addEventListener('click', function() {
+    if (!selectedStatus) { toast('Please select your attendance status'); return; }
+
+    var guestsEl = document.getElementById('rsvp-guests');
+    var dietaryEl = document.getElementById('rsvp-dietary');
+    var fromEl = document.getElementById('rsvp-from');
+    var toEl = document.getElementById('rsvp-to');
+
+    var rsvp = {
+      status: selectedStatus,
+      memberName: me.name,
+      memberAnimal: me.animal,
+      guests: guestsEl ? parseInt(guestsEl.value) || 0 : 0,
+      dietary: dietaryEl ? dietaryEl.value.trim() : '',
+      travelFrom: fromEl ? fromEl.value.trim() : '',
+      travelTo: toEl ? toEl.value.trim() : '',
+      updatedAt: Date.now()
+    };
+
+    if (!rsvpData[gatheringId]) rsvpData[gatheringId] = {};
+    rsvpData[gatheringId][me.id] = rsvp;
+
+    // Update gathering attending list
+    var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
+    if (gIdx >= 0) {
+      var attending = DATA.gatherings[gIdx].attending || [];
+      if (selectedStatus === 'yes' || selectedStatus === 'virtual') {
+        if (attending.indexOf(me.id) === -1) attending.push(me.id);
+      } else {
+        attending = attending.filter(function(id){ return id !== me.id; });
+      }
+      DATA.gatherings[gIdx].attending = attending;
+      DATA.gatherings[gIdx].mode = selectedStatus === 'virtual' ? 'virtual' : 'in-person';
+      saveFlockState();
+    }
+
+    // Save to Firestore
+    if (window.__db && window.__firestoreHelpers) {
+      var h = window.__firestoreHelpers;
+      var update = {};
+      update['rsvps.' + me.id] = rsvp;
+      if (selectedStatus === 'yes' || selectedStatus === 'virtual') {
+        update['attending'] = DATA.gatherings[gIdx] ? DATA.gatherings[gIdx].attending : [];
+      }
+      h.updateDoc(h.doc(window.__db, 'gatherings', gatheringId), update)
+        .catch(function(e){ console.warn('[Kinverly] RSVP save offline'); });
+    }
+
+    document.getElementById('rsvp-overlay').classList.add('hidden');
+    renderDetail(DATA.gatherings.find(function(x){ return x.id === gatheringId; }));
+
+    var msg = selectedStatus === 'yes' ? 'RSVP confirmed! See you there &#127881;' :
+              selectedStatus === 'virtual' ? 'RSVP saved! Joining virtually &#128187;' :
+              'RSVP saved. You will be missed &#128148;';
+    toast(msg);
+  });
+  body.appendChild(saveBtn);
+
+  document.getElementById('rsvp-overlay').classList.remove('hidden');
+}
+
+function renderRsvpDetails(body, section, status, existing) {
+  section.innerHTML = '';
+  section.className = 'rsvp-detail-section';
+
+  if (status === 'no') {
+    var note = document.createElement('div');
+    note.style.cssText = 'background:var(--red-bg);border-radius:12px;padding:12px;font-size:13px;color:var(--red);font-weight:600;text-align:center;margin-bottom:12px';
+    note.textContent = 'We will miss you! Hit save to let the host know.';
+    section.appendChild(note);
+    return;
+  }
+
+  var fields = [
+    {id:'rsvp-guests',   label:'Additional guests',    type:'number', placeholder:'0', val:existing.guests||''},
+    {id:'rsvp-dietary',  label:'Dietary notes',        type:'text',   placeholder:'e.g. vegetarian, nut allergy', val:existing.dietary||''},
+    {id:'rsvp-from',     label:'Traveling from',       type:'text',   placeholder:'e.g. Chicago, IL', val:existing.travelFrom||DATA.me.location||''},
+    {id:'rsvp-to',       label:'Arrival date',         type:'text',   placeholder:'e.g. Jul 18', val:existing.travelTo||''},
+  ];
+
+  if (status === 'virtual') {
+    fields = fields.slice(0,2); // Only guests + dietary for virtual
+  }
+
+  fields.forEach(function(f) {
+    var wrap = document.createElement('div');
+    wrap.className = 'field-group';
+    wrap.style.marginBottom = '12px';
+    var lbl = document.createElement('div');
+    lbl.className = 'field-label';
+    lbl.style.cssText = 'font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+    lbl.textContent = f.label;
+    var inp = document.createElement('input');
+    inp.className = 'input-field';
+    inp.type = f.type;
+    inp.id = f.id;
+    inp.placeholder = f.placeholder;
+    inp.value = f.val;
+    if (f.type === 'number') { inp.min = '0'; inp.max = '20'; inp.style.width = '80px'; }
+    wrap.appendChild(lbl);
+    wrap.appendChild(inp);
+    section.appendChild(wrap);
+  });
+}
+
+document.getElementById('rsvp-close').addEventListener('click', function(){
+  document.getElementById('rsvp-overlay').classList.add('hidden');
+});
+document.getElementById('rsvp-overlay').addEventListener('click', function(e){
+  if (e.target === this) this.classList.add('hidden');
+});
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 4: TASK CLAIMING
+// ════════════════════════════════════════════════
+
+function openTaskDetail(gatheringId, taskId) {
+  var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
+  if (!g) return;
+  var task = (g.tasks||[]).find(function(t){ return t.id === taskId; });
+  if (!task) return;
+
+  var me = DATA.me;
+  var isClaimer = task.claimedBy === me.id;
+  var isHost = g.host === me.id;
+  var isClaimed = !!task.claimedBy;
+  var claimer = isClaimed ? getMember(task.claimedBy) : null;
+
+  var overlay = document.getElementById('task-detail-overlay');
+  var body = document.getElementById('task-sheet-body');
+
+  body.innerHTML = '';
+
+  // Close handle
+  var handle = document.createElement('div');
+  handle.style.cssText = 'width:36px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 16px';
+  body.appendChild(handle);
+
+  // Title
+  var title = document.createElement('div');
+  title.className = 'task-detail-title';
+  title.textContent = task.title;
+  body.appendChild(title);
+
+  // Owner / note
+  var meta = document.createElement('div');
+  meta.className = 'task-detail-owner';
+  meta.textContent = task.note || '';
+  body.appendChild(meta);
+
+  // Status
+  var statusEl = document.createElement('div');
+  statusEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:10px 12px;background:var(--surface2);border-radius:10px';
+
+  if (task.done) {
+    statusEl.innerHTML = '<span style="font-size:16px">&#10003;</span><span style="font-size:13px;font-weight:700;color:var(--green)">Completed!</span>';
+  } else if (isClaimed) {
+    statusEl.innerHTML = makeAvSvg(claimer ? claimer.animal : 'bear', 28) +
+      '<div><div style="font-size:12px;font-weight:800;color:var(--text1)">Claimed by ' + (claimer ? claimer.name : 'someone') + '</div>' +
+      '<div style="font-size:11px;color:var(--text2)">Working on it</div></div>';
+  } else {
+    statusEl.innerHTML = '<span style="font-size:16px">&#128203;</span><span style="font-size:13px;font-weight:700;color:var(--text2)">Unclaimed</span>';
+  }
+  body.appendChild(statusEl);
+
+  // Action buttons
+  if (!task.done) {
+    if (!isClaimed) {
+      var claimBtn = document.createElement('button');
+      claimBtn.className = 'task-claim-btn';
+      claimBtn.textContent = 'Claim this task';
+      claimBtn.addEventListener('click', function() {
+        task.claimedBy = me.id;
+        task.claimedName = me.name;
+        saveTask(gatheringId, g.tasks);
+        overlay.classList.add('hidden');
+        renderDetail(g);
+        toast('Task claimed! &#128203;');
+      });
+      body.appendChild(claimBtn);
+    }
+
+    if (isClaimer || isHost) {
+      var doneBtn = document.createElement('button');
+      doneBtn.className = 'task-done-btn';
+      doneBtn.textContent = 'Mark as complete';
+      doneBtn.addEventListener('click', function() {
+        task.done = true;
+        saveTask(gatheringId, g.tasks);
+        overlay.classList.add('hidden');
+        renderDetail(g);
+        toast('Task complete! &#127881;');
+      });
+      body.appendChild(doneBtn);
+
+      if (isClaimer) {
+        var unclaimBtn = document.createElement('button');
+        unclaimBtn.className = 'task-unclaim-btn';
+        unclaimBtn.textContent = 'Un-claim this task';
+        unclaimBtn.addEventListener('click', function() {
+          delete task.claimedBy;
+          delete task.claimedName;
+          saveTask(gatheringId, g.tasks);
+          overlay.classList.add('hidden');
+          renderDetail(g);
+          toast('Task released');
+        });
+        body.appendChild(unclaimBtn);
+      }
+    }
+  } else {
+    if (isClaimer || isHost) {
+      var reopenBtn = document.createElement('button');
+      reopenBtn.className = 'task-unclaim-btn';
+      reopenBtn.textContent = 'Reopen task';
+      reopenBtn.addEventListener('click', function() {
+        task.done = false;
+        saveTask(gatheringId, g.tasks);
+        overlay.classList.add('hidden');
+        renderDetail(g);
+        toast('Task reopened');
+      });
+      body.appendChild(reopenBtn);
+    }
+  }
+
+  // Close on background tap
+  overlay.classList.remove('hidden');
+  overlay.addEventListener('click', function handler(e) {
+    if (e.target === overlay) {
+      overlay.classList.add('hidden');
+      overlay.removeEventListener('click', handler);
+    }
+  });
+}
+
+function saveTask(gatheringId, tasks) {
+  var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
+  if (gIdx >= 0) DATA.gatherings[gIdx].tasks = tasks;
+  saveFlockState();
+  if (window.__saveTask) window.__saveTask(gatheringId, tasks);
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 6: GATHERING CHAT
+// ════════════════════════════════════════════════
+
+var chatListeners = {}; // gatheringId -> unsubscribe fn
+
+function renderGatheringChat(gatheringId) {
+  var wrap = document.createElement('div');
+  wrap.className = 'chat-wrap';
+
+  var msgList = document.createElement('div');
+  msgList.className = 'chat-messages';
+  msgList.id = 'chat-messages-' + gatheringId;
+  wrap.appendChild(msgList);
+
+  // Input row
+  var inputRow = document.createElement('div');
+  inputRow.className = 'chat-input-row';
+  var input = document.createElement('input');
+  input.className = 'chat-input';
+  input.placeholder = 'Message the flock...';
+  input.maxLength = 500;
+  var sendBtn = document.createElement('button');
+  sendBtn.className = 'chat-send-btn';
+  sendBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>';
+
+  function sendMessage() {
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    var msg = {
+      id: 'msg_' + Date.now().toString(36),
+      memberId: DATA.me.id,
+      memberName: DATA.me.name,
+      memberAnimal: DATA.me.animal,
+      text: text,
+      sentAt: Date.now()
+    };
+    // Optimistic local add
+    appendChatMessage(msgList, msg);
+    msgList.scrollTop = msgList.scrollHeight;
+
+    // Save to Firestore
+    if (window.__db && window.__firestoreHelpers) {
+      var h = window.__firestoreHelpers;
+      h.setDoc(
+        h.doc(h.collection(window.__db, 'gatherings', gatheringId, 'messages'), msg.id),
+        msg
+      ).catch(function(e){ console.warn('[Kinverly] Chat save offline'); });
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', function(e){ if (e.key === 'Enter') sendMessage(); });
+
+  inputRow.appendChild(input);
+  inputRow.appendChild(sendBtn);
+  wrap.appendChild(inputRow);
+
+  // Load messages
+  loadChatMessages(gatheringId, msgList);
+
+  return wrap;
+}
+
+function appendChatMessage(container, msg) {
+  var isMe = msg.memberId === DATA.me.id;
+  var el = document.createElement('div');
+  el.className = 'chat-msg' + (isMe ? ' mine' : '');
+  el.innerHTML =
+    (!isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '') +
+    '<div>' +
+      '<div class="chat-bubble">' + escapeHtml(msg.text) + '</div>' +
+      '<div class="chat-meta">' + (isMe ? 'You' : msg.memberName) + ' &middot; ' + formatTime(msg.sentAt) + '</div>' +
+    '</div>' +
+    (isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '');
+  container.appendChild(el);
+}
+
+function loadChatMessages(gatheringId, container) {
+  container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
+
+  if (!window.__db) return;
+
+  // Unsubscribe any existing listener
+  if (chatListeners[gatheringId]) chatListeners[gatheringId]();
+
+  try {
+    var h = window.__firestoreHelpers;
+    var msgsRef = h.collection(window.__db, 'gatherings', gatheringId, 'messages');
+    chatListeners[gatheringId] = h.onSnapshot(
+      h.query(msgsRef, h.orderBy ? h.orderBy('sentAt') : msgsRef),
+      function(snap) {
+        if (snap.empty) return;
+        container.innerHTML = '';
+        snap.forEach(function(doc) {
+          appendChatMessage(container, doc.data());
+        });
+        container.scrollTop = container.scrollHeight;
+      }
+    );
+  } catch(e) {
+    console.warn('[Kinverly] Chat listener error:', e.message);
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatTime(ts) {
+  var d = new Date(ts);
+  var now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+  return d.toLocaleDateString([], {month:'short', day:'numeric'});
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 5: PHOTO ALBUM
+// ════════════════════════════════════════════════
+
+function renderPhotoAlbum(gatheringId) {
+  var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
+  var photos = (g && g.photos) || [];
+
+  var wrap = document.createElement('div');
+
+  // Upload button + grid
+  var grid = document.createElement('div');
+  grid.className = 'photo-grid';
+  grid.id = 'photo-grid-' + gatheringId;
+
+  // Add photo button
+  var addBtn = document.createElement('div');
+  addBtn.className = 'photo-upload-btn';
+  addBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Add photo</span>';
+
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.multiple = true;
+  fileInput.style.display = 'none';
+  fileInput.addEventListener('change', function() {
+    handlePhotoUpload(gatheringId, fileInput.files, grid);
+  });
+
+  addBtn.addEventListener('click', function(){ fileInput.click(); });
+  grid.appendChild(addBtn);
+
+  // Existing photos
+  if (photos.length === 0) {
+    var empty = document.createElement('div');
+    empty.className = 'photo-empty';
+    empty.style.gridColumn = '1/-1';
+    empty.innerHTML = '<div class="photo-empty-icon">&#128247;</div><div style="font-size:13px;font-weight:700;color:var(--text2)">No photos yet</div><div style="font-size:12px;color:var(--text3);margin-top:4px">Be the first to add a memory!</div>';
+    grid.appendChild(empty);
+  } else {
+    photos.forEach(function(photo, idx) {
+      grid.appendChild(buildPhotoThumb(photo, idx, photos));
+    });
+  }
+
+  wrap.appendChild(fileInput);
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function buildPhotoThumb(photo, idx, allPhotos) {
+  var thumb = document.createElement('div');
+  thumb.className = 'photo-thumb';
+  var img = document.createElement('img');
+  img.src = photo.url || photo.dataUrl || '';
+  img.alt = '';
+  img.loading = 'lazy';
+  var uploaderAv = document.createElement('div');
+  uploaderAv.className = 'photo-uploader';
+  uploaderAv.innerHTML = makeAvSvg(photo.uploaderAnimal || 'bear', 20);
+  thumb.appendChild(img);
+  thumb.appendChild(uploaderAv);
+  thumb.addEventListener('click', function(){
+    openPhotoLightbox(photo, allPhotos, idx);
+  });
+  return thumb;
+}
+
+function openPhotoLightbox(photo, allPhotos, idx) {
+  var lb = document.getElementById('photo-lightbox');
+  var lbImg = document.getElementById('photo-lightbox-img');
+  var lbMeta = document.getElementById('photo-lightbox-meta');
+  lbImg.src = photo.url || photo.dataUrl || '';
+  lbMeta.textContent = 'Added by ' + (photo.uploaderName || 'someone') + ' · ' + formatTime(photo.uploadedAt || Date.now());
+  lb.classList.remove('hidden');
+}
+
+document.getElementById('photo-lightbox-close').addEventListener('click', function(){
+  document.getElementById('photo-lightbox').classList.add('hidden');
+});
+document.getElementById('photo-lightbox').addEventListener('click', function(e){
+  if (e.target === this) this.classList.add('hidden');
+});
+
+function handlePhotoUpload(gatheringId, files, grid) {
+  if (!files || !files.length) return;
+  var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
+  if (gIdx < 0) return;
+  if (!DATA.gatherings[gIdx].photos) DATA.gatherings[gIdx].photos = [];
+
+  Array.from(files).forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var photo = {
+        id: 'photo_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+        dataUrl: e.target.result,
+        uploaderName: DATA.me.name,
+        uploaderAnimal: DATA.me.animal,
+        uploaderId: DATA.me.id,
+        uploadedAt: Date.now(),
+        gatheringId: gatheringId
+      };
+
+      DATA.gatherings[gIdx].photos.push(photo);
+      saveFlockState();
+
+      // Remove empty state if present
+      var empty = grid.querySelector('.photo-empty');
+      if (empty) empty.parentNode.removeChild(empty);
+
+      // Add thumb before the add button
+      var addBtn = grid.querySelector('.photo-upload-btn');
+      var photos = DATA.gatherings[gIdx].photos;
+      var thumb = buildPhotoThumb(photo, photos.length-1, photos);
+      grid.insertBefore(thumb, addBtn);
+
+      toast('Photo added! &#127881;');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 7: POST-GATHERING RECAP
+// ════════════════════════════════════════════════
+
+function renderGatheringRecap(gatheringId) {
+  var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
+  if (!g) return document.createElement('div');
+
+  var attending = (g.attending || []).map(getMember).filter(Boolean);
+  var photos = (g.photos || []).slice(0, 4);
+  var recap = g.recap || {};
+
+  var wrap = document.createElement('div');
+
+  // Recap card
+  var card = document.createElement('div');
+  card.className = 'recap-card';
+  card.id = 'recap-card-' + gatheringId;
+
+  // Eyebrow
+  var eyebrow = document.createElement('div');
+  eyebrow.className = 'recap-eyebrow';
+  eyebrow.textContent = 'Gathering recap';
+  card.appendChild(eyebrow);
+
+  // Title
+  var title = document.createElement('div');
+  title.className = 'recap-title';
+  title.textContent = g.name;
+  card.appendChild(title);
+
+  var dateEl = document.createElement('div');
+  dateEl.className = 'recap-date';
+  dateEl.textContent = (g.month || '') + ' ' + (g.day || '') + ' · ' + (g.location || '');
+  card.appendChild(dateEl);
+
+  // Stats
+  var stats = document.createElement('div');
+  stats.className = 'recap-stats';
+  var statItems = [
+    {n: attending.length, l: 'attended'},
+    {n: (g.tasks||[]).filter(function(t){return t.done}).length, l: 'tasks done'},
+    {n: photos.length, l: 'photos'},
+  ];
+  statItems.forEach(function(s) {
+    var st = document.createElement('div');
+    st.className = 'recap-stat';
+    st.innerHTML = '<div class="recap-stat-n">' + s.n + '</div><div class="recap-stat-l">' + s.l + '</div>';
+    stats.appendChild(st);
+  });
+  card.appendChild(stats);
+
+  // Attendee avatars
+  if (attending.length > 0) {
+    var avRow = document.createElement('div');
+    avRow.className = 'recap-attendees';
+    attending.forEach(function(m) {
+      var av = document.createElement('div');
+      av.style.cssText = 'width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.3)';
+      av.innerHTML = makeAvSvg(m.animal, 36);
+      avRow.appendChild(av);
+    });
+    card.appendChild(avRow);
+  }
+
+  // Photos row
+  if (photos.length > 0) {
+    var photoRow = document.createElement('div');
+    photoRow.className = 'recap-photos-row';
+    photos.forEach(function(p) {
+      var img = document.createElement('img');
+      img.className = 'recap-photo';
+      img.src = p.dataUrl || p.url || '';
+      photoRow.appendChild(img);
+    });
+    card.appendChild(photoRow);
+  }
+
+  // Host note
+  var noteWrap = document.createElement('div');
+  var noteArea = document.createElement('div');
+  noteArea.className = 'recap-note-area' + (recap.note ? '' : ' editable');
+  noteArea.contentEditable = 'true';
+  noteArea.setAttribute('data-placeholder', 'Add a note for next time...');
+  noteArea.textContent = recap.note || '';
+  noteArea.style.minHeight = '40px';
+  noteArea.addEventListener('blur', function() {
+    var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
+    if (gIdx >= 0) {
+      if (!DATA.gatherings[gIdx].recap) DATA.gatherings[gIdx].recap = {};
+      DATA.gatherings[gIdx].recap.note = noteArea.textContent.trim();
+      saveFlockState();
+    }
+  });
+  noteWrap.appendChild(noteArea);
+  card.appendChild(noteWrap);
+
+  wrap.appendChild(card);
+
+  // Share button
+  var shareBtn = document.createElement('button');
+  shareBtn.className = 'btn-secondary';
+  shareBtn.style.marginBottom = '8px';
+  shareBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share recap';
+  shareBtn.addEventListener('click', function() {
+    var text = g.name + ' recap: ' + attending.length + ' people, ' + (g.month||'') + ' ' + (g.day||'') + '. Adventure is better together! kinverly.com';
+    if (navigator.share) {
+      navigator.share({ title: g.name + ' Recap', text: text, url: 'https://kinverly.com' });
+    } else {
+      navigator.clipboard && navigator.clipboard.writeText(text);
+      toast('Recap copied to clipboard!');
+    }
+  });
+  wrap.appendChild(shareBtn);
+
+  return wrap;
+}
+
 // -- BOOT -----------------------------------------
 (function init() {
   // Load flock state first
@@ -3052,7 +3916,7 @@ document.getElementById('create-gathering-overlay').addEventListener('click', fu
 ═══════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion }
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion, orderBy }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 var firebaseConfig = {
@@ -3122,7 +3986,7 @@ try {
   });
 
   // Expose for flock join-by-code lookup
-  window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion };
+  window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion, orderBy, onSnapshot };
 
   // Listen for flock member updates in real time
   if (window._currentFlockListener) window._currentFlockListener();
