@@ -721,6 +721,98 @@ img,svg{display:block}
 .field-label{font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .field-label-opt{font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0}
 .divider{height:1px;background:var(--border);margin:14px 0}
+
+/* ═══════════════════════════════════════════════
+   FLOCK SCREENS
+═══════════════════════════════════════════════ */
+.flock-logo{font-family:'Fredoka One',cursive;font-size:38px;color:var(--gold);margin-bottom:4px;text-align:center}
+.flock-tagline{font-size:10px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.12em;text-transform:uppercase;margin-bottom:24px;text-align:center}
+.flock-koro{width:70px;height:70px;border-radius:50%;overflow:hidden;border:3px solid var(--gold);margin:0 auto 20px}
+.flock-prompt{font-family:'Fredoka One',cursive;font-size:22px;color:#fff;margin-bottom:6px;text-align:center}
+.flock-sub{font-size:13px;color:rgba(255,255,255,.5);font-weight:600;margin-bottom:20px;text-align:center;line-height:1.5}
+
+.flock-big-btn{
+  width:100%;padding:14px;border-radius:14px;
+  display:flex;align-items:center;gap:14px;
+  cursor:pointer;border:2px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.08);
+  margin-bottom:10px;transition:all .15s;text-align:left;
+}
+.flock-big-btn:hover{border-color:var(--gold);background:rgba(255,255,255,.14)}
+.flock-big-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.flock-big-title{font-size:15px;font-weight:800;color:#fff}
+.flock-big-sub{font-size:12px;color:rgba(255,255,255,.5);margin-top:2px}
+
+.flock-field-label{font-size:11px;font-weight:800;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.flock-input{
+  width:100%;padding:13px 16px;border-radius:12px;
+  border:2px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.1);color:#fff;
+  font-size:16px;font-weight:600;font-family:'Nunito',sans-serif;
+  outline:none;transition:border-color .15s;margin-bottom:4px;
+}
+.flock-input:focus{border-color:var(--gold)}
+.flock-input::placeholder{color:rgba(255,255,255,.3);font-weight:400}
+.flock-err{display:none;color:var(--gold);font-size:12px;font-weight:700;margin-bottom:10px}
+
+.flock-btn{
+  width:100%;padding:13px;border-radius:12px;
+  background:var(--gold);color:#1E1433;
+  font-size:15px;font-weight:800;border:none;
+  margin-top:6px;cursor:pointer;transition:background .15s;
+}
+.flock-btn:hover{background:#e0b020}
+.flock-btn-outline{
+  width:100%;padding:12px;border-radius:12px;
+  background:transparent;color:rgba(255,255,255,.6);
+  font-size:14px;font-weight:700;
+  border:2px solid rgba(255,255,255,.15);
+  margin-top:8px;cursor:pointer;transition:all .15s;
+}
+.flock-btn-outline:hover{border-color:rgba(255,255,255,.4);color:#fff}
+
+.code-display{
+  background:rgba(0,0,0,.25);border-radius:14px;
+  padding:20px;text-align:center;margin:16px 0;
+  border:2px solid rgba(240,192,48,.3);
+}
+.code-label{font-size:11px;font-weight:800;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.code-value{font-family:monospace;font-size:32px;font-weight:700;color:var(--gold);letter-spacing:6px}
+.code-copy{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(240,192,48,.15);color:var(--gold);
+  border:1px solid rgba(240,192,48,.3);border-radius:8px;
+  padding:6px 14px;font-size:12px;font-weight:800;
+  cursor:pointer;margin-top:10px;font-family:'Nunito',sans-serif;
+}
+
+.code-input-row{display:flex;gap:6px;margin-bottom:4px}
+.code-input{
+  flex:1;padding:13px 16px;border-radius:12px;
+  border:2px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.1);color:#fff;
+  font-size:20px;font-weight:800;font-family:monospace;
+  letter-spacing:4px;text-transform:uppercase;
+  outline:none;transition:border-color .15s;text-align:center;
+}
+.code-input:focus{border-color:var(--gold)}
+.code-input::placeholder{color:rgba(255,255,255,.25);letter-spacing:0;font-size:14px;font-weight:400}
+
+/* Flock sheet (switcher) */
+.flock-list-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px;border-radius:12px;
+  border:1.5px solid var(--border);
+  margin-bottom:8px;cursor:pointer;
+  transition:all .15s;background:var(--surface);
+}
+.flock-list-item:hover{border-color:var(--brand2)}
+.flock-list-item.active{border-color:var(--brand);border-width:2px;background:#ede8ff}
+.flock-list-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--surface2)}
+.flock-list-name{font-size:14px;font-weight:800;color:var(--text1)}
+.flock-list-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.flock-list-check{width:20px;height:20px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;margin-left:auto;flex-shrink:0}
+
 </style>
 </head>
 <body>
@@ -733,7 +825,15 @@ img,svg{display:block}
 <!-- ═══════════════ APP ═══════════════ -->
 <div id="app">
   <header class="topbar">
-    <div class="topbar-logo">Kinverly<span>.</span></div>
+    <div class="topbar-left" id="topbar-flock-btn" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:10px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+      <div class="topbar-logo">Kinverly<span>.</span></div>
+      <div style="display:flex;flex-direction:column;margin-left:2px">
+        <div id="topbar-flock-name" style="font-size:10px;font-weight:700;color:rgba(240,192,48,0.8);line-height:1;letter-spacing:.02em">My Flock</div>
+        <div style="display:flex;align-items:center;gap:3px;margin-top:1px">
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><polyline points="2,3 5,7 8,3" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+    </div>
     <div class="topbar-right">
       <button class="notif-btn" id="notif-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -943,14 +1043,14 @@ var DATA = {
     ]
   },
   members:[
-    {id:'sara',  name:'Sara',   animal:'fox',      location:'Nashville, TN', online:true,  mode:'in-person', pct:100},
-    {id:'marcus',name:'Marcus', animal:'bear',     location:'Atlanta, GA',   online:true,  mode:'local',     pct:100},
-    {id:'jen',   name:'Jen',    animal:'owl',      location:'Chicago, IL',   online:false, mode:'in-person', pct:60},
-    {id:'david', name:'David',  animal:'penguin',  location:'Denver, CO',    online:true,  mode:'virtual',   pct:100},
-    {id:'amy',   name:'Amy',    animal:'cat',      location:'Portland, OR',  online:false, mode:'in-person', pct:30},
-    {id:'tom',   name:'Tom',    animal:'deer',     location:'Seattle, WA',   online:true,  mode:'in-person', pct:75},
-    {id:'lily',  name:'Lily',   animal:'frog',     location:'Boston, MA',    online:false, mode:'in-person', pct:100},
-    {id:'grace', name:'Grace',  animal:'hedgehog', location:'Austin, TX',    online:true,  mode:'pending',   pct:10},
+    {id:'sara',  name:'Sara',   animal:'fox',      location:'Nashville, TN', online:true,  mode:'in-person', pct:100, stats:{attended:7,hosted:1,ideas:3}, prefs:{Travel:'Flexible','Fav activity':'Games + trivia',Notifications:'All on'}},
+    {id:'marcus',name:'Marcus', animal:'bear',     location:'Atlanta, GA',   online:true,  mode:'local',     pct:100, stats:{attended:7,hosted:2,ideas:5}, prefs:{Travel:'Flexible','Fav activity':'Outdoors + nature',Notifications:'All on'}},
+    {id:'jen',   name:'Jen',    animal:'owl',      location:'Chicago, IL',   online:false, mode:'in-person', pct:60,  stats:{attended:6,hosted:1,ideas:4}, prefs:{Travel:'Somewhat limited','Fav activity':'Food + cooking',Notifications:'Gatherings only'}},
+    {id:'david', name:'David',  animal:'penguin',  location:'Denver, CO',    online:true,  mode:'virtual',   pct:100, stats:{attended:5,hosted:0,ideas:2}, prefs:{Travel:'Hard to travel','Fav activity':'Movies + TV',Notifications:'All on'}},
+    {id:'amy',   name:'Amy',    animal:'cat',      location:'Portland, OR',  online:false, mode:'in-person', pct:30,  stats:{attended:5,hosted:1,ideas:8}, prefs:{Travel:'Flexible','Fav activity':'Arts + crafts',Notifications:'Ideas only'}},
+    {id:'tom',   name:'Tom',    animal:'deer',     location:'Seattle, WA',   online:true,  mode:'in-person', pct:75,  stats:{attended:6,hosted:1,ideas:3}, prefs:{Travel:'Flexible','Fav activity':'Outdoors + nature',Notifications:'Gatherings only'}},
+    {id:'lily',  name:'Lily',   animal:'frog',     location:'Boston, MA',    online:false, mode:'in-person', pct:100, stats:{attended:7,hosted:1,ideas:6}, prefs:{Travel:'Flexible','Fav activity':'Music + dancing',Notifications:'All on'}},
+    {id:'grace', name:'Grace',  animal:'hedgehog', location:'Austin, TX',    online:true,  mode:'pending',   pct:10,  stats:{attended:3,hosted:0,ideas:1}, prefs:{Travel:'Somewhat limited','Fav activity':'Food + cooking',Notifications:'Off'}},
   ],
   gatherings:[
     {id:'cookout',name:'Summer Cookout',month:'Jul',day:19,location:'Atlanta, GA',host:'marcus',
@@ -1625,9 +1725,13 @@ function openEditProfile() {
     var notifSel = document.querySelector('#ep-notifs .chip.selected');
     if (notifSel) me.prefs.Notifications = notifSel.dataset.val;
 
-    localStorage.setItem('kinverly_profile', JSON.stringify({
+    // Save per-member profile so each person keeps their own edits
+    localStorage.setItem('kinverly_profile_' + me.id, JSON.stringify({
       name:me.name, nickname:me.nickname, location:me.location, animal:me.animal, prefs:me.prefs
     }));
+    // Also sync back to members array
+    var mIdx = DATA.members.findIndex(function(m){ return m.id === me.id; });
+    if (mIdx >= 0) Object.assign(DATA.members[mIdx], {name:me.name, animal:me.animal, location:me.location, prefs:me.prefs});
 
     document.getElementById('edit-overlay').classList.add('hidden');
     renderProfile();
@@ -1890,22 +1994,68 @@ function renderLoginMembers() {
   document.getElementById('login-new-btn').addEventListener('click', renderJoinForm);
 }
 
+function buildBadges(stats, animal) {
+  var attended = (stats && stats.attended) || 0;
+  var hosted   = (stats && stats.hosted)   || 0;
+  var ideas    = (stats && stats.ideas)    || 0;
+  var aName    = ANIMALS[animal] ? ANIMALS[animal].name : 'Animal';
+  var aTrait   = ANIMALS[animal] ? ANIMALS[animal].trait : 'Family member';
+  return [
+    {icon: ANIMALS[animal] ? '🐾' : '🐾', label: aTrait,          earned: true},
+    {icon:'🎉', label:'Party starter',  earned: attended >= 1},
+    {icon:'📋', label:'Head planner',   earned: hosted  >= 1},
+    {icon:'👑', label:'Host legend',    earned: hosted  >= 3},
+    {icon:'🗺️', label:'Trailblazer',   earned: attended >= 5},
+    {icon:'💡', label:'Idea machine',   earned: ideas   >= 5},
+    {icon:'🤝', label:'Never missed',   earned: attended >= 7},
+    {icon:'🌟', label:'All-star',       earned: attended >= 7 && hosted >= 2 && ideas >= 5},
+  ];
+}
+
 function selectMember(id) {
   var member = DATA.members.find(function(m){ return m.id === id; });
   if (!member) return;
 
-  DATA.me.id = member.id;
-  DATA.me.name = member.name;
-  DATA.me.animal = member.animal;
+  // Sync all member data into DATA.me
+  DATA.me.id       = member.id;
+  DATA.me.name     = member.name;
+  DATA.me.animal   = member.animal;
   DATA.me.location = member.location;
-  DATA.me.trait = ANIMALS[member.animal] ? ANIMALS[member.animal].trait : 'Family member';
+  DATA.me.trait    = ANIMALS[member.animal] ? ANIMALS[member.animal].trait : 'Family member';
+  DATA.me.nickname = member.nickname || '';
+
+  // Carry over per-member stats and prefs if they exist
+  if (member.stats)  DATA.me.stats  = Object.assign({}, member.stats);
+  if (member.prefs)  DATA.me.prefs  = Object.assign({}, DATA.me.prefs, member.prefs);
+
+  // Build earned badges based on stats
+  DATA.me.badges = buildBadges(DATA.me.stats, member.animal);
+
+  // Restore any locally saved profile edits for this member
+  try {
+    var saved = localStorage.getItem('kinverly_profile_' + id);
+    if (saved) {
+      var p = JSON.parse(saved);
+      if (p.name)     DATA.me.name     = p.name;
+      if (p.animal)   { DATA.me.animal = p.animal; DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : DATA.me.trait; }
+      if (p.location) DATA.me.location = p.location;
+      if (p.nickname) DATA.me.nickname = p.nickname;
+      if (p.prefs)    DATA.me.prefs    = Object.assign({}, DATA.me.prefs, p.prefs);
+    }
+  } catch(e) {}
 
   localStorage.setItem('kinverly_user_id', id);
 
   document.getElementById('login-screen').classList.add('hidden');
   renderHome();
   renderProfile();
-  toast('Welcome back, '+member.name+'! 👋');
+
+  // If they have no flocks, show flock onboarding right after login
+  if (Object.keys(FLOCKS).length === 0) {
+    setTimeout(showFlockOnboarding, 300);
+  } else {
+    toast('Welcome back, '+member.name+'! 👋');
+  }
 }
 
 function renderJoinForm() {
@@ -1979,19 +2129,12 @@ function renderJoinForm() {
       online:false, mode:'in-person', pct:0
     };
 
+    // Add default stats and prefs for new member
+    newMember.stats = {attended:0, hosted:0, ideas:0};
+    newMember.prefs = {Travel:'Flexible','Fav activity':'Anything together',Notifications:'All on'};
     DATA.members.push(newMember);
-    localStorage.setItem('kinverly_user_id', id);
 
-    DATA.me.id = id;
-    DATA.me.name = name;
-    DATA.me.animal = pickedAnimal;
-    DATA.me.location = city;
-    DATA.me.trait = ANIMALS[pickedAnimal].trait;
-
-    document.getElementById('login-screen').classList.add('hidden');
-    renderHome();
-    renderProfile();
-    toast('Welcome to the flock, '+name+'! 🎉');
+    selectMember(id);
   });
 
   // Back
@@ -2014,8 +2157,6 @@ function updateCountdown() {
 function restoreSession() {
   try {
     var userId = localStorage.getItem('kinverly_user_id');
-    var savedProfile = localStorage.getItem('kinverly_profile');
-
     if (userId) {
       var member = DATA.members.find(function(m){ return m.id === userId; });
       if (member) {
@@ -2027,14 +2168,15 @@ function restoreSession() {
       }
     }
 
+    // Load per-member saved profile
+    var savedProfile = localStorage.getItem('kinverly_profile_' + userId);
     if (savedProfile) {
       var p = JSON.parse(savedProfile);
-      if (p.name) DATA.me.name = p.name;
-      if (p.animal) DATA.me.animal = p.animal;
+      if (p.name)     DATA.me.name     = p.name;
+      if (p.animal)   { DATA.me.animal = p.animal; DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : DATA.me.trait; }
       if (p.location) DATA.me.location = p.location;
       if (p.nickname) DATA.me.nickname = p.nickname;
-      if (p.prefs) DATA.me.prefs = Object.assign({}, DATA.me.prefs, p.prefs);
-      if (p.animal) DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : DATA.me.trait;
+      if (p.prefs)    DATA.me.prefs    = Object.assign({}, DATA.me.prefs, p.prefs);
     }
 
     return !!userId;
@@ -2043,9 +2185,392 @@ function restoreSession() {
   }
 }
 
+
+// ═══════════════════════════════════════════════
+//  FLOCK SYSTEM
+// ═══════════════════════════════════════════════
+
+var FLOCKS = {};
+var currentFlockId = null;
+
+function generateCode() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var code = '';
+  for (var i = 0; i < 3; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  code += '-';
+  for (var i = 0; i < 3; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function generateFlockId() {
+  return 'flock_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+function saveFlockState() {
+  try {
+    localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
+    localStorage.setItem('kinverly_current_flock', currentFlockId || '');
+  } catch(e) {}
+}
+
+function loadFlockState() {
+  try {
+    var s = localStorage.getItem('kinverly_flocks');
+    if (s) FLOCKS = JSON.parse(s);
+    currentFlockId = localStorage.getItem('kinverly_current_flock') || null;
+  } catch(e) {}
+}
+
+function getCurrentFlock() {
+  return currentFlockId ? FLOCKS[currentFlockId] : null;
+}
+
+function switchToFlock(flockId) {
+  currentFlockId = flockId;
+  saveFlockState();
+  var flock = FLOCKS[flockId];
+  if (!flock) return;
+  var nameEl = document.getElementById('topbar-flock-name');
+  if (nameEl) nameEl.textContent = flock.name;
+  if (flock.members && Object.keys(flock.members).length > 0) {
+    DATA.members = Object.values(flock.members);
+  }
+  renderHome();
+  renderGatherings();
+  renderIdeas();
+  renderProfile();
+  toast(flock.emoji + ' Switched to ' + flock.name);
+}
+
+function createFlock(name, emoji) {
+  var id = generateFlockId();
+  var code = generateCode();
+  var flock = { id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id, members:{}, memberIds:[] };
+  var creator = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator' };
+  flock.members[DATA.me.id] = creator;
+  flock.memberIds = [DATA.me.id];
+  FLOCKS[id] = flock;
+  saveFlockState();
+  saveFlockToFirebase(flock, creator);
+  return flock;
+}
+
+function joinFlockByCode(code, callback) {
+  var norm = code.trim().toUpperCase().replace(/[^A-Z0-9-]/g,'');
+  var found = Object.values(FLOCKS).find(function(f){ return f.inviteCode === norm; });
+  if (found) { addMeToFlock(found.id); callback(null, found); return; }
+  if (window.__db && window.__firestoreHelpers) {
+    var h = window.__firestoreHelpers;
+    if (h.getDocs && h.query && h.where && h.collection) {
+      var q = h.query(h.collection(window.__db, 'flocks'), h.where('inviteCode', '==', norm));
+      h.getDocs(q).then(function(snap) {
+        if (snap.empty) { callback('Code not found. Double-check and try again.'); return; }
+        var d = snap.docs[0].data();
+        FLOCKS[d.id] = d;
+        addMeToFlock(d.id);
+        saveFlockState();
+        callback(null, d);
+      }).catch(function() { callback('Could not connect. Check your internet.'); });
+    } else { callback('Code not found. Double-check and try again.'); }
+  } else { callback('Code not found. Double-check and try again.'); }
+}
+
+function addMeToFlock(flockId) {
+  var flock = FLOCKS[flockId];
+  if (!flock) return;
+  if (!flock.members) flock.members = {};
+  if (!flock.memberIds) flock.memberIds = [];
+  var me = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'member' };
+  flock.members[DATA.me.id] = me;
+  if (flock.memberIds.indexOf(DATA.me.id) === -1) flock.memberIds.push(DATA.me.id);
+  saveFlockState();
+}
+
+async function saveFlockToFirebase(flock, creator) {
+  if (!window.__db || !window.__firestoreHelpers) return;
+  try {
+    var h = window.__firestoreHelpers;
+    var data = { id:flock.id, name:flock.name, emoji:flock.emoji, inviteCode:flock.inviteCode, createdBy:flock.createdBy, memberIds:flock.memberIds };
+    data['members.' + creator.id] = creator;
+    if (h.serverTimestamp) data.createdAt = h.serverTimestamp();
+    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
+  } catch(e) { console.warn('[Kinverly] Flock save offline'); }
+}
+
+function showFlockOnboarding() {
+  var ov = document.getElementById('flock-overlay');
+  ov.style.display = 'flex';
+  renderFlockWelcome();
+}
+
+function hideFlockOverlay() {
+  document.getElementById('flock-overlay').style.display = 'none';
+}
+
+var FLOCK_EMOJIS = ['🏠','🌊','🏕','🎉','⭐','🌿','🦋','🔥','🌸','🎯'];
+
+function renderFlockWelcome() {
+  var inner = document.getElementById('flock-inner');
+  inner.innerHTML = '';
+
+  var header = document.createElement('div');
+  header.style.textAlign = 'center';
+  header.innerHTML =
+    '<div class="flock-logo">Kinverly.</div>'+
+    '<div class="flock-tagline">Your People. Your Place. Your Turn.</div>'+
+    '<div class="flock-koro"><svg viewBox="0 0 100 100" width="70" height="70"><circle cx="50" cy="50" r="50" fill="#F0C030"/><circle cx="50" cy="55" r="28" fill="#D4A020"/><circle cx="36" cy="32" r="10" fill="#D4A020"/><circle cx="64" cy="32" r="10" fill="#D4A020"/><circle cx="36" cy="32" r="6" fill="#E8B828"/><circle cx="64" cy="32" r="6" fill="#E8B828"/><ellipse cx="50" cy="65" rx="16" ry="11" fill="#E8C840"/><circle cx="43" cy="51" r="5" fill="#1E1433"/><circle cx="57" cy="51" r="5" fill="#1E1433"/><circle cx="44.5" cy="49.5" r="2" fill="#fff"/><circle cx="58.5" cy="49.5" r="2" fill="#fff"/></svg></div>'+
+    '<div class="flock-prompt">Gather your people.</div>'+
+    '<div class="flock-sub">Create a flock and invite your family,<br>or join one with an invite code.</div>';
+  inner.appendChild(header);
+
+  var cBtn = document.createElement('button');
+  cBtn.className = 'flock-big-btn';
+  cBtn.innerHTML = '<div class="flock-big-icon" style="background:rgba(240,192,48,.2)">✨</div><div><div class="flock-big-title">Create a flock</div><div class="flock-big-sub">Start a new group and invite people</div></div>';
+  cBtn.addEventListener('click', renderFlockCreate);
+  inner.appendChild(cBtn);
+
+  var jBtn = document.createElement('button');
+  jBtn.className = 'flock-big-btn';
+  jBtn.innerHTML = '<div class="flock-big-icon" style="background:rgba(255,255,255,.1)">🔑</div><div><div class="flock-big-title">Join with a code</div><div class="flock-big-sub">Enter an invite code from your family</div></div>';
+  jBtn.addEventListener('click', renderFlockJoin);
+  inner.appendChild(jBtn);
+
+  if (Object.keys(FLOCKS).length > 0) {
+    var skipBtn = document.createElement('button');
+    skipBtn.className = 'flock-btn-outline';
+    skipBtn.textContent = 'Back to my flocks';
+    skipBtn.addEventListener('click', hideFlockOverlay);
+    inner.appendChild(skipBtn);
+  }
+}
+
+function renderFlockCreate() {
+  var inner = document.getElementById('flock-inner');
+  inner.innerHTML = '';
+
+  var title = document.createElement('div');
+  title.className = 'flock-logo';
+  title.style.cssText = 'font-size:26px;text-align:center;margin-bottom:20px';
+  title.textContent = 'Create your flock';
+  inner.appendChild(title);
+
+  var nl = document.createElement('div'); nl.className = 'flock-field-label'; nl.textContent = 'Flock name'; inner.appendChild(nl);
+  var ni = document.createElement('input'); ni.className = 'flock-input'; ni.placeholder = 'e.g. The Ameden Family'; inner.appendChild(ni);
+  var ne = document.createElement('div'); ne.className = 'flock-err'; ne.textContent = 'Please give your flock a name'; inner.appendChild(ne);
+
+  var el = document.createElement('div'); el.className = 'flock-field-label'; el.style.marginTop = '14px'; el.textContent = 'Pick an emoji'; inner.appendChild(el);
+  var eg = document.createElement('div'); eg.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px'; inner.appendChild(eg);
+  var selEmoji = '🏠';
+  FLOCK_EMOJIS.forEach(function(e) {
+    var b = document.createElement('button');
+    b.style.cssText = 'border-radius:10px;padding:10px;font-size:22px;cursor:pointer;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);transition:all .15s;font-family:inherit';
+    b.textContent = e;
+    if (e === selEmoji) { b.style.borderColor = '#F0C030'; b.style.background = 'rgba(240,192,48,.2)'; }
+    b.addEventListener('click', function() {
+      selEmoji = e;
+      eg.querySelectorAll('button').forEach(function(x){ x.style.borderColor='rgba(255,255,255,.15)'; x.style.background='rgba(255,255,255,.08)'; });
+      b.style.borderColor = '#F0C030'; b.style.background = 'rgba(240,192,48,.2)';
+    });
+    eg.appendChild(b);
+  });
+
+  var cb = document.createElement('button'); cb.className = 'flock-btn'; cb.textContent = 'Create flock →';
+  cb.addEventListener('click', function() {
+    var name = ni.value.trim();
+    if (!name) { ne.style.display = 'block'; ni.focus(); return; }
+    ne.style.display = 'none';
+    var flock = createFlock(name, selEmoji);
+    renderFlockCreated(flock);
+  });
+  inner.appendChild(cb);
+
+  var bb = document.createElement('button'); bb.className = 'flock-btn-outline'; bb.textContent = 'Back';
+  bb.addEventListener('click', renderFlockWelcome);
+  inner.appendChild(bb);
+}
+
+function renderFlockCreated(flock) {
+  var inner = document.getElementById('flock-inner');
+  inner.innerHTML =
+    '<div style="text-align:center">'+
+      '<div style="font-size:52px;margin-bottom:8px">'+flock.emoji+'</div>'+
+      '<div class="flock-logo" style="font-size:26px;margin-bottom:6px">'+flock.name+'</div>'+
+      '<div class="flock-sub">Share this code so your family can join!</div>'+
+      '<div class="code-display">'+
+        '<div class="code-label">Invite code</div>'+
+        '<div class="code-value">'+flock.inviteCode+'</div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:6px">Drop this code in your group chat.</div>'+
+      '<div style="font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:20px">You can see it anytime in flock settings.</div>'+
+    '</div>';
+
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'flock-btn';
+  copyBtn.style.marginBottom = '10px';
+  copyBtn.textContent = 'Copy invite code';
+  copyBtn.addEventListener('click', function() {
+    if (navigator.clipboard) navigator.clipboard.writeText(flock.inviteCode);
+    copyBtn.textContent = '✓ Copied!';
+    setTimeout(function(){ copyBtn.textContent = 'Copy invite code'; }, 2000);
+  });
+  inner.appendChild(copyBtn);
+
+  var enterBtn = document.createElement('button');
+  enterBtn.className = 'flock-btn-outline';
+  enterBtn.textContent = 'Enter my flock →';
+  enterBtn.addEventListener('click', function() {
+    switchToFlock(flock.id);
+    hideFlockOverlay();
+  });
+  inner.appendChild(enterBtn);
+}
+
+function renderFlockJoin() {
+  var inner = document.getElementById('flock-inner');
+  inner.innerHTML = '';
+
+  var title = document.createElement('div');
+  title.style.cssText = 'text-align:center;margin-bottom:20px';
+  title.innerHTML = '<div class="flock-logo" style="font-size:26px;margin-bottom:4px">Join a flock</div><div class="flock-sub">Enter the invite code your family shared with you.</div>';
+  inner.appendChild(title);
+
+  var cl = document.createElement('div'); cl.className = 'flock-field-label'; cl.textContent = 'Invite code'; inner.appendChild(cl);
+
+  var ci = document.createElement('input');
+  ci.className = 'code-input';
+  ci.style.cssText = 'width:100%;padding:14px;border-radius:12px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:24px;font-weight:800;font-family:monospace;letter-spacing:6px;text-transform:uppercase;outline:none;text-align:center;margin-bottom:4px;box-sizing:border-box;transition:border-color .15s';
+  ci.placeholder = 'XXX-XXX';
+  ci.maxLength = 7;
+  ci.addEventListener('input', function() {
+    var val = this.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if (val.length > 3) val = val.slice(0,3) + '-' + val.slice(3,6);
+    this.value = val;
+    ce.style.display = 'none';
+  });
+  ci.addEventListener('focus', function(){ this.style.borderColor='#F0C030'; });
+  ci.addEventListener('blur', function(){ this.style.borderColor='rgba(255,255,255,.2)'; });
+  inner.appendChild(ci);
+
+  var ce = document.createElement('div'); ce.className = 'flock-err'; inner.appendChild(ce);
+
+  var jb = document.createElement('button'); jb.className = 'flock-btn'; jb.style.marginTop = '6px'; jb.textContent = 'Join flock →';
+  jb.addEventListener('click', function() {
+    var code = ci.value.trim();
+    if (code.replace('-','').length < 6) { ce.textContent = 'Please enter the full 6-character code'; ce.style.display = 'block'; return; }
+    jb.textContent = 'Looking up code...'; jb.disabled = true;
+    joinFlockByCode(code, function(err, flock) {
+      if (err) { ce.textContent = err; ce.style.display = 'block'; jb.textContent = 'Join flock →'; jb.disabled = false; return; }
+      FLOCKS[flock.id] = flock;
+      saveFlockState();
+      renderFlockJoined(flock);
+    });
+  });
+  inner.appendChild(jb);
+
+  var bb = document.createElement('button'); bb.className = 'flock-btn-outline'; bb.textContent = 'Back';
+  bb.addEventListener('click', renderFlockWelcome);
+  inner.appendChild(bb);
+}
+
+function renderFlockJoined(flock) {
+  var inner = document.getElementById('flock-inner');
+  var count = flock.memberIds ? flock.memberIds.length : 1;
+  inner.innerHTML =
+    '<div style="text-align:center">'+
+      '<div style="font-size:60px;margin-bottom:8px">'+flock.emoji+'</div>'+
+      '<div class="flock-logo" style="font-size:24px;margin-bottom:4px">You\'re in!</div>'+
+      '<div class="flock-sub">You\'ve joined <strong style="color:#fff">'+flock.name+'</strong><br>'+count+' member'+(count!==1?'s':'')+' in this flock.</div>'+
+    '</div>';
+
+  var eb = document.createElement('button'); eb.className = 'flock-btn'; eb.style.marginTop = '20px'; eb.textContent = 'Enter ' + flock.name + ' →';
+  eb.addEventListener('click', function() { switchToFlock(flock.id); hideFlockOverlay(); });
+  inner.appendChild(eb);
+
+  var jb = document.createElement('button'); jb.className = 'flock-btn-outline'; jb.textContent = '+ Join another flock';
+  jb.addEventListener('click', renderFlockJoin);
+  inner.appendChild(jb);
+}
+
+function showFlockSheet() {
+  var body = document.getElementById('flock-sheet-body');
+  body.innerHTML = '';
+  var list = Object.values(FLOCKS);
+
+  if (list.length === 0) {
+    var em = document.createElement('div');
+    em.style.cssText = 'text-align:center;padding:20px;font-size:13px;color:var(--text2);font-weight:600';
+    em.textContent = 'You haven\'t joined any flocks yet.';
+    body.appendChild(em);
+  } else {
+    list.forEach(function(flock) {
+      var item = document.createElement('div');
+      item.className = 'flock-list-item' + (flock.id === currentFlockId ? ' active' : '');
+      var mc = flock.memberIds ? flock.memberIds.length : 1;
+      item.innerHTML =
+        '<div class="flock-list-icon">'+flock.emoji+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div class="flock-list-name">'+flock.name+'</div>'+
+          '<div class="flock-list-sub">'+mc+' member'+(mc!==1?'s':'')+
+            (flock.inviteCode ? ' &middot; Code: <strong>'+flock.inviteCode+'</strong>' : '')+
+          '</div>'+
+        '</div>'+
+        (flock.id === currentFlockId ?
+          '<div class="flock-list-check"><svg width="10" height="10" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' : '');
+      item.addEventListener('click', function() {
+        document.getElementById('flock-sheet-overlay').classList.add('hidden');
+        switchToFlock(flock.id);
+      });
+      body.appendChild(item);
+    });
+  }
+
+  var div = document.createElement('div'); div.style.cssText = 'height:1px;background:var(--border);margin:12px 0'; body.appendChild(div);
+
+  var cb = document.createElement('button'); cb.className = 'btn-primary'; cb.style.marginBottom = '8px';
+  cb.innerHTML = '✨ Create a new flock';
+  cb.addEventListener('click', function() { document.getElementById('flock-sheet-overlay').classList.add('hidden'); showFlockOnboarding(); renderFlockCreate(); });
+  body.appendChild(cb);
+
+  var jb = document.createElement('button'); jb.className = 'btn-secondary';
+  jb.innerHTML = '🔑 Join with invite code';
+  jb.addEventListener('click', function() { document.getElementById('flock-sheet-overlay').classList.add('hidden'); showFlockOnboarding(); renderFlockJoin(); });
+  body.appendChild(jb);
+
+  var pad = document.createElement('div'); pad.style.height = '24px'; body.appendChild(pad);
+  document.getElementById('flock-sheet-overlay').classList.remove('hidden');
+}
+
+// Wire topbar flock button
+document.getElementById('topbar-flock-btn').addEventListener('click', function() {
+  if (Object.keys(FLOCKS).length === 0) { showFlockOnboarding(); }
+  else { showFlockSheet(); }
+});
+
+// Wire flock sheet close
+document.getElementById('flock-sheet-close').addEventListener('click', function() {
+  document.getElementById('flock-sheet-overlay').classList.add('hidden');
+});
+document.getElementById('flock-sheet-overlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.add('hidden');
+});
+
 // ── BOOT ─────────────────────────────────────────
 (function init() {
+  // Load flock state first
+  loadFlockState();
+
   var isLoggedIn = restoreSession();
+
+  // Restore current flock name in topbar
+  var flock = getCurrentFlock();
+  if (flock) {
+    var nameEl = document.getElementById('topbar-flock-name');
+    if (nameEl) nameEl.textContent = flock.name;
+    // Load flock members into DATA if available
+    if (flock.members && Object.keys(flock.members).length > 0) {
+      DATA.members = Object.values(flock.members);
+    }
+  }
 
   // Render everything
   renderHome();
@@ -2056,12 +2581,18 @@ function restoreSession() {
   updateCountdown();
   setInterval(updateCountdown, 60000);
 
-  // Show login if first time
-  if (!isLoggedIn) {
-    setTimeout(showLoginScreen, 400);
-  } else {
-    document.getElementById('login-screen').classList.add('hidden');
-  }
+  // Decide what to show on startup
+  setTimeout(function() {
+    if (!isLoggedIn) {
+      // Brand new user — show login first, then flock onboarding after they set up profile
+      showLoginScreen();
+    } else if (Object.keys(FLOCKS).length === 0) {
+      // Logged in but no flocks yet — show flock onboarding
+      showFlockOnboarding();
+    } else {
+      document.getElementById('login-screen').classList.add('hidden');
+    }
+  }, 400);
 })();
 </script>
 
@@ -2070,7 +2601,7 @@ function restoreSession() {
 ═══════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp }
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 var firebaseConfig = {
@@ -2131,6 +2662,16 @@ try {
       await updateDoc(doc(db,'gatherings','beach'), update);
     } catch(e){}
   };
+
+  // Expose firestore helpers for flock join-by-code
+  window.__firestoreHelpers = { collection, doc, getDocs, query, where, updateDoc, setDoc, serverTimestamp, arrayUnion: null };
+  // arrayUnion needs to be imported separately
+  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(function(m) {
+    window.__firestoreHelpers.arrayUnion = m.arrayUnion;
+  });
+
+  // Expose for flock join-by-code lookup
+  window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion };
 
   seedIfEmpty();
   console.log('[Kinverly] Firebase connected');
