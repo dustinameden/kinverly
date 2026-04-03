@@ -310,7 +310,7 @@ window.KinverlyProfile = (function () {
         <div class="login-prompt">Who are you?</div>
         <div class="login-grid" id="login-member-grid">
           ${members.map(m => `
-            <div class="login-member-chip" onclick="KinverlyProfile.selectMember('${m.id}')">
+            <div class="login-member-chip" data-member-id="${m.id}">
               <div class="login-av">
                 <svg viewBox="0 0 100 100" width="56" height="56">${A.paths(m.animal)}</svg>
               </div>
@@ -397,7 +397,7 @@ window.KinverlyProfile = (function () {
             <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Pick your animal</div>
             <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px" id="nm-animal-grid">
               ${animals.map(a => `
-                <div class="nm-animal-opt" id="nma-${a}" onclick="KinverlyProfile.selectNewAnimal('${a}')"
+                <div class="nm-animal-opt" id="nma-${a}" data-animal="${a}"
                   style="border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;border:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);transition:all .15s">
                   <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;margin:0 auto 4px;border:2px solid rgba(255,255,255,0.2)">
                     <svg viewBox="0 0 100 100" width="44" height="44">${A.paths(a)}</svg>
@@ -409,7 +409,7 @@ window.KinverlyProfile = (function () {
             <div id="nm-animal-err" style="display:none;color:#F0C030;font-size:12px;margin-top:8px;font-weight:600">Please pick an animal</div>
           </div>
 
-          <button onclick="KinverlyProfile.submitNewMember()"
+          <button data-action="join-flock" onclick="KinverlyProfile.submitNewMember()"
             style="width:100%;padding:13px;border-radius:12px;background:#F0C030;color:#1E1433;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:10px">
             Join the flock!
           </button>
@@ -424,6 +424,19 @@ window.KinverlyProfile = (function () {
     `;
     overlay.style.display = 'flex';
     window._newMemberAnimal = null;
+
+    // Wire up animal grid clicks via event delegation (avoids quote-in-onclick issues)
+    setTimeout(() => {
+      const grid = document.getElementById('nm-animal-grid');
+      if (grid) {
+        grid.addEventListener('click', function(e) {
+          const card = e.target.closest('[data-animal]');
+          if (card) selectNewAnimal(card.dataset.animal);
+        });
+      }
+      const joinBtn = document.querySelector('[data-action="join-flock"]');
+      if (joinBtn) joinBtn.addEventListener('click', submitNewMember);
+    }, 50);
   }
 
 
@@ -532,7 +545,7 @@ window.KinverlyProfile = (function () {
             <div class="ep-label">Travel flexibility</div>
             <div class="ep-chips" id="ep-travel">
               ${['Very flexible','Flexible','Somewhat limited','Hard to travel'].map(v =>
-                `<div class="ep-chip ${me.prefs?.Travel === v ? 'selected' : ''}" onclick="KinverlyProfile.selectChip('ep-travel','${v}')">${v}</div>`
+                `<div class="ep-chip ${me.prefs?.Travel === v ? 'selected' : ''}" data-chip-group="ep-travel" data-chip-val="${v}">${v}</div>`
               ).join('')}
             </div>
           </div>
@@ -541,7 +554,7 @@ window.KinverlyProfile = (function () {
             <div class="ep-label">Favourite activity</div>
             <div class="ep-chips" id="ep-activity">
               ${['Outdoors + nature','Games + trivia','Food + cooking','Music + dancing','Movies + TV','Arts + crafts','Sports','Anything together'].map(v =>
-                `<div class="ep-chip ${me.prefs?.['Fav activity'] === v ? 'selected' : ''}" onclick="KinverlyProfile.selectChip('ep-activity','${v}')">${v}</div>`
+                `<div class="ep-chip ${me.prefs?.['Fav activity'] === v ? 'selected' : ''}" data-chip-group="ep-activity" data-chip-val="${v}">${v}</div>`
               ).join('')}
             </div>
           </div>
@@ -550,7 +563,7 @@ window.KinverlyProfile = (function () {
             <div class="ep-label">Notifications</div>
             <div class="ep-chips" id="ep-notifs">
               ${['All on','Gatherings only','Ideas only','Off'].map(v =>
-                `<div class="ep-chip ${me.prefs?.Notifications === v ? 'selected' : ''}" onclick="KinverlyProfile.selectChip('ep-notifs','${v}')">${v}</div>`
+                `<div class="ep-chip ${me.prefs?.Notifications === v ? 'selected' : ''}" data-chip-group="ep-notifs" data-chip-val="${v}">${v}</div>`
               ).join('')}
             </div>
           </div>
@@ -678,7 +691,7 @@ window.KinverlyProfile = (function () {
           <div class="ap-grid" id="ap-animal-grid">
             ${animals.map(a => `
               <div class="ap-animal-card ${a === current ? 'selected' : ''}" id="apcard-${a}"
-                   onclick="KinverlyProfile.selectAnimal('${a}')">
+                   data-pick-animal="${a}">
                 <div style="width:64px;height:64px;border-radius:50%;overflow:hidden;margin:0 auto 6px">
                   <svg viewBox="0 0 100 100" width="64" height="64">${A.paths(a)}</svg>
                 </div>
@@ -725,7 +738,7 @@ window.KinverlyProfile = (function () {
         <div class="ap-grid" id="ap-animal-grid">
           ${animals.map(a => `
             <div class="ap-animal-card ${a === current ? 'selected' : ''}" id="apcard-${a}"
-                 onclick="KinverlyProfile.selectAnimal('${a}')">
+                 data-pick-animal="${a}">
               <div style="width:64px;height:64px;border-radius:50%;overflow:hidden;margin:0 auto 6px">
                 <svg viewBox="0 0 100 100" width="64" height="64">${A.paths(a)}</svg>
               </div>
