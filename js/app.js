@@ -551,8 +551,9 @@ function renderProfile() {
     <div class="prefs-card">
       ${Object.entries(me.prefs).map(([k,v]) => `<div class="pref-row"><div class="pref-key">${k}</div><div class="pref-val">${v}</div></div>`).join('')}
     </div>
-    <button class="btn-primary" onclick="KinverlyApp.showToast('Profile editing coming soon!')">Edit my profile</button>
-    <button class="btn-secondary" onclick="KinverlyApp.showToast('Animal picker coming soon!')">Change my animal</button>`;
+    <button class="btn-primary" onclick="KinverlyProfile.showEditProfile()">Edit my profile</button>
+    <button class="btn-secondary" onclick="KinverlyProfile.showAnimalPicker()">Change my animal</button>
+    <button class="btn-secondary" onclick="KinverlyProfile.showLoginScreen()" style="margin-top:4px">Switch family member</button>`;
 }
 
 // ── AVAILABILITY MODAL ──
@@ -611,11 +612,19 @@ async function init() {
   document.getElementById('profile-nav-btn')?.addEventListener('click', () => goto('profile'));
   document.getElementById('new-kinverly-btn')?.addEventListener('click', () => showToast('Gathering creator coming soon!'));
 
+  // Restore saved profile/login
+  const isLoggedIn = window.KinverlyProfile?.restoreSavedProfile();
+
   // Instant first paint with local data
   renderHome(); renderGatherings(); renderIdeas(); renderFairness(); renderProfile();
   updateCountdown();
   setInterval(updateCountdown, 60000);
   goto('home');
+
+  // Show login screen if no saved user
+  if (!isLoggedIn) {
+    setTimeout(() => window.KinverlyProfile?.showLoginScreen(), 600);
+  }
 
   // Then connect Firebase
   try {
