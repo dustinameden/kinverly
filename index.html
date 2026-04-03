@@ -409,7 +409,7 @@ window.KinverlyProfile = (function () {
             <div id="nm-animal-err" style="display:none;color:#F0C030;font-size:12px;margin-top:8px;font-weight:600">Please pick an animal</div>
           </div>
 
-          <button data-action="join-flock" onclick="KinverlyProfile.submitNewMember()"
+          <button data-action="join-flock"
             style="width:100%;padding:13px;border-radius:12px;background:#F0C030;color:#1E1433;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:10px">
             Join the flock!
           </button>
@@ -682,8 +682,8 @@ window.KinverlyProfile = (function () {
 
         <div style="padding:0 20px 12px">
           <div class="ap-mode-row">
-            <button class="ap-mode-btn active" id="btn-grid" onclick="KinverlyProfile.switchMode('grid')">Pick one</button>
-            <button class="ap-mode-btn" id="btn-quiz" onclick="KinverlyProfile.switchMode('quiz')">Take the quiz</button>
+            <button class="ap-mode-btn active" id="btn-grid" data-mode="grid">Pick one</button>
+            <button class="ap-mode-btn" id="btn-quiz" data-mode="quiz">Take the quiz</button>
           </div>
         </div>
 
@@ -815,8 +815,8 @@ window.KinverlyProfile = (function () {
         <div class="quiz-result-name">${ANIMAL_NAMES[winner]}</div>
         <div class="quiz-result-trait">${ANIMAL_TRAITS[winner]}</div>
         <div class="quiz-result-desc">${getAnimalDesc(winner)}</div>
-        <button class="quiz-retry" onclick="KinverlyProfile.switchMode('quiz')">Retake quiz</button>
-        <button class="quiz-grid-btn" onclick="KinverlyProfile.switchMode('grid')">Browse all animals instead</button>
+        <button class="quiz-retry" data-mode="quiz">Retake quiz</button>
+        <button class="quiz-grid-btn" data-mode="grid">Browse all animals instead</button>
       </div>
     `;
     document.getElementById('ap-confirm-btn').style.display = 'block';
