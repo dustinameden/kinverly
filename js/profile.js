@@ -140,7 +140,136 @@ window.KinverlyProfile = (function () {
   }
 
   function showNewMemberFlow() {
-    window.KinverlyApp?.showToast('New member setup coming soon! Ask your family admin to add you.');
+    const overlay = document.getElementById('login-overlay');
+    const A = window.Animals;
+    const allAnimals = ['fox','bear','bunny','owl','cat','panda','frog','penguin','hedgehog','deer'];
+    const takenAnimals = (window.KinverlyData?.members || []).map(m => m.animal);
+    const availableAnimals = allAnimals.filter(a => !takenAnimals.includes(a));
+    // If all taken, allow all
+    const animals = availableAnimals.length > 0 ? availableAnimals : allAnimals;
+
+    overlay.innerHTML = `
+      <div class="login-box" style="gap:0">
+        <div class="login-logo" style="font-size:32px;margin-bottom:4px">Kinverly<span style="color:rgba(255,255,255,0.5)">.</span></div>
+        <div class="login-tagline" style="margin-bottom:20px">JOIN THE FLOCK</div>
+
+        <div id="new-member-step" data-step="1">
+
+          <div style="width:100%;margin-bottom:20px">
+            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your name</div>
+            <input id="nm-name" type="text" placeholder="e.g. Sara or Aunt Sara"
+              style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;font-family:var(--font-body);outline:none"
+              oninput="document.getElementById('nm-name-err').style.display='none'"
+              onfocus="this.style.borderColor='rgba(240,192,48,0.6)'"
+              onblur="this.style.borderColor='rgba(255,255,255,0.2)'">
+            <div id="nm-name-err" style="display:none;color:#F0C030;font-size:12px;margin-top:6px;font-weight:600">Please enter your name</div>
+          </div>
+
+          <div style="width:100%;margin-bottom:20px">
+            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your city</div>
+            <input id="nm-location" type="text" placeholder="e.g. Portland, OR"
+              style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;font-family:var(--font-body);outline:none"
+              onfocus="this.style.borderColor='rgba(240,192,48,0.6)'"
+              onblur="this.style.borderColor='rgba(255,255,255,0.2)'">
+          </div>
+
+          <div style="width:100%;margin-bottom:20px">
+            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Pick your animal</div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px" id="nm-animal-grid">
+              ${animals.map(a => `
+                <div class="nm-animal-opt" id="nma-${a}" onclick="KinverlyProfile.selectNewAnimal('${a}')"
+                  style="border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;border:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);transition:all .15s">
+                  <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;margin:0 auto 4px;border:2px solid rgba(255,255,255,0.2)">
+                    <svg viewBox="0 0 100 100" width="44" height="44">${A.paths(a)}</svg>
+                  </div>
+                  <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.7)">${window.KinverlyProfile._animalName(a)}</div>
+                </div>
+              `).join('')}
+            </div>
+            <div id="nm-animal-err" style="display:none;color:#F0C030;font-size:12px;margin-top:8px;font-weight:600">Please pick an animal</div>
+          </div>
+
+          <button onclick="KinverlyProfile.submitNewMember()"
+            style="width:100%;padding:13px;border-radius:12px;background:#F0C030;color:#1E1433;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:10px">
+            Join the flock!
+          </button>
+
+          <div onclick="KinverlyProfile.showLoginScreen()"
+            style="font-size:13px;color:rgba(255,255,255,0.5);cursor:pointer;text-align:center;text-decoration:underline;text-underline-offset:3px">
+            Back to member list
+          </div>
+
+        </div>
+      </div>
+    `;
+    overlay.style.display = 'flex';
+    window._newMemberAnimal = null;
+  }
+
+  // Expose animal name helper for use in template
+  window.KinverlyProfile._animalName = function(a) {
+    return {fox:'Fox',bear:'Bear',bunny:'Bunny',owl:'Owl',cat:'Cat',
+            panda:'Panda',frog:'Frog',penguin:'Penguin',hedgehog:'Hedgehog',deer:'Deer'}[a] || a;
+  };
+
+  function selectNewAnimal(animal) {
+    window._newMemberAnimal = animal;
+    document.querySelectorAll('.nm-animal-opt').forEach(el => {
+      el.style.borderColor = 'rgba(255,255,255,0.15)';
+      el.style.background = 'rgba(255,255,255,0.08)';
+      el.style.transform = 'scale(1)';
+    });
+    const el = document.getElementById('nma-' + animal);
+    if (el) {
+      el.style.borderColor = '#F0C030';
+      el.style.background = 'rgba(240,192,48,0.2)';
+      el.style.transform = 'scale(1.08)';
+    }
+    document.getElementById('nm-animal-err').style.display = 'none';
+  }
+
+  async function submitNewMember() {
+    const name = document.getElementById('nm-name')?.value.trim();
+    const location = document.getElementById('nm-location')?.value.trim() || 'Somewhere wonderful';
+    const animal = window._newMemberAnimal;
+
+    // Validate
+    if (!name) {
+      document.getElementById('nm-name-err').style.display = 'block';
+      return;
+    }
+    if (!animal) {
+      document.getElementById('nm-animal-err').style.display = 'block';
+      return;
+    }
+
+    // Create new member object
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + Date.now().toString(36);
+    const newMember = { id, name, animal, location, online: false, mode: 'in-person', pct: 0 };
+
+    // Add to local data
+    if (window.KinverlyData) {
+      window.KinverlyData.members = window.KinverlyData.members || [];
+      window.KinverlyData.members.push(newMember);
+    }
+
+    // Save to Firebase
+    try {
+      const db = await (async () => {
+        let t = 0;
+        while (!window.__kinverlyDB && t++ < 20) await new Promise(r => setTimeout(r, 100));
+        return window.__kinverlyDB;
+      })();
+      if (db) {
+        const { doc, setDoc, serverTimestamp } =
+          await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        await setDoc(doc(db, 'members', id), { ...newMember, createdAt: serverTimestamp() });
+      }
+    } catch(e) { console.warn('[Kinverly] New member save offline:', e.message); }
+
+    // Log them in
+    selectMember(id);
+    window.KinverlyApp?.showToast('Welcome to the flock, ' + name + '! 🎉');
   }
 
   // ── EDIT PROFILE MODAL ───────────────────────────────────────
