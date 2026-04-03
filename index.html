@@ -1070,6 +1070,27 @@ img,svg{display:block}
   color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:8px;
 }
+
+/* ── ADD IDEA SHEET ──────────────────────────────── */
+#add-idea-overlay .sheet-body{padding:0 20px 40px}
+.idea-cat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+.idea-cat{background:var(--surface2);border:2px solid var(--border);border-radius:12px;padding:12px;text-align:center;cursor:pointer;transition:all .15s;font-size:13px;font-weight:700;color:var(--text2)}
+.idea-cat.selected{border-color:var(--brand);background:#ede8ff;color:var(--brand)}
+.idea-cat-icon{font-size:22px;margin-bottom:4px}
+
+/* ── DRAG HANDLE ─────────────────────────────────── */
+.sheet-handle{
+  width:36px;height:4px;border-radius:2px;
+  background:var(--border);margin:0 auto 14px;
+}
+
+.flock-overlay-x{
+  position:absolute;top:max(16px,env(safe-area-inset-top));right:16px;
+  width:36px;height:36px;border-radius:50%;
+  background:rgba(255,255,255,0.12);border:none;color:#fff;
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  z-index:10;
+}
 </style>
 </head>
 <body>
@@ -1213,6 +1234,7 @@ img,svg{display:block}
 <div class="overlay hidden" id="avail-overlay">
   <div class="sheet">
     <div class="sheet-header">
+      <div class="sheet-handle"></div>
       <div class="sheet-title">Your availability</div>
       <button class="sheet-close" id="avail-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
@@ -1251,7 +1273,7 @@ img,svg{display:block}
 
 
 <!-- FLOCK ONBOARDING OVERLAY -->
-<div id="flock-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:#3D2B6E;align-items:center;justify-content:center;padding:20px">
+<div id="flock-overlay" style="position:relative" style="display:none;position:fixed;inset:0;z-index:400;background:#3D2B6E;align-items:center;justify-content:center;padding:20px">
   <div id="flock-inner" style="width:100%;max-width:390px;overflow-y:auto;max-height:100%"></div>
 </div>
 
@@ -1275,6 +1297,7 @@ img,svg{display:block}
 <div class="overlay hidden" id="create-gathering-overlay">
   <div class="sheet">
     <div class="sheet-header">
+      <div class="sheet-handle"></div>
       <div class="sheet-title">Plan a gathering</div>
       <button class="sheet-close" id="create-gathering-close">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1289,6 +1312,7 @@ img,svg{display:block}
 <div class="overlay hidden" id="rsvp-overlay">
   <div class="sheet">
     <div class="sheet-header">
+      <div class="sheet-handle"></div>
       <div class="sheet-title" id="rsvp-sheet-title">Your RSVP</div>
       <button class="sheet-close" id="rsvp-close">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1310,6 +1334,21 @@ img,svg{display:block}
   <button class="photo-lightbox-close" id="photo-lightbox-close">&#10005;</button>
   <img id="photo-lightbox-img" src="" alt="">
   <div class="photo-lightbox-meta" id="photo-lightbox-meta"></div>
+</div>
+
+
+<!-- ADD IDEA OVERLAY -->
+<div class="overlay hidden" id="add-idea-overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Add an idea</div>
+      <button class="sheet-close" id="add-idea-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="add-idea-body"></div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -1351,14 +1390,14 @@ var DATA = {
     stats:{ attended:7, hosted:2, ideas:5 },
     prefs:{ Travel:'Flexible', 'Fav activity':'Anything together', Notifications:'All on' },
     badges:[
-      {icon:'?',label:'The energizer',earned:true},
-      {icon:'?',label:'Party starter',earned:true},
-      {icon:'?',label:'Head planner',earned:true},
-      {icon:'?',label:'Host legend',earned:false},
-      {icon:'??',label:'Trailblazer',earned:false},
-      {icon:'?',label:'Idea machine',earned:false},
-      {icon:'?',label:'Never missed',earned:false},
-      {icon:'?',label:'All-star',earned:false},
+      {icon:'&#9889;',label:'The energizer',earned:true},
+      {icon:'&#127881;',label:'Party starter',earned:true},
+      {icon:'&#128203;',label:'Head planner',earned:true},
+      {icon:'&#127968;',label:'Host legend',earned:false},
+      {icon:'&#129406;',label:'Trailblazer',earned:false},
+      {icon:'&#128161;',label:'Idea machine',earned:false},
+      {icon:'&#10024;',label:'Never missed',earned:false},
+      {icon:'&#11088;',label:'All-star',earned:false},
     ]
   },
   members:[
@@ -1389,9 +1428,9 @@ var DATA = {
      host:'mom',type:'bonus',status:'planning',theme:'Beach rental',themePill:'pill-blue',
      progress:15,beachMode:true,attending:[],
      windows:[
-       {dates:'Jul 12?19',label:'Blocked for 3',status:'blocked'},
-       {dates:'Jul 19?26',label:'Best window',status:'best'},
-       {dates:'Jul 26?Aug 2',label:'Lauren partial',status:'partial'},
+       {dates:'Jul 12&ndash;19',label:'Blocked for 3',status:'blocked'},
+       {dates:'Jul 19&ndash;26',label:'Best window',status:'best'},
+       {dates:'Jul 26&ndash;Aug 2',label:'Lauren partial',status:'partial'},
      ],
      responses:[
        {id:'sara',status:'responded'},{id:'marcus',status:'responded'},{id:'jen',status:'responded'},
@@ -1404,11 +1443,11 @@ var DATA = {
      type:'planned',status:'upcoming',theme:'Coming soon',themePill:'pill-gray',attending:[],progress:0},
   ],
   ideas:[
-    {id:'i1',icon:'?',title:'Family trivia night',sub:'Teams, custom questions ? works hybrid!',votes:7,pct:85,voted:false},
-    {id:'i2',icon:'?',title:'Cook-off competition',sub:'Each sibling makes a dish, everyone rates blind',votes:6,pct:72,voted:false},
-    {id:'i3',icon:'?',title:'Escape room challenge',sub:'Book same-time rooms in different cities',votes:5,pct:60,voted:false},
-    {id:'i4',icon:'?',title:'Paint + sip night',sub:'Everyone paints the same image ? compare!',votes:4,pct:48,voted:false},
-    {id:'i5',icon:'?',title:'Camping weekend',sub:'National park, cabins for those who prefer',votes:3,pct:36,voted:false},
+    {id:'i1',icon:'&#129504;',title:'Family trivia night',sub:'Teams, custom questions &mdash; works hybrid!',votes:7,pct:85,voted:false},
+    {id:'i2',icon:'&#127859;',title:'Cook-off competition',sub:'Each sibling makes a dish, everyone rates blind',votes:6,pct:72,voted:false},
+    {id:'i3',icon:'&#129300;',title:'Escape room challenge',sub:'Book same-time rooms in different cities',votes:5,pct:60,voted:false},
+    {id:'i4',icon:'&#127912;',title:'Paint + sip night',sub:'Everyone paints the same image &mdash; compare!',votes:4,pct:48,voted:false},
+    {id:'i5',icon:'&#127957;',title:'Camping weekend',sub:'National park, cabins for those who prefer',votes:3,pct:36,voted:false},
   ],
   fairness:{
     gathering:'Summer Cookout · Atlanta, GA',
@@ -1436,8 +1475,8 @@ var DATA = {
     {member:'amy',  text:'added "Escape room challenge" to the idea bank',         time:'2h ago'},
     {member:'david',text:"RSVP'd to Summer Cookout — joining virtually",           time:'5h ago'},
     {member:'sara', text:'voted on 3 ideas — "Trivia night" is leading!',          time:'Yesterday'},
-    {member:'tom',  text:'booked flights ? arriving Jul 18',                       time:'2 days ago'},
-    {member:'marcus',text:'confirmed Piedmont Park Shelter B ? reserved all day',  time:'3 days ago'},
+    {member:'tom',  text:'booked flights &mdash; arriving Jul 18',                       time:'2 days ago'},
+    {member:'marcus',text:'confirmed Piedmont Park Shelter B &mdash; reserved all day',  time:'3 days ago'},
   ]
 };
 
@@ -1543,14 +1582,10 @@ document.getElementById('view-gatherings-btn').addEventListener('click', functio
 });
 
 // New gathering btn
-document.getElementById('new-gathering-btn').addEventListener('click', function(){
-  toast('Gathering creator coming soon!');
-});
+document.getElementById('new-gathering-btn').addEventListener('click', openCreateGathering);
 
 // Add idea btn
-document.getElementById('add-idea-btn').addEventListener('click', function(){
-  toast('Idea submission coming soon!');
-});
+document.getElementById('add-idea-btn').addEventListener('click', openAddIdea);
 
 // Beach alert
 document.getElementById('beach-alert').addEventListener('click', function(){
@@ -1591,19 +1626,7 @@ function renderHome() {
 
   // Activity
   var feed = document.getElementById('activity-feed');
-  feed.innerHTML = '';
-  DATA.activity.forEach(function(a){
-    var m = getMember(a.member);
-    var item = document.createElement('div');
-    item.className = 'activity-item';
-    item.innerHTML =
-      makeAv((m && m.animal)||'bear', 32)+
-      '<div style="flex:1">'+
-        '<div class="activity-text"><strong>'+(m?m.name:a.member)+'</strong> '+a.text+'</div>'+
-        '<div class="activity-time">'+a.time+'</div>'+
-      '</div>';
-    feed.appendChild(item);
-  });
+  renderActivityFeed(feed);
 }
 
 // -- GATHERINGS ----------------------------------
@@ -1626,7 +1649,7 @@ function renderGatherings() {
     if (g.hybrid) pills += ' <span class="pill pill-blue">Hybrid</span>';
     if (g.status==='completed') pills += ' <span class="pill pill-gray">Completed</span>';
     if (g.status==='next') pills += ' <span class="pill pill-green">Next up</span>';
-    if (isBonus) pills += ' <span class="pill pill-amber">? Bonus</span>';
+    if (isBonus) pills += ' <span class="pill pill-amber">&#127381; Bonus</span>';
     if (g.status==='planning') pills += ' <span class="pill pill-amber">Collecting dates</span>';
 
     card.innerHTML =
@@ -1650,7 +1673,7 @@ function renderGatherings() {
   if (DATA.gatherings.length === 0) {
     list.innerHTML =
       '<div style="text-align:center;padding:40px 20px">'+
-        '<div style="font-size:48px;margin-bottom:12px">?</div>'+
+        '<div style="font-size:48px;margin-bottom:12px">&#127881;</div>'+
         '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">No gatherings yet</div>'+
         '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">Create your first gathering and start planning something your whole flock will love.</div>'+
         '<button class="btn-primary" style="max-width:240px;margin:0 auto" id="first-gathering-btn">+ Plan a gathering</button>'+
@@ -1737,7 +1760,7 @@ function wireDetailButtons(g) {
           }
           var titleEl = document.getElementById('task-title-'+task.id);
           if (titleEl) titleEl.className = 'task-title'+(task.done?' done':'');
-          toast(task.done ? '? Done!' : 'Reopened');
+          toast(task.done ? '&#10003; Done!' : 'Reopened');
         });
       });
     });
@@ -1752,13 +1775,13 @@ function wireDetailButtons(g) {
   // Wire RSVP button
   var rsvpBtn = document.getElementById('rsvp-btn');
   if (rsvpBtn) {
-    rsvpBtn.addEventListener('click', function(){ toast('RSVP updated! ?'); });
+    rsvpBtn.addEventListener('click', function(){ toast('RSVP updated! &#127881;'); });
   }
 
   // Wire nudge button
   var nudgeBtn = document.getElementById('nudge-btn');
   if (nudgeBtn) {
-    nudgeBtn.addEventListener('click', function(){ toast('Nudge sent to the flock! ?'); });
+    nudgeBtn.addEventListener('click', function(){ toast('Nudge sent to the flock! &#128075;'); });
   }
 }
 
@@ -1775,7 +1798,7 @@ function buildStandardDetail(g) {
       makeAv((owner&&owner.animal)||'bear', 28)+
       '<div class="task-info">'+
         '<div class="task-title'+(t.done?' done':'')+'" id="task-title-'+t.id+'">'+t.title+'</div>'+
-        '<div class="task-owner">'+(owner?owner.name:t.owner)+' ? '+t.note+'</div>'+
+        '<div class="task-owner">'+(owner?owner.name:t.owner)+' &middot; '+t.note+'</div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1794,9 +1817,9 @@ function buildStandardDetail(g) {
   }).join('');
 
   return '<div class="detail-hero">'+
-    '<div class="detail-eyebrow">'+(g.type==='planned'?'Planned gathering':'? Bonus gathering')+'</div>'+
+    '<div class="detail-eyebrow">'+(g.type==='planned'?'Planned gathering':'&#127381; Bonus gathering')+'</div>'+
     '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">'+g.month+' '+g.day+' ? '+g.location+'</div>'+
+    '<div class="detail-sub">'+g.month+' '+g.day+' &middot; '+g.location+'</div>'+
     '<div class="detail-stats">'+
       '<div class="detail-stat"><div class="detail-stat-n">'+((g.attending||[]).length)+'</div><div class="detail-stat-l">attending</div></div>'+
       (tasksTotal?'<div class="detail-stat"><div class="detail-stat-n">'+tasksDone+'/'+tasksTotal+'</div><div class="detail-stat-l">tasks done</div></div>':'')+
@@ -1809,7 +1832,13 @@ function buildStandardDetail(g) {
     '<div><div class="collab-title">Everyone owns a piece of this</div><div class="collab-sub">'+tasksTotal+' tasks spread across the flock ? no one carries it all.</div></div>'+
   '</div>'+
 
-  (tasksTotal ? '<div class="section-title">Shared tasks</div>'+taskHTML : '')+
+  (tasksTotal ? '<div class="card" style="margin-bottom:0"><div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0">'+
+    '<div style="font-size:13px;font-weight:700;color:var(--text1)">&#128203; Tasks</div>'+
+    '<div style="font-size:13px;color:var(--text2)">'+tasksDone+' of '+tasksTotal+' done</div>'+
+    '</div>'+
+    '<div style="background:var(--border);border-radius:4px;height:6px;margin-top:8px;overflow:hidden">'+
+      '<div style="height:100%;border-radius:4px;background:var(--brand);width:'+(tasksTotal?Math.round(tasksDone/tasksTotal*100):0)+'%"></div>'+
+    '</div></div>' : '')+
 
   '<div class="section-title">Who\'s coming</div>'+
   '<div class="card"><div>'+memberRows+'</div></div>'+
@@ -1836,9 +1865,9 @@ function buildBeachDetail(g) {
   }).join('');
 
   return '<div class="detail-hero beach">'+
-    '<div class="detail-eyebrow">? Bonus ? Collecting availability</div>'+
+    '<div class="detail-eyebrow">&#127381; Bonus &mdash; Collecting availability</div>'+
     '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">July 2025 ? beach rental ? all ages ? relaxed week</div>'+
+    '<div class="detail-sub">July 2025 &middot; beach rental &middot; all ages &middot; relaxed week</div>'+
     '<div class="detail-stats">'+
       '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">responded</div></div>'+
       '<div class="detail-stat"><div class="detail-stat-n">7</div><div class="detail-stat-l">nights</div></div>'+
@@ -1895,7 +1924,7 @@ function renderIdeas() {
       var vcnt = document.getElementById('vcnt-'+idea.id);
       if (vbar) vbar.style.width = idea.pct+'%';
       if (vcnt) vcnt.textContent = idea.votes+' vote'+(idea.votes!==1?'s':'');
-      vbtn.textContent = idea.voted ? '? Voted' : 'Vote';
+      vbtn.textContent = idea.voted ? '&#128077; Voted' : 'Vote';
       vbtn.classList.toggle('voted', idea.voted);
       setTimeout(function(){ voting = false; vbtn.style.opacity = ''; }, 800);
     });
@@ -1925,7 +1954,7 @@ function renderFairness() {
   });
 
   html += '<div class="pool-box">'+
-    '<div><div class="pool-label">Fairness pool</div><div class="pool-sub">$'+f.poolPerPerson+' from each ? subsidies for highest travelers</div></div>'+
+    '<div><div class="pool-label">Fairness pool</div><div class="pool-sub">$'+f.poolPerPerson+' from each &mdash; subsidies for highest travelers</div></div>'+
     '<div class="pool-amt">$'+f.poolTotal.toLocaleString()+'</div>'+
   '</div></div>';
 
@@ -1945,7 +1974,7 @@ function renderFairness() {
   });
 
   html += '<div style="background:#ede8ff;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:12px;color:var(--brand);font-weight:700;line-height:1.5">'+
-    '? Next 2 gatherings should lean toward the Pacific Northwest to rebalance.'+
+    '&#128204; Next 2 gatherings should lean toward the Pacific Northwest to rebalance.'+
   '</div></div>';
 
   html += '<button class="btn-secondary" id="fair-loc-btn" style="margin-top:4px">Find fair meeting locations ?</button>';
@@ -1963,7 +1992,7 @@ function renderProfile() {
     '<div class="profile-top">'+
       '<div class="profile-av-wrap" id="profile-av-wrap">'+makeAvSvg(me.animal,88)+'</div>'+
       '<div class="profile-name">'+me.name+'</div>'+
-      '<div class="profile-handle">'+me.trait+' ? '+me.location+'</div>'+
+      '<div class="profile-handle">'+me.trait+' &middot; '+me.location+'</div>'+
     '</div>'+
 
     '<div class="stat-grid">'+
@@ -1987,8 +2016,12 @@ function renderProfile() {
     '</div></div>'+
 
     '<button class="btn-primary" id="edit-profile-btn" style="margin-top:4px">Edit my profile</button>'+
-    '<button class="btn-secondary" id="change-animal-btn" style="margin-top:8px">Change my animal</button>'+
-    '<button class="btn-secondary" id="switch-member-btn" style="margin-top:8px">Switch family member</button>';
+
+    '<div style="height:1px;background:var(--border);margin:20px 0 16px"></div>'+
+    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Account</div>'+
+    '<button class="btn-secondary" id="change-animal-btn" style="margin-top:0;margin-bottom:8px">&#128018; Change my animal</button>'+
+    '<button id="switch-member-btn" style="display:block;width:100%;padding:13px;border-radius:12px;border:1.5px solid #FFD0D0;background:transparent;color:#D85A30;font-size:14px;font-weight:800;cursor:pointer;margin-top:0;font-family:inherit">Switch family member</button>'+
+    '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.4">This will end your current session.</div>';
 
   document.getElementById('profile-content').innerHTML = html;
 
@@ -2629,6 +2662,136 @@ function renderJoinForm() {
   document.getElementById('jf-back').addEventListener('click', renderLoginMembers);
 }
 
+
+// ── ADD IDEA FLOW ────────────────────────────────────
+var IDEA_CATS = [
+  {icon:'&#129504;', label:'Quiz or games'},
+  {icon:'&#127859;', label:'Food + cooking'},
+  {icon:'&#127910;', label:'Music + dancing'},
+  {icon:'&#127766;', label:'Outdoors'},
+  {icon:'&#127912;', label:'Arts + crafts'},
+  {icon:'&#127957;', label:'Travel'},
+  {icon:'&#127813;', label:'Relaxed hangout'},
+  {icon:'&#127909;', label:'Movies + shows'},
+];
+
+function openAddIdea() {
+  var body = document.getElementById('add-idea-body');
+  var selCat = IDEA_CATS[0];
+
+  body.innerHTML = '';
+
+  var tl = document.createElement('div');
+  tl.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px';
+  tl.textContent = 'Category';
+  body.appendChild(tl);
+
+  var catGrid = document.createElement('div');
+  catGrid.className = 'idea-cat-grid';
+  IDEA_CATS.forEach(function(cat, i) {
+    var btn = document.createElement('div');
+    btn.className = 'idea-cat' + (i === 0 ? ' selected' : '');
+    btn.innerHTML = '<div class="idea-cat-icon">' + cat.icon + '</div>' + cat.label;
+    btn.addEventListener('click', function() {
+      selCat = cat;
+      catGrid.querySelectorAll('.idea-cat').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    });
+    catGrid.appendChild(btn);
+  });
+  body.appendChild(catGrid);
+
+  var tl2 = document.createElement('div');
+  tl2.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px';
+  tl2.textContent = 'Your idea';
+  body.appendChild(tl2);
+
+  var inp = document.createElement('input');
+  inp.className = 'input-field';
+  inp.placeholder = 'e.g. Trivia night with custom family questions';
+  inp.style.marginBottom = '10px';
+  body.appendChild(inp);
+
+  var tl3 = document.createElement('div');
+  tl3.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px';
+  tl3.textContent = 'Details (optional)';
+  body.appendChild(tl3);
+
+  var det = document.createElement('textarea');
+  det.className = 'input-field';
+  det.placeholder = 'Anything that makes this great — works for hybrid, budget-friendly, etc.';
+  det.style.cssText = 'height:80px;resize:none;margin-bottom:16px';
+  body.appendChild(det);
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary';
+  saveBtn.style.marginBottom = '32px';
+  saveBtn.textContent = 'Add to idea bank';
+  saveBtn.addEventListener('click', function() {
+    var title = inp.value.trim();
+    if (!title) { inp.focus(); inp.style.borderColor = 'var(--red)'; return; }
+    inp.style.borderColor = '';
+    var newIdea = {
+      id: 'i' + Date.now(),
+      icon: selCat.icon,
+      title: title,
+      sub: det.value.trim() || selCat.label,
+      votes: 1,
+      pct: 12,
+      voted: true
+    };
+    DATA.ideas.unshift(newIdea);
+    addActivityItem(DATA.me, 'added "' + title + '" to the idea bank');
+    document.getElementById('add-idea-overlay').classList.add('hidden');
+    renderIdeas();
+    toast('Idea added! &#128161;');
+  });
+  body.appendChild(saveBtn);
+
+  document.getElementById('add-idea-overlay').classList.remove('hidden');
+}
+
+document.getElementById('add-idea-close').addEventListener('click', function(){
+  document.getElementById('add-idea-overlay').classList.add('hidden');
+});
+document.getElementById('add-idea-overlay').addEventListener('click', function(e){
+  if (e.target === this) this.classList.add('hidden');
+});
+
+
+
+// ── ACTIVITY FEED ────────────────────────────────────
+function addActivityItem(member, text) {
+  DATA.activity.unshift({
+    member: member.id,
+    text: text,
+    time: 'Just now'
+  });
+  if (DATA.activity.length > 20) DATA.activity.pop();
+  // If home is visible, re-render feed live
+  var home = document.getElementById('page-home');
+  if (home && home.classList.contains('active')) {
+    var feed = document.getElementById('activity-feed');
+    if (feed) renderActivityFeed(feed);
+  }
+}
+
+function renderActivityFeed(feedEl) {
+  feedEl.innerHTML = '';
+  DATA.activity.slice(0, 8).forEach(function(a){
+    var m = getMember(a.member);
+    var item = document.createElement('div');
+    item.className = 'activity-item';
+    item.innerHTML =
+      makeAv((m && m.animal)||'bear', 32)+
+      '<div style="flex:1">'+
+        '<div class="activity-text"><strong>'+(m?m.name:a.member)+'</strong> '+a.text+'</div>'+
+        '<div class="activity-time">'+a.time+'</div>'+
+      '</div>';
+    feedEl.appendChild(item);
+  });
+}
+
 // -- COUNTDOWN ------------------------------------
 function getNextGathering() {
   var now = new Date();
@@ -2885,23 +3048,29 @@ function renderFlockWelcome() {
 
   var cBtn = document.createElement('button');
   cBtn.className = 'flock-big-btn';
-  cBtn.innerHTML = '<div class="flock-big-icon" style="background:rgba(240,192,48,.2)">?</div><div><div class="flock-big-title">Create a flock</div><div class="flock-big-sub">Start a new group and invite people</div></div>';
+  cBtn.innerHTML = '<div class="flock-big-icon" style="background:rgba(240,192,48,.2)">&#127968;</div><div><div class="flock-big-title">Create a flock</div><div class="flock-big-sub">Start a new group and invite people</div></div>';
   cBtn.addEventListener('click', renderFlockCreate);
   inner.appendChild(cBtn);
 
   var jBtn = document.createElement('button');
   jBtn.className = 'flock-big-btn';
-  jBtn.innerHTML = '<div class="flock-big-icon" style="background:rgba(255,255,255,.1)">?</div><div><div class="flock-big-title">Join with a code</div><div class="flock-big-sub">Enter an invite code from your family</div></div>';
+  jBtn.innerHTML = '<div class="flock-big-icon" style="background:rgba(255,255,255,.1)">&#127981;</div><div><div class="flock-big-title">Join with a code</div><div class="flock-big-sub">Enter an invite code from your family</div></div>';
   jBtn.addEventListener('click', renderFlockJoin);
   inner.appendChild(jBtn);
 
+  var backBtn = document.createElement('button');
+  backBtn.className = 'flock-btn-outline';
   if (Object.keys(FLOCKS).length > 0) {
-    var skipBtn = document.createElement('button');
-    skipBtn.className = 'flock-btn-outline';
-    skipBtn.textContent = 'Back to my flocks';
-    skipBtn.addEventListener('click', hideFlockOverlay);
-    inner.appendChild(skipBtn);
+    backBtn.textContent = 'Back to my flocks';
+    backBtn.addEventListener('click', hideFlockOverlay);
+  } else {
+    backBtn.textContent = '&#8592; Back';
+    backBtn.addEventListener('click', function(){
+      hideFlockOverlay();
+      showLoginScreen();
+    });
   }
+  inner.appendChild(backBtn);
 }
 
 function renderFlockCreate() {
@@ -2920,7 +3089,7 @@ function renderFlockCreate() {
 
   var el = document.createElement('div'); el.className = 'flock-field-label'; el.style.marginTop = '14px'; el.textContent = 'Pick an emoji'; inner.appendChild(el);
   var eg = document.createElement('div'); eg.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px'; inner.appendChild(eg);
-  var selEmoji = '?';
+  var selEmoji = '&#127968;';
   FLOCK_EMOJIS.forEach(function(e) {
     var b = document.createElement('button');
     b.style.cssText = 'border-radius:10px;padding:10px;font-size:22px;cursor:pointer;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);transition:all .15s;font-family:inherit';
@@ -2934,7 +3103,7 @@ function renderFlockCreate() {
     eg.appendChild(b);
   });
 
-  var cb = document.createElement('button'); cb.className = 'flock-btn'; cb.textContent = 'Create flock ?';
+  var cb = document.createElement('button'); cb.className = 'flock-btn'; cb.textContent = 'Create flock';
   cb.addEventListener('click', function() {
     var name = ni.value.trim();
     if (!name) { ne.style.display = 'block'; ni.focus(); return; }
@@ -3370,6 +3539,7 @@ function openRSVP(gatheringId) {
     }
 
     document.getElementById('rsvp-overlay').classList.add('hidden');
+    addActivityItem(DATA.me, 'updated their RSVP for ' + (DATA.gatherings.find(function(x){ return x.id === gatheringId; })||{}).name);
     renderDetail(DATA.gatherings.find(function(x){ return x.id === gatheringId; }));
 
     var msg = selectedStatus === 'yes' ? 'RSVP confirmed! See you there &#127881;' :
@@ -3498,6 +3668,7 @@ function openTaskDetail(gatheringId, taskId) {
         task.claimedName = me.name;
         saveTask(gatheringId, g.tasks);
         overlay.classList.add('hidden');
+        addActivityItem(DATA.me, 'claimed the task "' + task.title + '"');
         renderDetail(g);
         toast('Task claimed! &#128203;');
       });
@@ -3512,6 +3683,7 @@ function openTaskDetail(gatheringId, taskId) {
         task.done = true;
         saveTask(gatheringId, g.tasks);
         overlay.classList.add('hidden');
+        addActivityItem(DATA.me, 'completed the task "' + task.title + '"');
         renderDetail(g);
         toast('Task complete! &#127881;');
       });
@@ -3927,6 +4099,165 @@ function renderGatheringRecap(gatheringId) {
   return wrap;
 }
 
+
+// ── ADD IDEA FLOW ────────────────────────────────────
+var IDEA_CATS = [
+  {icon:'&#129504;', label:'Quiz or games'},
+  {icon:'&#127859;', label:'Food + cooking'},
+  {icon:'&#127910;', label:'Music + dancing'},
+  {icon:'&#127766;', label:'Outdoors'},
+  {icon:'&#127912;', label:'Arts + crafts'},
+  {icon:'&#127957;', label:'Travel'},
+  {icon:'&#127813;', label:'Relaxed hangout'},
+  {icon:'&#127909;', label:'Movies + shows'},
+];
+
+function openAddIdea() {
+  var body = document.getElementById('add-idea-body');
+  var selCat = IDEA_CATS[0];
+
+  body.innerHTML = '';
+
+  var tl = document.createElement('div');
+  tl.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px';
+  tl.textContent = 'Category';
+  body.appendChild(tl);
+
+  var catGrid = document.createElement('div');
+  catGrid.className = 'idea-cat-grid';
+  IDEA_CATS.forEach(function(cat, i) {
+    var btn = document.createElement('div');
+    btn.className = 'idea-cat' + (i === 0 ? ' selected' : '');
+    btn.innerHTML = '<div class="idea-cat-icon">' + cat.icon + '</div>' + cat.label;
+    btn.addEventListener('click', function() {
+      selCat = cat;
+      catGrid.querySelectorAll('.idea-cat').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    });
+    catGrid.appendChild(btn);
+  });
+  body.appendChild(catGrid);
+
+  var tl2 = document.createElement('div');
+  tl2.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px';
+  tl2.textContent = 'Your idea';
+  body.appendChild(tl2);
+
+  var inp = document.createElement('input');
+  inp.className = 'input-field';
+  inp.placeholder = 'e.g. Trivia night with custom family questions';
+  inp.style.marginBottom = '10px';
+  body.appendChild(inp);
+
+  var tl3 = document.createElement('div');
+  tl3.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px';
+  tl3.textContent = 'Details (optional)';
+  body.appendChild(tl3);
+
+  var det = document.createElement('textarea');
+  det.className = 'input-field';
+  det.placeholder = 'Anything that makes this great — works for hybrid, budget-friendly, etc.';
+  det.style.cssText = 'height:80px;resize:none;margin-bottom:16px';
+  body.appendChild(det);
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary';
+  saveBtn.style.marginBottom = '32px';
+  saveBtn.textContent = 'Add to idea bank';
+  saveBtn.addEventListener('click', function() {
+    var title = inp.value.trim();
+    if (!title) { inp.focus(); inp.style.borderColor = 'var(--red)'; return; }
+    inp.style.borderColor = '';
+    var newIdea = {
+      id: 'i' + Date.now(),
+      icon: selCat.icon,
+      title: title,
+      sub: det.value.trim() || selCat.label,
+      votes: 1,
+      pct: 12,
+      voted: true
+    };
+    DATA.ideas.unshift(newIdea);
+    addActivityItem(DATA.me, 'added "' + title + '" to the idea bank');
+    document.getElementById('add-idea-overlay').classList.add('hidden');
+    renderIdeas();
+    toast('Idea added! &#128161;');
+  });
+  body.appendChild(saveBtn);
+
+  document.getElementById('add-idea-overlay').classList.remove('hidden');
+}
+
+document.getElementById('add-idea-close').addEventListener('click', function(){
+  document.getElementById('add-idea-overlay').classList.add('hidden');
+});
+document.getElementById('add-idea-overlay').addEventListener('click', function(e){
+  if (e.target === this) this.classList.add('hidden');
+});
+
+
+
+// ── ACTIVITY FEED ────────────────────────────────────
+function addActivityItem(member, text) {
+  DATA.activity.unshift({
+    member: member.id,
+    text: text,
+    time: 'Just now'
+  });
+  if (DATA.activity.length > 20) DATA.activity.pop();
+  // If home is visible, re-render feed live
+  var home = document.getElementById('page-home');
+  if (home && home.classList.contains('active')) {
+    var feed = document.getElementById('activity-feed');
+    if (feed) renderActivityFeed(feed);
+  }
+}
+
+function renderActivityFeed(feedEl) {
+  feedEl.innerHTML = '';
+  DATA.activity.slice(0, 8).forEach(function(a){
+    var m = getMember(a.member);
+    var item = document.createElement('div');
+    item.className = 'activity-item';
+    item.innerHTML =
+      makeAv((m && m.animal)||'bear', 32)+
+      '<div style="flex:1">'+
+        '<div class="activity-text"><strong>'+(m?m.name:a.member)+'</strong> '+a.text+'</div>'+
+        '<div class="activity-time">'+a.time+'</div>'+
+      '</div>';
+    feedEl.appendChild(item);
+  });
+}
+
+// -- COUNTDOWN --
+function updateCountdown() {
+  var target = new Date('2025-07-19T10:00:00');
+  var now = new Date();
+  var diff = target - now;
+  if (diff < 0) {
+    document.getElementById('cd-d').textContent = '0';
+    document.getElementById('cd-h').textContent = '0';
+    document.getElementById('cd-m').textContent = '0';
+    return;
+  }
+  var days  = Math.floor(diff / (1000*60*60*24));
+  var hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+  var mins  = Math.floor((diff % (1000*60*60)) / (1000*60));
+  document.getElementById('cd-d').textContent = days;
+  document.getElementById('cd-h').textContent = hours;
+  document.getElementById('cd-m').textContent = String(mins).padStart(2,'0');
+}
+updateCountdown();
+setInterval(updateCountdown, 30000);
+
+document.getElementById('task-detail-overlay').addEventListener('click', function(e){
+  if (e.target === this) { document.getElementById('task-detail-overlay').classList.add('hidden'); }
+});
+
+document.getElementById('flock-overlay-close').addEventListener('click', function(){
+  hideFlockOverlay();
+  if (Object.keys(FLOCKS).length === 0) showLoginScreen();
+});
 // -- BOOT -----------------------------------------
 (function init() {
   // Load flock state first
