@@ -363,85 +363,84 @@ window.KinverlyProfile = (function () {
     const overlay = document.getElementById('login-overlay');
     const A = window.Animals;
     const allAnimals = ['fox','bear','bunny','owl','cat','panda','frog','penguin','hedgehog','deer'];
-    const takenAnimals = (window.KinverlyData?.members || []).map(m => m.animal);
-    const availableAnimals = allAnimals.filter(a => !takenAnimals.includes(a));
-    // If all taken, allow all
-    const animals = availableAnimals.length > 0 ? availableAnimals : allAnimals;
+    const takenAnimals = (window.KinverlyData?.members || []).map(function(m){ return m.animal; });
+    const available = allAnimals.filter(function(a){ return !takenAnimals.includes(a); });
+    const animals = available.length > 0 ? available : allAnimals;
 
-    overlay.innerHTML = `
-      <div class="login-box" style="gap:0">
-        <div class="login-logo" style="font-size:32px;margin-bottom:4px">Kinverly<span style="color:rgba(255,255,255,0.5)">.</span></div>
-        <div class="login-tagline" style="margin-bottom:20px">JOIN THE FLOCK</div>
-
-        <div id="new-member-step" data-step="1">
-
-          <div style="width:100%;margin-bottom:20px">
-            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your name</div>
-            <input id="nm-name" type="text" placeholder="e.g. Sara or Aunt Sara"
-              style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;font-family:var(--font-body);outline:none"
-              oninput="document.getElementById('nm-name-err').style.display='none'"
-              onfocus="this.style.borderColor='rgba(240,192,48,0.6)'"
-              onblur="this.style.borderColor='rgba(255,255,255,0.2)'">
-            <div id="nm-name-err" style="display:none;color:#F0C030;font-size:12px;margin-top:6px;font-weight:600">Please enter your name</div>
-          </div>
-
-          <div style="width:100%;margin-bottom:20px">
-            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your city</div>
-            <input id="nm-location" type="text" placeholder="e.g. Portland, OR"
-              style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;font-family:var(--font-body);outline:none"
-              onfocus="this.style.borderColor='rgba(240,192,48,0.6)'"
-              onblur="this.style.borderColor='rgba(255,255,255,0.2)'">
-          </div>
-
-          <div style="width:100%;margin-bottom:20px">
-            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Pick your animal</div>
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px" id="nm-animal-grid">
-              ${animals.map(a => `
-                <div class="nm-animal-opt" id="nma-${a}" data-animal="${a}"
-                  style="border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;border:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);transition:all .15s">
-                  <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;margin:0 auto 4px;border:2px solid rgba(255,255,255,0.2)">
-                    <svg viewBox="0 0 100 100" width="44" height="44">${A.paths(a)}</svg>
-                  </div>
-                  <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.7)">${_animalName(a)}</div>
-                </div>
-              `).join('')}
-            </div>
-            <div id="nm-animal-err" style="display:none;color:#F0C030;font-size:12px;margin-top:8px;font-weight:600">Please pick an animal</div>
-          </div>
-
-          <button data-action="join-flock"
-            style="width:100%;padding:13px;border-radius:12px;background:#F0C030;color:#1E1433;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:10px">
-            Join the flock!
-          </button>
-
-          <div onclick="KinverlyProfile.showLoginScreen()"
-            style="font-size:13px;color:rgba(255,255,255,0.5);cursor:pointer;text-align:center;text-decoration:underline;text-underline-offset:3px">
-            Back to member list
-          </div>
-
-        </div>
-      </div>
-    `;
+    // Build with innerHTML for the shell, then DOM for interactive parts
+    overlay.innerHTML = [
+      '<div class="login-box" style="gap:0;width:100%;max-width:390px">',
+      '<div class="login-logo" style="font-size:32px;margin-bottom:4px">Kinverly<span style="color:rgba(255,255,255,0.5)">.</span></div>',
+      '<div class="login-tagline" style="margin-bottom:20px">JOIN THE FLOCK</div>',
+      '<div style="width:100%;margin-bottom:16px">',
+        '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your name</div>',
+        '<input id="nm-name" type="text" placeholder="e.g. Sara or Aunt Sara" style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;font-family:var(--font-body);outline:none">',
+        '<div id="nm-name-err" style="display:none;color:#F0C030;font-size:12px;margin-top:6px;font-weight:600">Please enter your name</div>',
+      '</div>',
+      '<div style="width:100%;margin-bottom:16px">',
+        '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Your city</div>',
+        '<input id="nm-location" type="text" placeholder="e.g. Portland, OR" style="width:100%;padding:12px 16px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:16px;font-family:var(--font-body);outline:none">',
+      '</div>',
+      '<div style="width:100%;margin-bottom:16px">',
+        '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Pick your animal</div>',
+        '<div id="nm-animal-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px"></div>',
+        '<div id="nm-animal-err" style="display:none;color:#F0C030;font-size:12px;margin-top:8px;font-weight:600">Please pick an animal</div>',
+      '</div>',
+      '<button id="nm-join-btn" style="width:100%;padding:13px;border-radius:12px;background:#F0C030;color:#1E1433;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:10px">Join the flock!</button>',
+      '<div id="nm-back-btn" style="font-size:13px;color:rgba(255,255,255,0.5);cursor:pointer;text-align:center;text-decoration:underline;text-underline-offset:3px">Back to member list</div>',
+      '</div>'
+    ].join('');
     overlay.style.display = 'flex';
-    window._newMemberAnimal = null;
 
-    // Wire up animal grid clicks via event delegation (avoids quote-in-onclick issues)
-    setTimeout(() => {
-      const grid = document.getElementById('nm-animal-grid');
-      if (grid) {
-        grid.addEventListener('click', function(e) {
-          const card = e.target.closest('[data-animal]');
-          if (card) selectNewAnimal(card.dataset.animal);
-        });
+    var pickedAnimal = null;
+
+    // Build animal cards as real DOM nodes with real event listeners
+    var gridEl = document.getElementById('nm-animal-grid');
+    animals.forEach(function(a) {
+      var card = document.createElement('div');
+      card.style.cssText = 'border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;border:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);transition:all .15s';
+      var svgPaths = A ? A.paths(a) : '';
+      card.innerHTML = '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;margin:0 auto 4px;border:2px solid rgba(255,255,255,0.2)"><svg viewBox="0 0 100 100" width="44" height="44">' + svgPaths + '</svg></div><div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.7)">' + _animalName(a) + '</div>';
+      card.addEventListener('click', function() {
+        var allCards = gridEl.children;
+        for (var i = 0; i < allCards.length; i++) {
+          allCards[i].style.borderColor = 'rgba(255,255,255,0.15)';
+          allCards[i].style.background = 'rgba(255,255,255,0.08)';
+        }
+        card.style.borderColor = '#F0C030';
+        card.style.background = 'rgba(240,192,48,0.2)';
+        pickedAnimal = a;
+        document.getElementById('nm-animal-err').style.display = 'none';
+      });
+      gridEl.appendChild(card);
+    });
+
+    // Join button
+    document.getElementById('nm-join-btn').addEventListener('click', function() {
+      var name = document.getElementById('nm-name').value.trim();
+      var location = (document.getElementById('nm-location').value.trim()) || 'Somewhere wonderful';
+      var valid = true;
+      if (!name) { document.getElementById('nm-name-err').style.display = 'block'; valid = false; }
+      if (!pickedAnimal) { document.getElementById('nm-animal-err').style.display = 'block'; valid = false; }
+      if (!valid) return;
+
+      var id = name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + Date.now().toString(36);
+      var newMember = { id: id, name: name, animal: pickedAnimal, location: location, online: false, mode: 'in-person', pct: 0 };
+
+      if (window.KinverlyData) {
+        window.KinverlyData.members = window.KinverlyData.members || [];
+        window.KinverlyData.members.push(newMember);
       }
-      const joinBtn = document.querySelector('[data-action="join-flock"]');
-      if (joinBtn) joinBtn.addEventListener('click', submitNewMember);
-    }, 50);
+
+      selectMember(id);
+      if (window.KinverlyApp) window.KinverlyApp.showToast('Welcome to the flock, ' + name + '!');
+    });
+
+    // Back button
+    document.getElementById('nm-back-btn').addEventListener('click', showLoginScreen);
   }
 
-
-
-  function selectNewAnimal(animal) {
+    function selectNewAnimal(animal) {
     window._newMemberAnimal = animal;
     document.querySelectorAll('.nm-animal-opt').forEach(el => {
       el.style.borderColor = 'rgba(255,255,255,0.15)';
