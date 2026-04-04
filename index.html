@@ -1530,6 +1530,110 @@ img,svg{display:block}
 .sched-resp-pill.done{background:var(--green-bg);color:var(--green)}
 .sched-resp-pill.partial{background:var(--amber-bg);color:var(--amber)}
 .sched-blocked-pill{font-size:10px;font-weight:700;color:var(--text3);padding:1px 4px}
+
+/* ── ACTION ITEMS (Home screen) ──────────────────────────────── */
+.action-section-lbl{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.action-list{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.action-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:14px;cursor:pointer;
+  border:1.5px solid var(--border);background:var(--surface);
+  transition:transform .1s;
+}
+.action-item:active{transform:scale(.99)}
+.action-icon{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+.action-body{flex:1;min-width:0}
+.action-title{font-size:14px;font-weight:800;color:var(--text1);margin-bottom:2px}
+.action-sub{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.action-arrow{color:var(--text3);flex-shrink:0}
+.action-purple{border-color:rgba(61,43,110,.25);background:#f5f3ff}
+.action-amber{border-color:rgba(200,120,32,.25);background:var(--amber-bg)}
+.action-green{border-color:rgba(59,138,74,.25);background:var(--green-bg)}
+.action-blue{border-color:rgba(42,109,181,.25);background:var(--blue-bg)}
+.action-empty{font-size:14px;color:var(--text3);text-align:center;padding:16px 0 20px;font-weight:600}
+
+/* ── STATUS BANNER (Gathering overview) ──────────────────────── */
+.status-banner{
+  display:flex;align-items:center;gap:12px;
+  border-radius:14px;padding:13px 14px;
+  margin-bottom:12px;border:1.5px solid var(--border);
+}
+.status-banner.needs-rsvp{background:#f5f3ff;border-color:rgba(61,43,110,.25)}
+.status-banner.planning{background:var(--amber-bg);border-color:rgba(200,120,32,.2)}
+.status-banner.has-tasks{background:var(--green-bg);border-color:rgba(59,138,74,.2)}
+.status-banner.all-good{background:var(--surface2);border-color:var(--border)}
+.status-banner-icon{font-size:22px;flex-shrink:0}
+.status-banner-body{flex:1;min-width:0}
+.status-banner-title{font-size:14px;font-weight:800;color:var(--text1);margin-bottom:2px}
+.status-banner-sub{font-size:12px;color:var(--text2);font-weight:600}
+.status-banner-btn{
+  flex-shrink:0;padding:8px 14px;border-radius:10px;border:none;
+  background:var(--brand);color:#fff;font-size:12px;font-weight:800;
+  cursor:pointer;font-family:inherit;white-space:nowrap;
+}
+
+/* ── NOTIFICATION PANEL ──────────────────────────────────────── */
+#notif-overlay{align-items:flex-start;justify-content:center;padding-top:60px}
+.notif-panel{
+  width:100%;max-width:430px;
+  background:var(--surface);border-radius:0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow:0 8px 32px rgba(0,0,0,.15);
+  max-height:70vh;display:flex;flex-direction:column;overflow:hidden;
+}
+.notif-panel-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px 12px;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.notif-panel-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--text1)}
+.notif-panel-close{background:none;border:none;cursor:pointer;color:var(--text3);padding:4px}
+.notif-list{overflow-y:auto;flex:1;padding:6px 0}
+.notif-item{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 18px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .15s;
+}
+.notif-item:last-child{border-bottom:none}
+.notif-item:hover{background:var(--surface2)}
+.notif-item.unread{background:#f5f3ff}
+.notif-item.unread:hover{background:#ede8ff}
+.notif-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.notif-body{flex:1}
+.notif-text{font-size:13px;font-weight:700;color:var(--text1);line-height:1.4;margin-bottom:3px}
+.notif-time{font-size:11px;color:var(--text3);font-weight:600}
+.notif-empty{padding:32px 18px;text-align:center;color:var(--text3);font-size:13px}
+
+/* ── MEMBER PROFILE SHEET ────────────────────────────────────── */
+.mp-hero{display:flex;gap:14px;align-items:flex-start;margin-bottom:16px}
+.mp-av{width:72px;height:72px;border-radius:50%;overflow:hidden;flex-shrink:0;border:3px solid var(--border)}
+.mp-name{font-family:'Fredoka One',cursive;font-size:22px;color:var(--text1);margin-bottom:2px}
+.mp-loc{font-size:13px;color:var(--text3);font-weight:600;margin-bottom:4px}
+.mp-trait{font-size:12px;color:var(--brand);font-weight:800;font-style:italic}
+.mp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px}
+.mp-stat{background:var(--surface2);border-radius:10px;padding:10px 6px;text-align:center}
+.mp-stat-n{font-size:18px;font-weight:300;color:var(--text1);line-height:1.1}
+.mp-stat-l{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.mp-section-lbl{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px}
+.mp-prefs{display:flex;flex-direction:column;gap:0;border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:4px}
+.mp-pref{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px}
+.mp-pref:last-child{border-bottom:none}
+.mp-pref-k{color:var(--text2);font-weight:700}
+.mp-pref-v{color:var(--text1);font-weight:800}
+.mp-rsvp-list,.mp-task-list{display:flex;flex-direction:column;gap:0;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+.mp-rsvp-row,.mp-task-row{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px}
+.mp-rsvp-row:last-child,.mp-task-row:last-child{border-bottom:none}
+.mp-rsvp-name{flex:1;font-weight:700;color:var(--text1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-rsvp-date{font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0;min-width:36px;text-align:right;margin-right:6px}
+.mp-rsvp-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;flex-shrink:0}
+.badge-yes{background:var(--green-bg);color:var(--green)}
+.badge-virtual{background:var(--blue-bg);color:var(--blue)}
+.badge-no{background:var(--red-bg);color:var(--red)}
+.badge-pending{background:var(--surface2);color:var(--text3)}
+.mp-task-check{font-size:12px;font-weight:800;width:16px;color:var(--text3);flex-shrink:0}
+.mp-task-check.done{color:var(--green)}
+.mp-task-info{flex:1;min-width:0}
+.mp-task-title{font-weight:700;color:var(--text1);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-task-g{font-size:11px;color:var(--text3);font-weight:600}
 </style>
 </head>
 <body>
@@ -1552,8 +1656,9 @@ img,svg{display:block}
       </div>
     </div>
     <div class="topbar-right">
-      <button class="notif-btn" id="notif-btn">
+      <button class="notif-btn" id="notif-btn" style="position:relative">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="notif-badge" style="display:none;position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--red);color:#fff;font-size:9px;font-weight:900;border-radius:50%;align-items:center;justify-content:center;font-family:inherit"></span>
       </button>
       <div class="topbar-av" id="topbar-av"></div>
     </div>
@@ -1562,39 +1667,35 @@ img,svg{display:block}
   <div class="page-wrap">
     <!-- HOME -->
     <div class="page active" id="page-home">
+      <!-- HERO: countdown to next gathering -->
       <div class="hero" id="hero">
         <div class="hero-label">Next gathering</div>
-        <div class="hero-title">Summer Cookout</div>
-        <div class="hero-sub">Jul 19 · Atlanta, GA · Marcus's pick</div>
+        <div class="hero-title" id="hero-title">Loading…</div>
+        <div class="hero-sub" id="hero-sub"></div>
         <div class="countdown">
-          <div class="cd-unit"><span class="cd-n" id="cd-d">23</span><span class="cd-l">days</span></div>
+          <div class="cd-unit"><span class="cd-n" id="cd-d">--</span><span class="cd-l">days</span></div>
           <span class="cd-sep">:</span>
-          <div class="cd-unit"><span class="cd-n" id="cd-h">14</span><span class="cd-l">hrs</span></div>
+          <div class="cd-unit"><span class="cd-n" id="cd-h">--</span><span class="cd-l">hrs</span></div>
           <span class="cd-sep">:</span>
-          <div class="cd-unit"><span class="cd-n" id="cd-m">07</span><span class="cd-l">min</span></div>
+          <div class="cd-unit"><span class="cd-n" id="cd-m">--</span><span class="cd-l">min</span></div>
         </div>
         <div class="hero-watermark">
           <svg width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="55" r="28" fill="#fff"/><circle cx="36" cy="32" r="10" fill="#fff"/><circle cx="64" cy="32" r="10" fill="#fff"/></svg>
         </div>
       </div>
 
-      <div class="alert-card" id="beach-alert">
-        <div style="font-size:22px">⏰</div>
-        <div class="alert-body">
-          <div class="alert-title">Beach Week · dates needed</div>
-          <div class="alert-sub">Mom is planning a summer beach week. Mark your blackout dates — takes 2 min.</div>
-        </div>
-        <button class="alert-go">Go</button>
-      </div>
+      <!-- ACTION ITEMS — live, computed -->
+      <div id="action-items-wrap"></div>
 
-      <div class="section-title">The flock</div>
+      <!-- FLOCK ROW -->
+      <div class="section-title" style="margin-top:4px">The flock</div>
       <div class="flock-row" id="flock-row"></div>
 
+      <!-- RECENT ACTIVITY -->
       <div class="section-title">Recent activity</div>
       <div class="activity-feed" id="activity-feed"></div>
 
       <div style="height:12px"></div>
-      <button class="btn-primary" id="view-gatherings-btn">View all gatherings →</button>
     </div>
 
     <!-- GATHERINGS -->
@@ -2003,10 +2104,7 @@ document.getElementById('topbar-av').addEventListener('click', function(){
 document.getElementById('detail-back').addEventListener('click', closeDetail);
 
 // View gatherings from home
-document.getElementById('view-gatherings-btn').addEventListener('click', function(){
-  showPage('gatherings');
-  renderGatherings();
-});
+(function(){ var b=document.getElementById('view-gatherings-btn'); if(b) b.addEventListener('click', function(){ showPage('gatherings'); renderGatherings(); }); })();
 
 // New gathering btn
 document.getElementById('new-gathering-btn').addEventListener('click', function(){
@@ -2019,11 +2117,7 @@ document.getElementById('add-idea-btn').addEventListener('click', function(){
 });
 
 // Beach alert
-document.getElementById('beach-alert').addEventListener('click', function(){
-  showPage('gatherings');
-  renderGatherings();
-  setTimeout(function(){ showDetail('beach'); }, 100);
-});
+(function(){ var b=document.getElementById('beach-alert'); if(b) b.addEventListener('click', function(){ showPage('gatherings'); renderGatherings(); setTimeout(function(){ showDetail('beach'); },100); }); })();
 
 // -- PAGE RENDER MAP -----------------------------
 function renderPage(name) {
@@ -3998,6 +4092,47 @@ function restoreSession() {
 var FLOCKS = {};
 var currentFlockId = null;
 
+// ── NOTIFICATION SYSTEM ─────────────────────────────────────────
+var NOTIFS = { items: [], unread: 0 };
+
+function pushNotif(type, text, gatheringId) {
+  var notif = {
+    id:    'n_' + Date.now().toString(36),
+    type:  type,   // 'nudge' | 'rsvp' | 'task' | 'date' | 'info'
+    text:  text,
+    gId:   gatheringId || null,
+    ts:    Date.now(),
+    read:  false
+  };
+  NOTIFS.items.unshift(notif);
+  if (NOTIFS.items.length > 50) NOTIFS.items = NOTIFS.items.slice(0, 50);
+  NOTIFS.unread++;
+  saveFlockState();
+  renderNotifBadge();
+}
+
+function markAllNotifsRead() {
+  NOTIFS.items.forEach(function(n){ n.read = true; });
+  NOTIFS.unread = 0;
+  saveFlockState();
+  renderNotifBadge();
+}
+
+function renderNotifBadge() {
+  var badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  badge.textContent  = NOTIFS.unread > 9 ? '9+' : NOTIFS.unread;
+  badge.style.display = NOTIFS.unread > 0 ? 'flex' : 'none';
+}
+
+function relTime(ts) {
+  var diff = Date.now() - ts;
+  if (diff < 60000)  return 'just now';
+  if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  return Math.floor(diff/86400000) + 'd ago';
+}
+
 function generateCode() {
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var code = '';
@@ -4013,14 +4148,32 @@ function generateFlockId() {
 
 function saveFlockState() {
   try {
-    // Persist current flock's data back into FLOCKS object
     if (currentFlockId && FLOCKS[currentFlockId]) {
       FLOCKS[currentFlockId].gatherings = DATA.gatherings;
-      FLOCKS[currentFlockId].ideas = DATA.ideas;
-      FLOCKS[currentFlockId].activity = DATA.activity;
+      FLOCKS[currentFlockId].ideas      = DATA.ideas;
+      FLOCKS[currentFlockId].activity   = DATA.activity;
     }
-    localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
-    localStorage.setItem('kinverly_current_flock', currentFlockId || '');
+    localStorage.setItem('kinverly_flocks',         JSON.stringify(FLOCKS));
+    localStorage.setItem('kinverly_current_flock',  currentFlockId || '');
+    // Also persist rsvpData and notifications (not flock-specific)
+    localStorage.setItem('kinverly_rsvp',           JSON.stringify(rsvpData));
+    localStorage.setItem('kinverly_notifs',         JSON.stringify(NOTIFS));
+  } catch(e) {}
+}
+
+function loadPersistedExtras() {
+  try {
+    var r = localStorage.getItem('kinverly_rsvp');
+    if (r) {
+      var parsed = JSON.parse(r);
+      // Merge parsed into rsvpData (don't overwrite seed data entirely)
+      Object.keys(parsed).forEach(function(gId) {
+        if (!rsvpData[gId]) rsvpData[gId] = {};
+        Object.assign(rsvpData[gId], parsed[gId]);
+      });
+    }
+    var n = localStorage.getItem('kinverly_notifs');
+    if (n) { var pn = JSON.parse(n); NOTIFS.items = pn.items || []; NOTIFS.unread = pn.unread || 0; }
   } catch(e) {}
 }
 
@@ -4548,6 +4701,18 @@ var rsvpData = {}; // gId -> { memberId -> {status, blockedDates, availSubmitted
     'lily':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15'] },
     'grace':  { status:'yes', availSubmitted:false, blockedDates:[] },
   };
+})();
+
+// ── Seed starter notifications ──
+(function seedNotifs() {
+  if (NOTIFS.items.length > 0) return; // don't re-seed if persisted
+  var now = Date.now();
+  NOTIFS.items = [
+    { id:'n0', type:'nudge', text:'📣 Marcus nudged you about Summer Cookout', gId:'cookout', ts: now-3600000*2, read:false },
+    { id:'n1', type:'date',  text:'📅 Beach Week needs your availability — 5 of 9 have responded', gId:'beach', ts: now-3600000*5, read:false },
+    { id:'n2', type:'rsvp',  text:'🎉 Sara RSVPed to Fall Harvest — going in person', gId:'fall', ts: now-86400000, read:true },
+  ];
+  NOTIFS.unread = 2;
 })();
 
 function openRSVP(gatheringId) {
@@ -5588,6 +5753,7 @@ function renderFlockSchedule() {
 (function init() {
   // Load flock state first
   loadFlockState();
+  loadPersistedExtras();
 
   // Check for invite code in URL (?join=XXX-XXX)
   var urlParams = new URLSearchParams(window.location.search);
@@ -5619,6 +5785,7 @@ function renderFlockSchedule() {
   renderFairness();
   renderProfile();
   updateCountdown();
+  renderNotifBadge();
   setInterval(updateCountdown, 60000);
 
   // Decide what to show on startup
@@ -6087,6 +6254,480 @@ try {
     if (e.target === this) this.classList.add('hidden');
   });
 })();
+
+
+// ════════════════════════════════════════════════════════════════
+//  UX UPDATE 1: LIVE HOME SCREEN — action items & real stats
+// ════════════════════════════════════════════════════════════════
+
+function computeLiveStats() {
+  var me = DATA.me.id;
+  var attended = 0, hosted = 0, ideas = 0;
+  DATA.gatherings.forEach(function(g) {
+    if (g.status === 'completed' || (g.attending||[]).indexOf(me) > -1) attended++;
+    if (g.host === me) hosted++;
+  });
+  DATA.ideas.forEach(function(i) { if (i.addedBy === me) ideas++; });
+  DATA.me.stats.attended = attended;
+  DATA.me.stats.hosted   = hosted;
+  DATA.me.stats.ideas    = ideas;
+}
+
+function buildActionItems() {
+  var me = DATA.me;
+  var actions = [];
+
+  DATA.gatherings.forEach(function(g) {
+    if (g.status === 'completed') return;
+
+    // Un-RSVPed confirmed gathering
+    var myRsvp = rsvpData[g.id] && rsvpData[g.id][me.id];
+    if (!myRsvp && g.status !== 'planning') {
+      actions.push({
+        priority: 10,
+        icon: '🎉',
+        title: 'RSVP to ' + g.name,
+        sub: (g.month||'') + (g.day?' '+g.day:'') + (g.location?' · '+g.location:''),
+        color: 'action-purple',
+        action: function(gid){ return function(){ openRSVP(gid); }; }(g.id)
+      });
+    }
+
+    // Availability not shared for planning gathering
+    if (g.status === 'planning') {
+      var avail = rsvpData[g.id] && rsvpData[g.id][me.id];
+      if (!avail || !avail.availSubmitted) {
+        var responded  = [me].concat(DATA.members||[]).filter(function(m){
+          if (!m) return false;
+          var r = rsvpData[g.id] && rsvpData[g.id][m.id];
+          return r && r.availSubmitted;
+        }).length;
+        var total = 1 + (DATA.members||[]).length;
+        actions.push({
+          priority: 8,
+          icon: '📅',
+          title: 'Share dates for ' + g.name,
+          sub: responded + ' of ' + total + ' have responded',
+          color: 'action-amber',
+          action: function(gid){ return function(){ showDetail(gid); }; }(g.id)
+        });
+      }
+    }
+
+    // My assigned tasks still todo
+    var myTasks = (g.tasks||[]).filter(function(t){
+      return t.owner === me.id && t.status !== 'done' && !t.done;
+    });
+    if (myTasks.length > 0) {
+      actions.push({
+        priority: 6,
+        icon: '✅',
+        title: myTasks.length + ' task' + (myTasks.length>1?'s':'') + ' on you',
+        sub: g.name + ' · ' + myTasks.map(function(t){ return t.title; }).slice(0,2).join(', ') + (myTasks.length>2?'…':''),
+        color: 'action-green',
+        action: function(gid){ return function(){ showDetail(gid); }; }(g.id)
+      });
+    }
+  });
+
+  // Sort by priority
+  actions.sort(function(a,b){ return b.priority - a.priority; });
+  return actions.slice(0, 5);
+}
+
+function renderActionItems() {
+  var wrap = document.getElementById('action-items-wrap');
+  if (!wrap) return;
+
+  var actions = buildActionItems();
+
+  if (actions.length === 0) {
+    wrap.innerHTML = '<div class="action-empty">You\'re all caught up! 🎉</div>';
+    return;
+  }
+
+  var html = '<div class="action-section-lbl">Needs your attention</div>';
+  html += '<div class="action-list">';
+  actions.forEach(function(a, i) {
+    html += '<div class="action-item ' + a.color + '" id="ai-'+i+'">' +
+      '<span class="action-icon">' + a.icon + '</span>' +
+      '<div class="action-body">' +
+        '<div class="action-title">' + a.title + '</div>' +
+        '<div class="action-sub">' + a.sub + '</div>' +
+      '</div>' +
+      '<svg class="action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+    '</div>';
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  // Wire clicks
+  actions.forEach(function(a, i) {
+    var el = document.getElementById('ai-'+i);
+    if (el) el.addEventListener('click', function(){ 
+      showPage('gatherings');
+      setTimeout(a.action, 80);
+    });
+  });
+}
+
+// Patch renderHome: live stats + action items + flock chip wiring
+var _origRenderHome = renderHome;
+renderHome = function() {
+  _origRenderHome();
+  computeLiveStats();
+  renderActionItems();
+  // Wire flock chip clicks
+  setTimeout(function() {
+    var row = document.getElementById('flock-row');
+    if (!row) return;
+    var chips = row.querySelectorAll('.flock-chip');
+    var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+    allFlock.forEach(function(m, i) {
+      if (chips[i]) {
+        chips[i].style.cursor = 'pointer';
+        chips[i].addEventListener('click', function(){ openMemberProfile(m.id); });
+      }
+    });
+  }, 50);
+};
+
+// ════════════════════════════════════════════════════════════════
+//  UX UPDATE 3: GATHERING OVERVIEW — status banner
+// ════════════════════════════════════════════════════════════════
+
+function buildStatusBanner(g) {
+  var me = DATA.me;
+  var myRsvp = rsvpData[g.id] && rsvpData[g.id][me.id];
+  var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+
+  // Compute open tasks for me
+  var myTasks = (g.tasks||[]).filter(function(t){
+    return t.owner === me.id && t.status !== 'done' && !t.done;
+  });
+
+  // Planning mode — show availability response progress
+  if (g.status === 'planning') {
+    var submitted = allFlock.filter(function(m){
+      var r = rsvpData[g.id] && rsvpData[g.id][m.id];
+      return r && r.availSubmitted;
+    }).length;
+    var pending = allFlock.length - submitted;
+    var myAvail = rsvpData[g.id] && rsvpData[g.id][me.id] && rsvpData[g.id][me.id].availSubmitted;
+    return '<div class="status-banner planning">' +
+      '<div class="status-banner-icon">📅</div>' +
+      '<div class="status-banner-body">' +
+        '<div class="status-banner-title">' + (myAvail ? 'You\'ve shared your dates' : 'Your dates are needed') + '</div>' +
+        '<div class="status-banner-sub">' + submitted + ' of ' + allFlock.length + ' responded' + (pending>0?' · '+pending+' still pending':'') + '</div>' +
+      '</div>' +
+      (!myAvail ? '<button class="status-banner-btn" id="sb-avail-btn">Share</button>' : '') +
+    '</div>';
+  }
+
+  // Confirmed but no RSVP
+  if (!myRsvp) {
+    return '<div class="status-banner needs-rsvp">' +
+      '<div class="status-banner-icon">👋</div>' +
+      '<div class="status-banner-body">' +
+        '<div class="status-banner-title">You haven\'t RSVPed yet</div>' +
+        '<div class="status-banner-sub">Let the flock know if you\'re coming</div>' +
+      '</div>' +
+      '<button class="status-banner-btn" id="sb-rsvp-btn">RSVP</button>' +
+    '</div>';
+  }
+
+  // Has tasks
+  if (myTasks.length > 0) {
+    return '<div class="status-banner has-tasks">' +
+      '<div class="status-banner-icon">✅</div>' +
+      '<div class="status-banner-body">' +
+        '<div class="status-banner-title">' + myTasks.length + ' task' + (myTasks.length>1?'s':'') + ' assigned to you</div>' +
+        '<div class="status-banner-sub">' + myTasks.slice(0,2).map(function(t){return t.title;}).join(' · ') + (myTasks.length>2?' +' + (myTasks.length-2) + ' more':'') + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // All good
+  var statusIcon  = myRsvp.status === 'yes' ? '✅' : myRsvp.status === 'virtual' ? '💻' : '💔';
+  var statusLabel = myRsvp.status === 'yes' ? 'You\'re going — in person' : myRsvp.status === 'virtual' ? 'Joining virtually' : 'Can\'t make this one';
+  return '<div class="status-banner all-good">' +
+    '<div class="status-banner-icon">' + statusIcon + '</div>' +
+    '<div class="status-banner-body">' +
+      '<div class="status-banner-title">' + statusLabel + '</div>' +
+      '<div class="status-banner-sub">You\'re up to date — nothing outstanding</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// Patch wireDetailButtons to add status banner wiring
+// Status banner button wiring handled in renderDetail override
+
+// Status banner injected via renderDetail override below
+var _origRenderDetail = renderDetail;
+renderDetail = function(g) {
+  window._currentDetailGathering = g;
+  _origRenderDetail(g);
+  // After render, insert status banner before the first child of gtab-content
+  var content = document.getElementById('gtab-content');
+  if (!content) return;
+  var banner = buildStatusBanner(g);
+  var bannerEl = document.createElement('div');
+  bannerEl.innerHTML = banner;
+  var first = bannerEl.firstChild;
+  // Insert banner AFTER the detail-hero (first child)
+  if (first) {
+    var hero = content.querySelector('.detail-hero');
+    if (hero && hero.nextSibling) {
+      content.insertBefore(first, hero.nextSibling);
+    } else if (hero) {
+      hero.parentNode.appendChild(first);
+    } else if (content.firstChild) {
+      content.insertBefore(first, content.firstChild);
+    } else {
+      content.appendChild(first);
+    }
+  }
+  // Wire banner buttons
+  var sbRsvp  = document.getElementById('sb-rsvp-btn');
+  if (sbRsvp)  sbRsvp.addEventListener('click', function(){ openRSVP(g.id); });
+  var sbAvail = document.getElementById('sb-avail-btn');
+  if (sbAvail) sbAvail.addEventListener('click', function(){ openAvailModal(g); });
+};
+
+// ════════════════════════════════════════════════════════════════
+//  UX UPDATE 4: NOTIFICATION CENTRE
+// ════════════════════════════════════════════════════════════════
+
+// Patch nudge to push real notification
+var _origWireNudge = null; // handled in wireDetailButtons override below
+var _nudgePatchApplied = false;
+function patchNudge() {
+  if (_nudgePatchApplied) return;
+  _nudgePatchApplied = true;
+}
+
+// Notification panel (slides in from top)
+(function() {
+  // Create the notif overlay element
+  var overlay = document.createElement('div');
+  overlay.id = 'notif-overlay';
+  overlay.className = 'overlay hidden';
+  overlay.innerHTML =
+    '<div class="notif-panel">' +
+      '<div class="notif-panel-hdr">' +
+        '<div class="notif-panel-title">Notifications</div>' +
+        '<button class="notif-panel-close" id="notif-panel-close">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="notif-list" id="notif-list"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  function openNotifPanel() {
+    markAllNotifsRead();
+    var list = document.getElementById('notif-list');
+    if (!list) return;
+    if (NOTIFS.items.length === 0) {
+      list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+    } else {
+      list.innerHTML = NOTIFS.items.map(function(n){
+        var icon = n.type==='nudge'?'📣':n.type==='rsvp'?'🎉':n.type==='task'?'✅':n.type==='date'?'📅':'ℹ️';
+        return '<div class="notif-item' + (n.read?'':' unread') + '"' + (n.gId?' data-gid="'+n.gId+'"':'') + '>' +
+          '<span class="notif-icon">' + icon + '</span>' +
+          '<div class="notif-body">' +
+            '<div class="notif-text">' + n.text + '</div>' +
+            '<div class="notif-time">' + relTime(n.ts) + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+    overlay.classList.remove('hidden');
+    // Wire notif item clicks
+    list.querySelectorAll('[data-gid]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        overlay.classList.add('hidden');
+        var gId = el.dataset.gid;
+        showPage('gatherings');
+        setTimeout(function(){ showDetail(gId); }, 100);
+      });
+    });
+  }
+
+  document.getElementById('notif-btn').addEventListener('click', openNotifPanel);
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.classList.add('hidden'); });
+  document.getElementById('notif-panel-close').addEventListener('click', function(){ overlay.classList.add('hidden'); });
+})();
+
+// ════════════════════════════════════════════════════════════════
+//  UX UPDATE 5: MEMBER PROFILES — flock chips tap through
+// ════════════════════════════════════════════════════════════════
+
+function getMemberStats(memberId) {
+  var attended = 0, hosted = 0, tasksOwned = 0, tasksDone = 0;
+  DATA.gatherings.forEach(function(g) {
+    if ((g.attending||[]).indexOf(memberId) > -1) attended++;
+    if (g.host === memberId) hosted++;
+    (g.tasks||[]).forEach(function(t){
+      if (t.owner === memberId) {
+        tasksOwned++;
+        if (t.done || t.status === 'done') tasksDone++;
+      }
+    });
+  });
+  var ideas = DATA.ideas.filter(function(i){ return i.addedBy === memberId; }).length;
+  var rsvpCount = 0;
+  DATA.gatherings.forEach(function(g){
+    var r = rsvpData[g.id] && rsvpData[g.id][memberId];
+    if (r && r.status) rsvpCount++;
+  });
+  return { attended:attended, hosted:hosted, tasksOwned:tasksOwned, tasksDone:tasksDone, ideas:ideas, rsvpCount:rsvpCount };
+}
+
+function openMemberProfile(memberId) {
+  var m = getMember(memberId);
+  if (!m) return;
+  var isMe = memberId === DATA.me.id;
+  var stats = getMemberStats(memberId);
+
+  // Build RSVP history
+  var rsvpHistory = DATA.gatherings.filter(function(g){ return g.status !== 'planning'; }).map(function(g) {
+    var r = rsvpData[g.id] && rsvpData[g.id][memberId];
+    var badge = !r ? 'badge-pending' : r.status==='yes'?'badge-yes':r.status==='virtual'?'badge-virtual':'badge-no';
+    var label = !r ? 'No reply' : r.status==='yes'?'Going':r.status==='virtual'?'Virtual':'Can\'t make it';
+    return '<div class="mp-rsvp-row">' +
+      '<div class="mp-rsvp-name">' + g.name + '</div>' +
+      '<div class="mp-rsvp-date">' + (g.month||'') + (g.day?' '+g.day:'') + '</div>' +
+      '<span class="mp-rsvp-badge ' + badge + '">' + label + '</span>' +
+    '</div>';
+  }).join('');
+
+  // Build task history
+  var taskHistory = [];
+  DATA.gatherings.forEach(function(g){
+    (g.tasks||[]).forEach(function(t){
+      if (t.owner === memberId) taskHistory.push({title:t.title, gathering:g.name, done:t.done||t.status==='done'});
+    });
+  });
+
+  var overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'member-overlay';
+  overlay.innerHTML =
+    '<div class="sheet">' +
+      '<div class="sheet-header">' +
+        '<div class="sheet-title">' + (isMe ? 'You' : m.name) + '</div>' +
+        '<button class="sheet-close" id="mp-close">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="sheet-body">' +
+        // Avatar + info
+        '<div class="mp-hero">' +
+          '<div class="mp-av">' + makeAvSvg(m.animal, 72) + '</div>' +
+          '<div class="mp-info">' +
+            '<div class="mp-name">' + m.name + '</div>' +
+            '<div class="mp-loc">' + (m.location||'') + '</div>' +
+            '<div class="mp-trait">' + (m.trait||ANIMALS[m.animal]&&ANIMALS[m.animal].trait||'') + '</div>' +
+          '</div>' +
+        '</div>' +
+        // Live stats
+        '<div class="mp-stats">' +
+          '<div class="mp-stat"><div class="mp-stat-n">' + stats.attended + '</div><div class="mp-stat-l">attended</div></div>' +
+          '<div class="mp-stat"><div class="mp-stat-n">' + stats.hosted + '</div><div class="mp-stat-l">hosted</div></div>' +
+          '<div class="mp-stat"><div class="mp-stat-n">' + stats.rsvpCount + '</div><div class="mp-stat-l">RSVPs</div></div>' +
+          '<div class="mp-stat"><div class="mp-stat-n">' + stats.tasksDone + '/' + stats.tasksOwned + '</div><div class="mp-stat-l">tasks done</div></div>' +
+        '</div>' +
+        // Prefs
+        (m.prefs ? '<div class="mp-section-lbl">Preferences</div>' +
+          '<div class="mp-prefs">' +
+            Object.entries(m.prefs).map(function(kv){
+              return '<div class="mp-pref"><span class="mp-pref-k">' + kv[0] + '</span><span class="mp-pref-v">' + kv[1] + '</span></div>';
+            }).join('') +
+          '</div>' : '') +
+        // RSVP history
+        '<div class="mp-section-lbl">RSVP history</div>' +
+        '<div class="mp-rsvp-list">' + (rsvpHistory || '<div style="color:var(--text3);font-size:13px;padding:8px 0">No RSVPs yet</div>') + '</div>' +
+        // Task history
+        (taskHistory.length > 0 ?
+          '<div class="mp-section-lbl">Tasks</div>' +
+          '<div class="mp-task-list">' +
+            taskHistory.slice(0,6).map(function(t){
+              return '<div class="mp-task-row">' +
+                '<span class="mp-task-check ' + (t.done?'done':'') + '">' + (t.done?'✓':'○') + '</span>' +
+                '<div class="mp-task-info"><div class="mp-task-title">' + t.title + '</div><div class="mp-task-g">' + t.gathering + '</div></div>' +
+              '</div>';
+            }).join('') +
+          '</div>'
+        : '') +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.parentNode.removeChild(overlay); });
+  document.getElementById('mp-close').addEventListener('click', function(){ overlay.parentNode.removeChild(overlay); });
+}
+
+
+
+// Wire nudge to push notifications
+var _origNudgePatch = wireDetailButtons;
+wireDetailButtons = function(g) {
+  _origNudgePatch(g);
+  // Re-wire nudge with notification push
+  var nb = document.getElementById('nudge-btn');
+  if (nb) {
+    var cloned = nb.cloneNode(true);
+    nb.parentNode.replaceChild(cloned, nb);
+    cloned.addEventListener('click', function(){
+      var nr = [DATA.me].concat(DATA.members||[]).filter(function(m){
+        return m && !(rsvpData[g.id] && rsvpData[g.id][m.id]);
+      });
+      if (!nr.length) { toast('Everyone has replied \u2713'); return; }
+      var names = nr.map(function(m){ return m.name; }).join(', ');
+      toast('\uD83D\uDCE3 Nudge sent to: ' + names);
+      pushNotif('nudge', '\uD83D\uDCE3 You nudged ' + names + ' about ' + g.name, g.id);
+    });
+  }
+};
+
+// Push notif when RSVP saved
+var _origOpenRSVP = openRSVP;
+openRSVP = function(gatheringId) {
+  _origOpenRSVP(gatheringId);
+  // Patch the save button inside the opened sheet
+  setTimeout(function() {
+    var body = document.getElementById('rsvp-body');
+    if (!body) return;
+    var saveBtn = body.querySelector('.btn-primary');
+    if (!saveBtn || saveBtn._notifPatched) return;
+    saveBtn._notifPatched = true;
+    var origClick = saveBtn.onclick;
+    var origListeners = [];
+    // Can't easily intercept, so we observe the overlay hide
+    var obs = new MutationObserver(function(muts) {
+      muts.forEach(function(mut) {
+        if (mut.type === 'attributes' && mut.attributeName === 'class') {
+          var el = mut.target;
+          if (el.classList.contains('hidden')) {
+            // RSVP was saved
+            var g2 = DATA.gatherings.find(function(x){ return x.id===gatheringId; });
+            var r  = rsvpData[gatheringId] && rsvpData[gatheringId][DATA.me.id];
+            if (g2 && r) {
+              var label = r.status==='yes'?'going in person':r.status==='virtual'?'joining virtually':'can\'t make it';
+              pushNotif('rsvp', '\uD83C\uDF89 You RSVPed to ' + g2.name + ' \u2014 ' + label, gatheringId);
+              renderActionItems();
+            }
+            obs.disconnect();
+          }
+        }
+      });
+    });
+    var rsvpOverlay = document.getElementById('rsvp-overlay');
+    if (rsvpOverlay) obs.observe(rsvpOverlay, { attributes: true });
+  }, 300);
+};
+
 
 </script>
 
