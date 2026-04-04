@@ -1392,6 +1392,144 @@ img,svg{display:block}
 .ttask-status-chip.active{border-color:var(--brand);background:#ede8ff;color:var(--brand)}
 .ttask-status-chip.doing-active{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
 .ttask-status-chip.done-active{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+
+/* ── GATHERING EDIT ─────────────────────────────────────── */
+.back-bar{justify-content:space-between}
+.back-bar-edit-btn{
+  display:flex;align-items:center;gap:5px;
+  border:none;background:transparent;
+  color:var(--brand);font-size:13px;font-weight:800;
+  cursor:pointer;font-family:inherit;padding:4px 2px;
+  opacity:.85;transition:opacity .15s;
+}
+.back-bar-edit-btn:hover{opacity:1}
+.ge-date-row{display:flex;gap:8px;align-items:center}
+.ge-select{flex:1;padding:12px 10px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:15px;font-weight:600;font-family:inherit;outline:none}
+.ge-day-inp{width:80px!important;flex:none!important;text-align:center}
+
+/* ── DATE WINDOW PANEL ───────────────────────────────────── */
+.dw-panel{background:var(--surface2);border-radius:14px;padding:14px 14px 16px;margin-bottom:4px}
+
+/* Summary stats row */
+.dw-summary-row{display:flex;gap:8px;margin-bottom:14px}
+.dw-summary-stat{
+  flex:1;background:var(--surface);border-radius:10px;padding:10px 8px;
+  text-align:center;
+}
+.dw-summary-stat strong{display:block;font-size:20px;font-weight:300;color:var(--text1);line-height:1.1}
+.dw-summary-stat span{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+
+/* Section labels */
+.dw-section-lbl{
+  font-size:11px;font-weight:800;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.06em;
+  margin:12px 0 8px;display:flex;align-items:center;gap:8px;
+}
+.dw-legend-inline{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--text3);margin-left:auto;text-transform:none;letter-spacing:0}
+.dw-li{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:2px}
+.dw-li.dw-free{background:#d4edda}
+.dw-li.dw-low{background:#fff3cd}
+.dw-li.dw-med{background:#ffe5b4}
+.dw-li.dw-high{background:#f8d7da}
+
+/* Best window chips */
+.dw-chips{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
+.dw-chip{
+  border-radius:12px;padding:12px 14px;cursor:pointer;
+  transition:transform .1s,box-shadow .1s;
+}
+.dw-chip:active{transform:scale(.99)}
+.dw-chip.best{background:var(--green-bg);border:1.5px solid var(--green)}
+.dw-chip.alt{background:var(--blue-bg);border:1.5px solid var(--blue)}
+.dw-chip.ok{background:var(--surface);border:1.5px solid var(--border)}
+.dw-chip-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.dw-chip-label{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.dw-chip.best .dw-chip-label{color:var(--green)}
+.dw-chip.alt  .dw-chip-label{color:var(--blue)}
+.dw-chip.ok   .dw-chip-label{color:var(--text3)}
+.dw-chip-conf{font-size:11px;font-weight:700;color:var(--text3)}
+.dw-chip-range{font-size:17px;font-weight:800;color:var(--text1);margin-bottom:2px}
+.dw-chip-action{font-size:11px;font-weight:600;color:var(--text3);font-style:italic}
+
+.dw-no-data{font-size:13px;color:var(--text3);font-style:italic;text-align:center;padding:12px 0}
+
+/* Heatmap calendar */
+.dw-cal-wrap{margin-bottom:4px}
+.dw-month-lbl{font-size:12px;font-weight:800;color:var(--text2);margin:8px 0 5px}
+.dw-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px}
+.dw-day{
+  aspect-ratio:1;border-radius:5px;position:relative;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;
+  font-size:11px;font-weight:700;cursor:default;
+  background:var(--surface);color:var(--text2);
+}
+.dw-day.dw-free{background:#d4edda;color:#1e5c2b}
+.dw-day.dw-low{background:#fff3cd;color:#7a5800}
+.dw-day.dw-med{background:#ffe0b2;color:#8c4a00}
+.dw-day.dw-high{background:#ffcdd2;color:#8b1a20}
+.dw-dot{width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.6;position:absolute;bottom:2px}
+
+/* Flock response list */
+.dw-resp-list{display:flex;flex-direction:column;gap:0;margin-bottom:12px;background:var(--surface);border-radius:12px;overflow:hidden}
+.dw-resp-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)}
+.dw-resp-row:last-child{border-bottom:none}
+.dw-resp-name{flex:1;font-size:13px;font-weight:700;color:var(--text1)}
+.dw-resp-badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;flex-shrink:0}
+.dw-resp-badge.done{background:var(--green-bg);color:var(--green)}
+.dw-resp-badge.pending{background:var(--surface2);color:var(--text3)}
+
+/* Share availability button */
+.dw-avail-btn{
+  width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;
+  background:var(--brand);color:#fff;font-size:14px;font-weight:800;
+  font-family:inherit;transition:opacity .15s;margin-top:4px;
+}
+.dw-avail-btn:active{opacity:.85}
+
+/* ── FLOCK SCHEDULE PANEL ────────────────────────────────── */
+.sched-panel{
+  background:var(--surface);border-radius:16px;
+  border:1.5px solid var(--border);overflow:hidden;
+  margin-bottom:16px;
+}
+.sched-header{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  padding:14px 16px;
+}
+.sched-title{font-family:'Fredoka One',cursive;font-size:18px;color:#fff;margin-bottom:2px}
+.sched-sub{font-size:12px;color:rgba(255,255,255,.75);font-weight:600}
+
+/* Per-gathering rows */
+.sched-gathering-list{padding:10px 14px 4px;border-bottom:1px solid var(--border)}
+.sched-g-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.sched-g-row:last-child{border-bottom:none}
+.sched-g-emoji{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+.sched-g-info{flex:1;min-width:0}
+.sched-g-name{font-size:13px;font-weight:800;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sched-g-date{font-size:11px;color:var(--text3);font-weight:600}
+.sched-g-prog{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.sched-g-prog-track{width:48px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.sched-g-prog-fill{height:100%;background:var(--brand);border-radius:3px;transition:width .4s}
+.sched-g-prog-lbl{font-size:10px;font-weight:800;color:var(--text3);min-width:24px;text-align:right}
+
+.sched-section-lbl{
+  font-size:10px;font-weight:800;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:10px 14px 4px;
+}
+
+/* Member response rows */
+.sched-member-list{padding:0 10px 8px}
+.sched-member-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border)}
+.sched-member-row:last-child{border-bottom:none}
+.sched-member-info{flex:1;min-width:0}
+.sched-member-name{font-size:13px;font-weight:800;color:var(--text1)}
+.sched-member-loc{font-size:11px;color:var(--text3);font-weight:600}
+.sched-member-stats{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.sched-resp-pill{font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px}
+.sched-resp-pill.done{background:var(--green-bg);color:var(--green)}
+.sched-resp-pill.partial{background:var(--amber-bg);color:var(--amber)}
+.sched-blocked-pill{font-size:10px;font-weight:700;color:var(--text3);padding:1px 4px}
 </style>
 </head>
 <body>
@@ -1468,6 +1606,8 @@ img,svg{display:block}
         </button>
       </div>
       <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:12px">2025 — 8 planned + 1 bonus</div>
+      <!-- Flock Schedule Summary -->
+      <div id="flock-schedule-panel"></div>
       <div id="gatherings-list"></div>
     </div>
 
@@ -1477,6 +1617,10 @@ img,svg{display:block}
         <button class="back-btn" id="detail-back">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
           Gatherings
+        </button>
+        <button class="back-bar-edit-btn" id="detail-edit-btn" title="Edit gathering">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
         </button>
       </div>
       <div id="detail-content"></div>
@@ -1539,8 +1683,8 @@ img,svg{display:block}
       <button class="sheet-close" id="avail-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="sheet-body">
-      <div style="font-size:13px;color:var(--text2);margin-bottom:4px;font-weight:600">Summer Beach Week · Jul 12 – Aug 2</div>
-      <div style="font-size:14px;color:var(--text1);font-weight:700;margin-bottom:14px">Tap any dates you <u>can't</u> make it</div>
+      <div id="avail-gathering-label" style="font-size:13px;color:var(--text2);margin-bottom:4px;font-weight:600"></div>
+      <div style="font-size:14px;color:var(--text1);font-weight:700;margin-bottom:14px">Tap the dates you <u>can't</u> make it</div>
       <div id="cal-content"></div>
       <div class="cal-legend">
         <div class="leg-item"><div class="leg-dot avail"></div>Available</div>
@@ -1984,6 +2128,9 @@ function renderHome() {
 
 // -- GATHERINGS ----------------------------------
 function renderGatherings() {
+  // Render cross-gathering schedule panel first
+  renderFlockSchedule();
+
   var list = document.getElementById('gatherings-list');
   list.innerHTML = '';
   DATA.gatherings.forEach(function(g){
@@ -2040,6 +2187,7 @@ function renderGatherings() {
 
 // -- GATHERING DETAIL ----------------------------
 function renderDetail(g) {
+  window._currentDetailGathering = g;
   var el = document.getElementById('detail-content');
 
   // Build tab container
@@ -2470,6 +2618,238 @@ function renderTasksTabContent(g, wrap) {
   }
 }
 
+
+// ── DATE WINDOW ANALYSIS ─────────────────────────────────────────────────────
+
+var MNAMES_DW = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var MMAP_DW   = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
+// Build every day in a month range as objects
+function buildDayList(months) {
+  var days = [];
+  months.forEach(function(mo) {
+    var dim = new Date(mo.y, mo.m + 1, 0).getDate();
+    for (var d = 1; d <= dim; d++) {
+      days.push({ key: mo.abbr + '-' + d, abbr: mo.abbr, m: mo.m, y: mo.y, d: d });
+    }
+  });
+  return days;
+}
+
+// For a gathering, return month range: prev month + gathering month (or next 2)
+function gatheringMonths(g) {
+  var now   = new Date();
+  var baseM = (g && g.month && MMAP_DW[g.month] !== undefined) ? MMAP_DW[g.month] : now.getMonth();
+  var baseY = now.getFullYear();
+  if (baseM < now.getMonth()) baseY++;
+  var prevM = baseM - 1 < 0 ? 11 : baseM - 1;
+  var prevY = baseM - 1 < 0 ? baseY - 1 : baseY;
+  return [
+    { abbr: MNAMES_DW[prevM], fullName: fullMonthName(prevM), m: prevM, y: prevY },
+    { abbr: MNAMES_DW[baseM], fullName: fullMonthName(baseM), m: baseM, y: baseY },
+  ];
+}
+
+function fullMonthName(m) {
+  return ['January','February','March','April','May','June','July','August','September','October','November','December'][m];
+}
+
+// Compute conflict score per day across all flock members
+function computeConflicts(gId, allFlock) {
+  var map = {}; // key -> { count, who[] }
+  allFlock.forEach(function(m) {
+    if (!m) return;
+    var rd = rsvpData[gId] && rsvpData[gId][m.id];
+    if (!rd || !rd.blockedDates) return;
+    rd.blockedDates.forEach(function(k) {
+      if (!map[k]) map[k] = { count: 0, who: [] };
+      map[k].count++;
+      map[k].who.push(m.name || m.id);
+    });
+  });
+  return map;
+}
+
+// Find best non-overlapping windows of windowSize days
+function findBestWindows(allDays, conflicts, submittedCount, windowSize, topN) {
+  if (allDays.length < windowSize) return [];
+  var windows = [];
+  for (var i = 0; i <= allDays.length - windowSize; i++) {
+    var slice = allDays.slice(i, i + windowSize);
+    var totalConflicts = slice.reduce(function(s, day) {
+      return s + ((conflicts[day.key] && conflicts[day.key].count) || 0);
+    }, 0);
+    var possible = submittedCount * windowSize;
+    var pct = possible > 0 ? Math.round((totalConflicts / possible) * 100) : 0;
+    windows.push({ start: slice[0], end: slice[slice.length - 1], days: slice, totalConflicts: totalConflicts, pct: pct });
+  }
+  // Sort best first
+  windows.sort(function(a, b) { return a.totalConflicts - b.totalConflicts || a.pct - b.pct; });
+  // Pick top N non-overlapping
+  var picked = [];
+  windows.forEach(function(w) {
+    if (picked.length >= topN) return;
+    // Check overlap with already-picked windows
+    var overlaps = picked.some(function(p) {
+      return !(w.end.key < p.start.key || w.start.key > p.end.key);
+    });
+    if (!overlaps) picked.push(w);
+  });
+  return picked;
+}
+
+function renderDateWindowPanel(g, panel) {
+  var allFlock = [DATA.me].concat(DATA.members || []).filter(Boolean);
+  var flockCount = allFlock.length;
+
+  var conflicts = computeConflicts(g.id, allFlock);
+
+  var submitted = allFlock.filter(function(m) {
+    var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
+    return rd && rd.availSubmitted;
+  });
+  var submittedCount = submitted.length;
+  var pending = allFlock.filter(function(m) {
+    var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
+    return !rd || !rd.availSubmitted;
+  });
+
+  var months  = gatheringMonths(g);
+  var allDays = buildDayList(months);
+  var topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 3) : [];
+
+  // ── Heatmap ──
+  var WDAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  function heatCls(key) {
+    if (submittedCount === 0) return '';
+    var c = conflicts[key] ? conflicts[key].count : 0;
+    var pct = Math.round((c / submittedCount) * 100);
+    if (pct === 0) return 'dw-free';
+    if (pct <= 30) return 'dw-low';
+    if (pct <= 65) return 'dw-med';
+    return 'dw-high';
+  }
+
+  var calHtml = months.map(function(mo) {
+    var dim      = new Date(mo.y, mo.m + 1, 0).getDate();
+    var firstDay = new Date(mo.y, mo.m, 1).getDay();
+    var h = '<div class="dw-month-lbl">' + mo.fullName + ' ' + mo.y + '</div><div class="dw-cal-grid">';
+    WDAYS.forEach(function(d) { h += '<div class="cal-day-hdr">' + d + '</div>'; });
+    for (var e = 0; e < firstDay; e++) h += '<div class="cal-day empty"></div>';
+    for (var d = 1; d <= dim; d++) {
+      var key  = mo.abbr + '-' + d;
+      var info = conflicts[key];
+      var cls  = 'cal-day dw-day ' + heatCls(key);
+      var tip  = info ? info.who.join(', ') + ' blocked' : '';
+      h += '<div class="' + cls + '" title="' + tip + '">' + d + (info ? '<div class="dw-dot"></div>' : '') + '</div>';
+    }
+    return h + '</div>';
+  }).join('');
+
+  // ── Window chips ──
+  function fmtRange(w) {
+    var s = w.start, e = w.end;
+    return s.abbr === e.abbr ? s.abbr + ' ' + s.d + '–' + e.d : s.abbr + ' ' + s.d + ' – ' + e.abbr + ' ' + e.d;
+  }
+  var chipLabels = ['Best window', 'Good alternative', 'Also works'];
+  var chipClasses = ['dw-chip best', 'dw-chip alt', 'dw-chip ok'];
+
+  var chipsHtml = topWindows.length > 0
+    ? topWindows.map(function(w, i) {
+        var conf = w.totalConflicts === 0
+          ? '<span style="color:var(--green);font-weight:800">No conflicts ✓</span>'
+          : w.totalConflicts + ' conflict' + (w.totalConflicts > 1 ? 's' : '');
+        return '<div class="' + chipClasses[i] + '" data-start="' + w.start.key + '" data-end="' + w.end.key + '">' +
+          '<div class="dw-chip-top"><div class="dw-chip-label">' + chipLabels[i] + '</div>' +
+          '<div class="dw-chip-conf">' + conf + '</div></div>' +
+          '<div class="dw-chip-range">' + fmtRange(w) + '</div>' +
+          '<div class="dw-chip-action">Tap to set this date →</div>' +
+        '</div>';
+      }).join('')
+    : '<div class="dw-no-data">Share availability below — windows appear once people respond.</div>';
+
+  // ── Who has responded ──
+  var respHtml = allFlock.map(function(m) {
+    if (!m) return '';
+    var rd  = rsvpData[g.id] && rsvpData[g.id][m.id];
+    var done = rd && rd.availSubmitted;
+    var bc  = rd && rd.blockedDates ? rd.blockedDates.length : 0;
+    return '<div class="dw-resp-row">' +
+      makeAv(m.animal, 28) +
+      '<div class="dw-resp-name">' + (m.id === DATA.me.id ? 'You' : m.name) + '</div>' +
+      (done
+        ? '<span class="dw-resp-badge done">' + (bc > 0 ? bc + ' blocked' : 'All free') + '</span>'
+        : '<span class="dw-resp-badge pending">Not yet</span>'
+      ) +
+    '</div>';
+  }).join('');
+
+  // ── Render ──
+  panel.innerHTML =
+    '<div class="dw-panel">' +
+
+    // Response summary
+    '<div class="dw-summary-row">' +
+      '<div class="dw-summary-stat"><strong>' + submittedCount + '</strong><span>responded</span></div>' +
+      '<div class="dw-summary-stat"><strong>' + pending.length + '</strong><span>pending</span></div>' +
+      '<div class="dw-summary-stat"><strong>' + flockCount + '</strong><span>total</span></div>' +
+    '</div>' +
+
+    // Best windows
+    '<div class="dw-section-lbl">Suggested windows</div>' +
+    '<div class="dw-chips">' + chipsHtml + '</div>' +
+
+    // Heatmap
+    (submittedCount > 0
+      ? '<div class="dw-section-lbl">Availability heatmap' +
+          '<span class="dw-legend-inline">' +
+            '<span class="dw-li dw-free"></span>Free ' +
+            '<span class="dw-li dw-low"></span>Low ' +
+            '<span class="dw-li dw-med"></span>Med ' +
+            '<span class="dw-li dw-high"></span>Busy' +
+          '</span>' +
+        '</div>'
+      : '<div class="dw-section-lbl">Availability heatmap</div>') +
+    '<div class="dw-cal-wrap">' + calHtml + '</div>' +
+
+    // Who responded
+    '<div class="dw-section-lbl">Flock responses</div>' +
+    '<div class="dw-resp-list">' + respHtml + '</div>' +
+
+    // Share button
+    '<button class="dw-avail-btn" id="dw-avail-btn-' + g.id + '">' +
+      (rsvpData[g.id] && rsvpData[g.id][DATA.me.id] && rsvpData[g.id][DATA.me.id].availSubmitted
+        ? '✏️ Update my availability'
+        : '📅 Share my availability') +
+    '</button>' +
+
+    '</div>';
+
+  // Wire availability button
+  var ab = panel.querySelector('#dw-avail-btn-' + g.id);
+  if (ab) ab.addEventListener('click', function() { openAvailModal(g); });
+
+  // Wire window chips → set date
+  panel.querySelectorAll('.dw-chip[data-start]').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var startKey = chip.dataset.start;
+      var endKey   = chip.dataset.end;
+      var parts = startKey.split('-');
+      var mon = parts[0], day = parseInt(parts[1]);
+      var label = fmtRange({ start: { abbr: mon, d: day }, end: (function(){ var p2=endKey.split('-'); return {abbr:p2[0],d:parseInt(p2[1])}; })() });
+      if (!confirm('Set the gathering window to ' + label + '?\nThis will confirm the date and move the gathering to planning mode.')) return;
+      g.month  = mon;
+      g.day    = day;
+      g.status = 'next';
+      saveFlockState();
+      renderDetail(g);
+      if (document.getElementById('gatherings-list')) renderGatherings();
+      toast('\uD83C\uDF89 Date set to ' + label + '!');
+    });
+  });
+}
+
+
 function updateTaskProgress(g) {
   var done  = (g.tasks||[]).filter(function(t){ return t.done; }).length;
   var total = (g.tasks||[]).length;
@@ -2533,6 +2913,12 @@ function wireDetailButtons(g) {
   // Wire RSVP button
   var rsvpBtn = document.getElementById('rsvp-btn');
   if (rsvpBtn) { rsvpBtn.addEventListener('click', function(){ openRSVP(g.id); }); }
+
+  // Render date window panel for planning gatherings
+  if (g.status === 'planning') {
+    var dwPanel = document.getElementById('date-window-panel-'+g.id);
+    if (dwPanel) renderDateWindowPanel(g, dwPanel);
+  }
 
   // Wire nudge button
   var nudgeBtn = document.getElementById('nudge-btn');
@@ -2647,6 +3033,11 @@ function buildStandardDetail(g) {
   '<button class="rsvp-big-btn" id="rsvp-btn">' +
     (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
   '</button>' +
+
+  (g.status === 'planning' ?
+    '<div class="section-title" style="margin-top:16px">Best date window</div>' +
+    '<div id="date-window-panel-'+g.id+'"></div>'
+  : '') +
 
   '<div class="section-title" style="margin-top:16px">Who\'s coming</div>' +
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
@@ -2846,27 +3237,54 @@ function renderProfile() {
 // -- AVAILABILITY MODAL --------------------------
 var blockedDates = {};
 
-function openAvailModal() {
-  buildCalendar();
+function openAvailModal(g) {
+  window._availGathering = g || window._currentDetailGathering || null;
+  var ag = window._availGathering;
+  // Pre-fill blockedDates from saved data
+  blockedDates = {};
+  if (ag && rsvpData[ag.id] && rsvpData[ag.id][DATA.me.id] && rsvpData[ag.id][DATA.me.id].blockedDates) {
+    rsvpData[ag.id][DATA.me.id].blockedDates.forEach(function(k){ blockedDates[k] = true; });
+  }
+  // Update sheet title
+  var lbl = document.getElementById('avail-gathering-label');
+  if (lbl && ag) lbl.textContent = ag.name + (ag.month && ag.month!=='TBD' ? ' · ' + ag.month + (ag.day?' '+ag.day:'') : '');
+  buildCalendar(ag);
   document.getElementById('avail-overlay').classList.remove('hidden');
+  setTimeout(function(){ var ao=document.getElementById('avail-overlay'); if(ao) ao.scrollTop=0; },50);
 }
 
-function buildCalendar() {
+function buildCalendar(g) {
   var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-  var html = '<div class="cal-grid">'+days.map(function(d){ return '<div class="cal-day-hdr">'+d+'</div>'; }).join('')+'</div>';
+  var MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MFULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MMAP   = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  var html = '';
 
+  // Compute month range from gathering or default to next 2 months
+  var now = new Date();
+  var baseM, baseY;
+  if (g && g.month && MMAP[g.month]!==undefined) {
+    baseM = MMAP[g.month]; baseY = now.getFullYear();
+    if (baseM < now.getMonth()) baseY++; // next year if passed
+  } else {
+    baseM = now.getMonth(); baseY = now.getFullYear();
+  }
+  // Show month before and month of gathering
+  var prevM = baseM - 1 < 0 ? 11 : baseM - 1;
+  var prevY = baseM - 1 < 0 ? baseY - 1 : baseY;
   var months = [
-    {name:'July', month:6, year:2025, start:12, end:31},
-    {name:'Aug',  month:7, year:2025, start:1,  end:2}
+    {name:MFULL[prevM], abbr:MNAMES[prevM], month:prevM, year:prevY},
+    {name:MFULL[baseM], abbr:MNAMES[baseM], month:baseM, year:baseY},
   ];
 
   months.forEach(function(m){
+    var daysInMonth = new Date(m.year, m.month+1, 0).getDate();
+    var firstDay    = new Date(m.year, m.month, 1).getDay();
     html += '<div class="cal-header">'+m.name+'</div><div class="cal-grid">';
     html += days.map(function(d){ return '<div class="cal-day-hdr">'+d+'</div>'; }).join('');
-    var firstDay = new Date(m.year, m.month, m.start).getDay();
     for (var i = 0; i < firstDay; i++) html += '<div class="cal-day empty"></div>';
-    for (var d = m.start; d <= m.end; d++) {
-      var key = m.name+'-'+d;
+    for (var d = 1; d <= daysInMonth; d++) {
+      var key = m.abbr+'-'+d;
       var isBlocked = blockedDates[key];
       html += '<div class="cal-day'+(isBlocked?' blocked':'')+'" data-key="'+key+'">'+d+'</div>';
     }
@@ -2893,9 +3311,29 @@ document.getElementById('avail-overlay').addEventListener('click', function(e){
   if (e.target === this) this.classList.add('hidden');
 });
 document.getElementById('avail-submit').addEventListener('click', function(){
-  var count = Object.values(blockedDates).filter(Boolean).length;
+  // Save to rsvpData under the current gathering
+  var g = window._availGathering;
+  if (g) {
+    if (!rsvpData[g.id]) rsvpData[g.id] = {};
+    if (!rsvpData[g.id][DATA.me.id]) rsvpData[g.id][DATA.me.id] = {status:'yes'};
+    rsvpData[g.id][DATA.me.id].blockedDates = Object.keys(blockedDates).filter(function(k){return blockedDates[k];});
+    rsvpData[g.id][DATA.me.id].availSubmitted = true;
+    // Mark as responded in g.responses
+    if (g.responses) {
+      var resp = g.responses.find(function(r){return r.id===DATA.me.id;});
+      if (resp) resp.status = 'responded';
+      else g.responses.push({id:DATA.me.id, status:'responded'});
+    }
+    saveFlockState();
+  }
   document.getElementById('avail-overlay').classList.add('hidden');
-  toast(count === 0 ? '? All dates available ? submitted!' : '? '+count+' blackout date'+(count>1?'s':'')+' saved!');
+  var count = Object.values(blockedDates).filter(Boolean).length;
+  toast(count===0 ? '\u2705 All dates work for you!' : '\ud83d\udcc5 '+count+' date'+(count>1?'s':'')+' blocked — saved!');
+  // Re-render date window panel
+  if (g) {
+    var panel = document.getElementById('date-window-panel-'+g.id);
+    if (panel) renderDateWindowPanel(g, panel);
+  }
 });
 
 // -- EDIT PROFILE --------------------------------
@@ -4095,7 +4533,22 @@ document.getElementById('create-gathering-overlay').addEventListener('click', fu
 //  FEATURE 3: RSVP FLOW
 // ════════════════════════════════════════════════
 
-var rsvpData = {}; // gId -> { memberId -> {status, guests, dietary, travelFrom, travelTo} }
+var rsvpData = {}; // gId -> { memberId -> {status, blockedDates, availSubmitted, ...} }
+
+// ── Seed realistic availability for the beach planning gathering ──
+// Each member has marked certain dates as blocked
+(function seedAvailability() {
+  rsvpData['beach'] = {
+    'sara':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14'] },
+    'marcus': { status:'yes', availSubmitted:true, blockedDates:[] },
+    'jen':    { status:'yes', availSubmitted:true, blockedDates:['Jul-26','Jul-27','Jul-28','Jul-29','Jul-30','Jul-31','Aug-1','Aug-2'] },
+    'david':  { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15','Jul-16','Jul-17','Jul-18'] },
+    'amy':    { status:'yes', availSubmitted:true, blockedDates:['Jul-25','Jul-26','Jul-27','Jul-28','Jul-29','Jul-30','Jul-31'] },
+    'tom':    { status:'yes', availSubmitted:false, blockedDates:[] },
+    'lily':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15'] },
+    'grace':  { status:'yes', availSubmitted:false, blockedDates:[] },
+  };
+})();
 
 function openRSVP(gatheringId) {
   var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
@@ -5005,6 +5458,132 @@ function renderGatheringRecap(gatheringId) {
   return wrap;
 }
 
+// ── FLOCK SCHEDULE OVERVIEW ──────────────────────────────────────────────────
+// Shows cross-gathering conflicts and member schedule summaries
+
+function renderFlockSchedule() {
+  var panel = document.getElementById('flock-schedule-panel');
+  if (!panel) return;
+
+  var allFlock = [DATA.me].concat(DATA.members || []).filter(Boolean);
+
+  // Only show gatherings that are in planning mode (need dates) or upcoming
+  var planningGatherings = DATA.gatherings.filter(function(g) {
+    return g.status === 'planning';
+  });
+
+  if (planningGatherings.length === 0) {
+    panel.innerHTML = '';
+    return;
+  }
+
+  // Build a map: member → total blocked dates across all gatherings
+  function getMemberBlockedDates(memberId) {
+    var all = [];
+    DATA.gatherings.forEach(function(g) {
+      var rd = rsvpData[g.id] && rsvpData[g.id][memberId];
+      if (rd && rd.blockedDates) {
+        rd.blockedDates.forEach(function(k) {
+          if (all.indexOf(k) === -1) all.push(k);
+        });
+      }
+    });
+    return all;
+  }
+
+  // Build conflict map across all planning gatherings for a member
+  function memberConflictLabel(m) {
+    var totalBlocked = getMemberBlockedDates(m.id).length;
+    var submitted = planningGatherings.filter(function(g) {
+      var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
+      return rd && rd.availSubmitted;
+    }).length;
+    return { submitted: submitted, blocked: totalBlocked };
+  }
+
+  // ── Build cross-gathering calendar ──
+  // Collect all months across planning gatherings
+  var monthsNeeded = {};
+  planningGatherings.forEach(function(g) {
+    var months = gatheringMonths(g);
+    months.forEach(function(mo) {
+      var key = mo.y + '-' + mo.m;
+      if (!monthsNeeded[key]) monthsNeeded[key] = mo;
+    });
+  });
+  var sortedMonths = Object.values(monthsNeeded).sort(function(a, b) {
+    return (a.y * 12 + a.m) - (b.y * 12 + b.m);
+  });
+
+  // For each day: how many planning gatherings have conflicts?
+  var crossConflicts = {}; // dateKey -> { gatheringConflicts: {gId: count}, memberConflicts: [] }
+  planningGatherings.forEach(function(g) {
+    var conf = computeConflicts(g.id, allFlock);
+    Object.keys(conf).forEach(function(k) {
+      if (!crossConflicts[k]) crossConflicts[k] = { gatherings: [], members: [] };
+      crossConflicts[k].gatherings.push(g.name);
+      conf[k].who.forEach(function(name) {
+        if (crossConflicts[k].members.indexOf(name) === -1) crossConflicts[k].members.push(name);
+      });
+    });
+  });
+
+  // ── Member response summary ──
+  var memberRows = allFlock.map(function(m) {
+    if (!m) return '';
+    var info = memberConflictLabel(m);
+    var submittedAll = info.submitted === planningGatherings.length;
+    return '<div class="sched-member-row">' +
+      makeAv(m.animal, 30) +
+      '<div class="sched-member-info">' +
+        '<div class="sched-member-name">' + (m.id === DATA.me.id ? 'You' : m.name) + '</div>' +
+        '<div class="sched-member-loc">' + (m.location || '') + '</div>' +
+      '</div>' +
+      '<div class="sched-member-stats">' +
+        '<span class="sched-resp-pill ' + (submittedAll ? 'done' : 'partial') + '">' +
+          info.submitted + '/' + planningGatherings.length + ' shared' +
+        '</span>' +
+        (info.blocked > 0 ? '<span class="sched-blocked-pill">' + info.blocked + ' days blocked</span>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  panel.innerHTML =
+    '<div class="sched-panel">' +
+      '<div class="sched-header">' +
+        '<div class="sched-title">📅 Flock schedule</div>' +
+        '<div class="sched-sub">' + planningGatherings.length + ' gathering' + (planningGatherings.length > 1 ? 's' : '') + ' collecting availability</div>' +
+      '</div>' +
+
+      // Per-gathering quick status
+      '<div class="sched-gathering-list">' +
+        planningGatherings.map(function(g) {
+          var submitted = allFlock.filter(function(m) {
+            var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
+            return rd && rd.availSubmitted;
+          }).length;
+          var pct = Math.round((submitted / allFlock.length) * 100);
+          return '<div class="sched-g-row">' +
+            '<span class="sched-g-emoji">' + (g.emoji || '📅') + '</span>' +
+            '<div class="sched-g-info">' +
+              '<div class="sched-g-name">' + g.name + '</div>' +
+              '<div class="sched-g-date">' + (g.month || 'TBD') + (g.day ? ' ' + g.day : '') + ' · ' + (g.location || 'TBD') + '</div>' +
+            '</div>' +
+            '<div class="sched-g-prog">' +
+              '<div class="sched-g-prog-track"><div class="sched-g-prog-fill" style="width:' + pct + '%"></div></div>' +
+              '<div class="sched-g-prog-lbl">' + submitted + '/' + allFlock.length + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+
+      // Member responses
+      '<div class="sched-section-lbl">Who\'s shared availability</div>' +
+      '<div class="sched-member-list">' + memberRows + '</div>' +
+
+    '</div>';
+}
+
 // -- BOOT -----------------------------------------
 (function init() {
   // Load flock state first
@@ -5380,6 +5959,135 @@ try {
   });
 })();
 
+
+// ── GATHER EDIT SHEET ──────────────────────────────────────
+(function(){
+  var editingGathering = null;
+
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MONTH_MAP  = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
+  // Wire detail edit button — delegated since detail re-renders
+  document.getElementById('page-detail').addEventListener('click', function(e) {
+    var btn = e.target.closest('#detail-edit-btn');
+    if (!btn) return;
+    // Find the currently-open gathering
+    var gList = DATA.gatherings;
+    // detailOpen gathering: walk up from button → not reliable; use currentGathering
+    if (window._currentDetailGathering) openGatherEdit(window._currentDetailGathering);
+  });
+
+  function openGatherEdit(g) {
+    editingGathering = g;
+    var body = document.getElementById('gather-edit-body');
+    var year = new Date().getFullYear();
+
+    // Parse existing date
+    var gMonthIdx = g.month ? (MONTH_MAP[g.month] !== undefined ? MONTH_MAP[g.month] : 0) : 0;
+    var gDay      = parseInt(g.day) || 0;
+
+    // Type: derive from hybrid/virtual flags
+    var curType = g.hybrid ? 'hybrid' : (g.virtual ? 'virtual' : 'in-person');
+
+    body.innerHTML =
+      // ── Name ──
+      '<label class="gc-field-label" style="margin-top:0">Gathering name</label>' +
+      '<input class="gc-input" id="ge-name" type="text" maxlength="60" value="'+g.name.replace(/"/g,'&quot;')+'"><br>' +
+
+      // ── Type ──
+      '<label class="gc-field-label">Type</label>' +
+      '<div class="gc-type-row" id="ge-type-row">' +
+        '<button class="gc-type-btn'+(curType==='in-person'?' selected':'')+'" data-type="in-person"><span class="gc-type-icon">&#128205;</span><span class="gc-type-lbl">In person</span></button>' +
+        '<button class="gc-type-btn'+(curType==='virtual'?' selected':'')+'" data-type="virtual"><span class="gc-type-icon">&#128187;</span><span class="gc-type-lbl">Virtual</span></button>' +
+        '<button class="gc-type-btn'+(curType==='hybrid'?' selected':'')+'" data-type="hybrid"><span class="gc-type-icon">&#127758;</span><span class="gc-type-lbl">Hybrid</span></button>' +
+      '</div>' +
+
+      // ── Location ──
+      '<label class="gc-field-label" id="ge-loc-label">Location</label>' +
+      '<input class="gc-input" id="ge-loc" type="text" maxlength="80" placeholder="City, address, or link\u2026" value="'+g.location.replace(/"/g,'&quot;')+'"><br>' +
+
+      // ── Date ── mini month + day picker
+      '<label class="gc-field-label">Date</label>' +
+      '<div class="ge-date-row">' +
+        '<select class="tadd-select ge-select" id="ge-month">' +
+          MONTHS.map(function(m,i){ return '<option value="'+i+'"'+(i===gMonthIdx?' selected':'')+'>'+MONTH_FULL[i]+'</option>'; }).join('') +
+        '</select>' +
+        '<input class="gc-input ge-day-inp" id="ge-day" type="number" min="1" max="31" placeholder="Day" value="'+(gDay||'')+'"><br>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:4px;margin-bottom:10px">Leave day blank if date isn\'t set yet.</div>' +
+
+      // ── Theme ──
+      '<label class="gc-field-label">Theme or vibe</label>' +
+      '<input class="gc-input" id="ge-theme" type="text" maxlength="40" placeholder="e.g. BBQ + games, beach week\u2026" value="'+(g.theme||'').replace(/"/g,'&quot;')+'"><br>' +
+
+      // ── Save ──
+      '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>';
+
+    // Wire type buttons
+    var selType = curType;
+    document.querySelectorAll('#ge-type-row .gc-type-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        selType = btn.dataset.type;
+        document.querySelectorAll('#ge-type-row .gc-type-btn').forEach(function(b){
+          b.classList.toggle('selected', b.dataset.type === selType);
+        });
+        var locLbl = document.getElementById('ge-loc-label');
+        var locInp = document.getElementById('ge-loc');
+        if (selType === 'virtual') {
+          if (locLbl) locLbl.textContent = 'Meeting link';
+          if (locInp) locInp.placeholder = 'Zoom, Meet, or FaceTime link\u2026';
+        } else {
+          if (locLbl) locLbl.textContent = 'Location';
+          if (locInp) locInp.placeholder = 'City, address, or neighbourhood\u2026';
+        }
+      });
+    });
+
+    // Wire save
+    document.getElementById('ge-save-btn').addEventListener('click', function(){
+      var name    = document.getElementById('ge-name').value.trim();
+      var loc     = document.getElementById('ge-loc').value.trim();
+      var monthI  = parseInt(document.getElementById('ge-month').value);
+      var dayV    = parseInt(document.getElementById('ge-day').value) || 0;
+      var theme   = document.getElementById('ge-theme').value.trim();
+
+      if (!name) { document.getElementById('ge-name').focus(); toast('Please enter a gathering name'); return; }
+
+      // Apply to the gathering object
+      g.name     = name;
+      g.location = loc || g.location;
+      g.month    = MONTHS[monthI];
+      g.day      = dayV || g.day;
+      g.theme    = theme || g.theme;
+      g.hybrid   = selType === 'hybrid';
+      g.virtual  = selType === 'virtual';
+
+      saveFlockState();
+
+      // Close sheet
+      document.getElementById('gather-edit-overlay').classList.add('hidden');
+
+      // Re-render detail and gatherings list
+      renderDetail(g);
+      if (document.getElementById('gatherings-list')) renderGatherings();
+
+      toast('Gathering updated \u2713');
+    });
+
+    document.getElementById('gather-edit-overlay').classList.remove('hidden');
+  }
+
+  window.openGatherEdit = openGatherEdit;
+
+  document.getElementById('gather-edit-close').addEventListener('click', function(){
+    document.getElementById('gather-edit-overlay').classList.add('hidden');
+  });
+  document.getElementById('gather-edit-overlay').addEventListener('click', function(e){
+    if (e.target === this) this.classList.add('hidden');
+  });
+})();
+
 </script>
 
 
@@ -5478,5 +6186,18 @@ try {
   </div>
 </div>
 
+
+<!-- GATHER EDIT OVERLAY -->
+<div class="overlay hidden" id="gather-edit-overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-title">Edit gathering</div>
+      <button class="sheet-close" id="gather-edit-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="gather-edit-body"></div>
+  </div>
+</div>
 </body>
 </html>
