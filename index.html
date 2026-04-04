@@ -1001,14 +1001,14 @@ img,svg{display:block}
 
 /* ── GATHERING CHAT ──────────────────────────── */
 .chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:300px}
-.chat-messages{flex:1;overflow-y:auto;padding:0 0 8px;-webkit-overflow-scrolling:touch}
+.chat-messages{flex:1;overflow-y:auto;padding:0 0 8px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column-reverse}
 .chat-msg{display:flex;gap:8px;margin-bottom:12px;align-items:flex-start}
 .chat-msg.mine{flex-direction:row-reverse}
 .chat-bubble{max-width:72%;padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.5;color:var(--text1);background:var(--surface2);border:1px solid var(--border)}
 .chat-msg.mine .chat-bubble{background:var(--brand);color:#fff;border:none}
 .chat-meta{font-size:10px;color:var(--text3);margin-top:3px}
 .chat-msg.mine .chat-meta{text-align:right}
-.chat-input-row{display:flex;gap:8px;padding:10px 0 4px;border-top:1px solid var(--border);flex-shrink:0}
+.chat-input-row{display:flex;gap:8px;padding:10px 0 10px;border-bottom:1px solid var(--border);flex-shrink:0;margin-bottom:4px}
 .chat-input{flex:1;padding:10px 14px;border-radius:22px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
 .chat-input:focus{border-color:var(--brand)}
 .chat-send-btn{width:40px;height:40px;border-radius:50%;background:var(--brand);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s}
@@ -1111,6 +1111,71 @@ img,svg{display:block}
 }
 .gc-save-btn:active{opacity:.85;}
 .gc-hint{font-size:12px;color:var(--text3);margin-top:8px;text-align:center;line-height:1.5;}
+
+/* ── TASKS TAB ──────────────────────────────────────────── */
+.tprog-wrap{background:var(--surface2);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.tprog-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+.tprog-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.tprog-fill{height:100%;background:linear-gradient(90deg,var(--brand2),var(--brand));border-radius:4px;transition:width .4s ease}
+
+.ttask-list{display:flex;flex-direction:column;gap:0;margin-bottom:16px}
+.ttask-row{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);transition:opacity .2s}
+.ttask-row:last-child{border-bottom:none}
+.ttask-row.done{opacity:.55}
+.ttask-chk{
+  width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:1px;
+  border:2px solid var(--border);background:var(--surface);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.ttask-chk.done{background:var(--brand);border-color:var(--brand);}
+.ttask-body{flex:1;min-width:0}
+.ttask-title{font-size:14px;font-weight:700;color:var(--text1);line-height:1.35;word-break:break-word}
+.ttask-title.done{text-decoration:line-through;color:var(--text3)}
+.ttask-meta{font-size:11.5px;color:var(--text3);margin-top:2px;font-weight:600}
+.ttask-del{
+  width:24px;height:24px;border-radius:50%;border:none;background:transparent;
+  color:var(--text3);font-size:18px;line-height:1;cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;margin-top:1px;
+  transition:background .15s,color .15s;
+}
+.ttask-del:hover{background:var(--red-bg);color:var(--red)}
+
+.tadd-form{background:var(--surface2);border-radius:var(--radius);padding:14px;margin-top:4px}
+.tadd-row{display:flex;gap:8px;align-items:center}
+.tadd-input{
+  flex:1;padding:10px 12px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--surface);
+  color:var(--text1);font-size:14px;font-weight:600;font-family:inherit;
+  outline:none;min-width:0;transition:border-color .15s;
+}
+.tadd-input:focus{border-color:var(--brand2)}
+.tadd-input::placeholder{color:var(--text3);font-weight:400}
+.tadd-select{
+  flex:1;padding:10px 10px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--surface);
+  color:var(--text1);font-size:13px;font-weight:600;font-family:inherit;
+  outline:none;min-width:0;
+}
+.tadd-btn{
+  padding:10px 16px;border-radius:10px;
+  background:var(--brand);color:#fff;
+  font-size:13px;font-weight:800;border:none;cursor:pointer;
+  flex-shrink:0;font-family:inherit;transition:opacity .15s;
+}
+.tadd-btn:active{opacity:.8}
+.tasks-empty{text-align:center;padding:32px 16px;color:var(--text3)}
+
+/* ── PHOTO DELETE BUTTON ──────────────────────────────────── */
+.photo-del-btn{
+  position:absolute;top:4px;right:4px;
+  width:22px;height:22px;border-radius:50%;
+  background:rgba(0,0,0,0.55);color:#fff;
+  border:none;font-size:16px;line-height:1;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s;z-index:2;
+}
+.photo-thumb:hover .photo-del-btn{opacity:1}
 </style>
 </head>
 <body>
@@ -1590,7 +1655,7 @@ document.getElementById('new-gathering-btn').addEventListener('click', function(
 
 // Add idea btn
 document.getElementById('add-idea-btn').addEventListener('click', function(){
-  toast('Idea submission coming soon!');
+  openAddIdeaSheet();
 });
 
 // Beach alert
@@ -1610,6 +1675,55 @@ function renderPage(name) {
 }
 
 // -- HOME ----------------------------------------
+function buildFlockActivity() {
+  // Generate real activity from flock's own data
+  var events = [];
+
+  // Gather RSVPs and attendees
+  (DATA.gatherings||[]).forEach(function(g){
+    (g.attending||[]).forEach(function(id){
+      var m = getMember(id);
+      if (!m) return;
+      events.push({
+        member: id,
+        text: 'is going to <strong>'+g.name+'</strong>',
+        time: g.month+' '+g.day,
+        sort: 1
+      });
+    });
+
+    // Completed tasks
+    (g.tasks||[]).forEach(function(t){
+      if (!t.done) return;
+      var m = getMember(t.owner);
+      if (!m) return;
+      events.push({
+        member: t.owner,
+        text: 'completed &ldquo;'+t.title+'&rdquo;',
+        time: g.name,
+        sort: 2
+      });
+    });
+  });
+
+  // Ideas voted on
+  (DATA.ideas||[]).forEach(function(idea){
+    if (idea.votes > 0) {
+      events.push({
+        member: 'group',
+        text: '<strong>'+idea.votes+' votes</strong> for &ldquo;'+idea.title+'&rdquo;',
+        time: 'Idea bank',
+        sort: 3,
+        icon: idea.icon
+      });
+    }
+  });
+
+  // Shuffle for variety, cap at 10
+  events.sort(function(){ return Math.random()-0.5; });
+  return events.slice(0, 10);
+}
+
 function renderHome() {
   // Topbar avatar
   var av = document.getElementById('topbar-av');
@@ -1630,17 +1744,22 @@ function renderHome() {
     row.appendChild(chip);
   });
 
-  // Activity
+  // Activity — derived from real flock data
   var feed = document.getElementById('activity-feed');
   feed.innerHTML = '';
-  DATA.activity.forEach(function(a){
-    var m = getMember(a.member);
+  var events = buildFlockActivity();
+  if (events.length === 0) {
+    feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet — start planning!</div>';
+    return;
+  }
+  events.forEach(function(a){
+    var m = a.member !== 'group' ? getMember(a.member) : null;
     var item = document.createElement('div');
     item.className = 'activity-item';
     item.innerHTML =
-      makeAv((m && m.animal)||'bear', 32)+
+      (m ? makeAv(m.animal, 32) : '<div style="width:32px;height:32px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">'+(a.icon||'✨')+'</div>')+
       '<div style="flex:1">'+
-        '<div class="activity-text"><strong>'+(m?m.name:a.member)+'</strong> '+a.text+'</div>'+
+        '<div class="activity-text">'+(m?'<strong>'+m.name+'</strong> ':'')+a.text+'</div>'+
         '<div class="activity-time">'+a.time+'</div>'+
       '</div>';
     feed.appendChild(item);
@@ -1656,6 +1775,8 @@ function renderGatherings() {
     var isFeatured = g.status === 'next';
     var isBonus = g.beachMode;
     card.className = 'g-card'+(isFeatured?' featured':'')+(isBonus?' bonus':'');
+    card.dataset.gid = g.id;
+    card.dataset.gid = g.id;
 
     var faces = (g.attending||[]).slice(0,4).map(function(id){
       return '<div class="g-av">'+makeAvSvg(getMember(id)&&getMember(id).animal||'bear',22)+'</div>';
@@ -1760,6 +1881,144 @@ function renderDetail(g) {
   showTab('overview');
 }
 
+// ─── TASKS TAB ──────────────────────────────────────────────
+function buildTasksTab(g) {
+  return '<div class="tasks-tab" id="tasks-tab-'+g.id+'"></div>';
+}
+
+function wireTaskButtons(g) {
+  var wrap = document.getElementById('tasks-tab-'+g.id);
+  if (!wrap) return;
+  renderTasksTabContent(g, wrap);
+}
+
+function renderTasksTabContent(g, wrap) {
+  if (!g.tasks) g.tasks = [];
+  var done  = g.tasks.filter(function(t){ return t.done; }).length;
+  var total = g.tasks.length;
+
+  // Build member options for assignee picker
+  var memberOpts = '<option value="">Unassigned</option>';
+  [DATA.me].concat(DATA.members||[]).forEach(function(m){
+    if (!m) return;
+    memberOpts += '<option value="'+m.id+'">'+m.name+'</option>';
+  });
+
+  var taskRows = g.tasks.map(function(t){
+    var owner = getMember(t.owner);
+    var ownerName = owner ? owner.name : (t.owner || '');
+    return '<div class="ttask-row'+(t.done?' done':'')+'" id="trow-'+t.id+'">'+
+      '<button class="ttask-chk'+(t.done?' done':'')+'" id="tchk-'+t.id+'" aria-label="Toggle">'+
+        (t.done?'<svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>':'')+
+      '</button>'+
+      '<div class="ttask-body">'+
+        '<div class="ttask-title'+(t.done?' done':'')+'" id="ttitle-'+t.id+'">'+t.title+'</div>'+
+        (ownerName?'<div class="ttask-meta">'+ownerName+(t.note?' &middot; '+t.note:'')+'</div>':'<div class="ttask-meta" style="color:var(--text3);font-style:italic">Unassigned</div>')+
+      '</div>'+
+      '<button class="ttask-del" id="tdel-'+t.id+'" aria-label="Remove task">&times;</button>'+
+    '</div>';
+  }).join('');
+
+  var emptyState = g.tasks.length === 0 ?
+    '<div class="tasks-empty"><div style="font-size:36px;margin-bottom:8px">✅</div><div style="font-size:15px;font-weight:700;color:var(--text2)">No tasks yet</div><div style="font-size:13px;color:var(--text3);margin-top:4px">Add the first thing that needs doing</div></div>' : '';
+
+  wrap.innerHTML =
+    // Progress summary bar
+    '<div class="tprog-wrap">'+
+      '<div class="tprog-label">'+
+        '<span style="font-weight:800;color:var(--text1)">'+done+' of '+total+' done</span>'+
+        '<span style="color:var(--text3);font-size:12px">'+g.progress+'% ready</span>'+
+      '</div>'+
+      '<div class="tprog-track"><div class="tprog-fill" id="tprog-fill-'+g.id+'" style="width:'+g.progress+'%"></div></div>'+
+    '</div>'+
+
+    // Task list
+    '<div class="ttask-list" id="ttask-list-'+g.id+'">'+taskRows+emptyState+'</div>'+
+
+    // Add task form
+    '<div class="tadd-form">'+
+      '<div class="tadd-row">'+
+        '<input class="tadd-input" id="tadd-title-'+g.id+'" placeholder="What needs doing…" maxlength="80">'+
+        '<button class="tadd-btn" id="tadd-go-'+g.id+'">Add</button>'+
+      '</div>'+
+      '<div class="tadd-row" style="margin-top:6px">'+
+        '<select class="tadd-select" id="tadd-owner-'+g.id+'">'+memberOpts+'</select>'+
+        '<input class="tadd-input tadd-note" id="tadd-note-'+g.id+'" placeholder="Note (optional)" maxlength="60" style="flex:1.4">'+
+      '</div>'+
+    '</div>';
+
+  // Wire checkboxes
+  g.tasks.forEach(function(t){
+    var chkEl  = document.getElementById('tchk-'+t.id);
+    var rowEl  = document.getElementById('trow-'+t.id);
+    var titleEl= document.getElementById('ttitle-'+t.id);
+    var delEl  = document.getElementById('tdel-'+t.id);
+
+    if (chkEl) chkEl.addEventListener('click', function(e){
+      e.stopPropagation();
+      t.done = !t.done;
+      chkEl.className  = 'ttask-chk'+(t.done?' done':'');
+      chkEl.innerHTML  = t.done ? '<svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>' : '';
+      rowEl.className  = 'ttask-row'+(t.done?' done':'');
+      if (titleEl) titleEl.className = 'ttask-title'+(t.done?' done':'');
+      updateTaskProgress(g);
+      toast(t.done ? '✓ Done!' : 'Reopened');
+    });
+
+    if (delEl) delEl.addEventListener('click', function(e){
+      e.stopPropagation();
+      g.tasks = g.tasks.filter(function(x){ return x.id !== t.id; });
+      updateTaskProgress(g);
+      renderTasksTabContent(g, wrap);
+      toast('Task removed');
+    });
+  });
+
+  // Wire add button
+  var addBtn   = document.getElementById('tadd-go-'+g.id);
+  var addTitle = document.getElementById('tadd-title-'+g.id);
+  var addOwner = document.getElementById('tadd-owner-'+g.id);
+  var addNote  = document.getElementById('tadd-note-'+g.id);
+
+  function doAdd() {
+    var title = addTitle.value.trim();
+    if (!title) { addTitle.focus(); return; }
+    var newTask = {
+      id: 'task_'+Date.now().toString(36),
+      title: title,
+      owner: addOwner.value || '',
+      note: addNote.value.trim(),
+      done: false
+    };
+    g.tasks.push(newTask);
+    updateTaskProgress(g);
+    addTitle.value = '';
+    addNote.value  = '';
+    renderTasksTabContent(g, wrap);
+    toast('Task added ✓');
+  }
+
+  if (addBtn) addBtn.addEventListener('click', doAdd);
+  if (addTitle) addTitle.addEventListener('keydown', function(e){ if(e.key==='Enter') doAdd(); });
+}
+
+function updateTaskProgress(g) {
+  var done  = (g.tasks||[]).filter(function(t){ return t.done; }).length;
+  var total = (g.tasks||[]).length;
+  g.progress = total > 0 ? Math.round((done/total)*100) : 0;
+  // Tasks tab progress bar
+  var fill = document.getElementById('tprog-fill-'+g.id);
+  if (fill) fill.style.width = g.progress+'%';
+  // Overview stat counters
+  var elCnt = document.getElementById('detail-prog-count-'+g.id);
+  if (elCnt) elCnt.textContent = done+'/'+total;
+  var elPct = document.getElementById('detail-prog-pct-'+g.id);
+  if (elPct) elPct.textContent = g.progress+'%';
+  // Card bar on gatherings list
+  var cardBar = document.querySelector('[data-gid="'+g.id+'"] .g-progress-fill');
+  if (cardBar) cardBar.style.width = g.progress+'%';
+}
+
 function wireDetailButtons(g) {
 
   // Wire task checkboxes
@@ -1778,7 +2037,20 @@ function wireDetailButtons(g) {
           }
           var titleEl = document.getElementById('task-title-'+task.id);
           if (titleEl) titleEl.className = 'task-title'+(task.done?' done':'');
-          toast(task.done ? '? Done!' : 'Reopened');
+          // Update progress bar everywhere
+          var done = (g.tasks||[]).filter(function(t){return t.done;}).length;
+          var total = (g.tasks||[]).length;
+          g.progress = total > 0 ? Math.round((done/total)*100) : 0;
+          // Update in detail view progress bar
+          var detPb = document.getElementById('detail-prog-fill-'+g.id);
+          if (detPb) detPb.style.width = g.progress+'%';
+          var detPc = document.getElementById('detail-prog-count-'+g.id);
+          if (detPc) detPc.textContent = done+'/'+total+' tasks done';
+          // Update in gatherings list card
+          var cardPb = document.querySelector('[data-gid="'+g.id+'"] .g-progress-fill');
+          if (cardPb) cardPb.style.width = g.progress+'%';
+          updateTaskProgress(g);
+          toast(task.done ? '✓ Done!' : 'Reopened');
         });
       });
     });
@@ -1840,8 +2112,8 @@ function buildStandardDetail(g) {
     '<div class="detail-sub">'+g.month+' '+g.day+' ? '+g.location+'</div>'+
     '<div class="detail-stats">'+
       '<div class="detail-stat"><div class="detail-stat-n">'+((g.attending||[]).length)+'</div><div class="detail-stat-l">attending</div></div>'+
-      (tasksTotal?'<div class="detail-stat"><div class="detail-stat-n">'+tasksDone+'/'+tasksTotal+'</div><div class="detail-stat-l">tasks done</div></div>':'')+
-      '<div class="detail-stat"><div class="detail-stat-n">'+(g.progress||0)+'%</div><div class="detail-stat-l">ready</div></div>'+
+      (tasksTotal?'<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">'+tasksDone+'/'+tasksTotal+'</div><div class="detail-stat-l">tasks done</div></div>':'')+
+      '<div class="detail-stat"><div class="detail-stat-n" id="detail-prog-pct-'+g.id+'">'+(g.progress||0)+'%</div><div class="detail-stat-l">ready</div></div>'+
     '</div>'+
   '</div>'+
 
@@ -3618,12 +3890,7 @@ function renderGatheringChat(gatheringId) {
   var wrap = document.createElement('div');
   wrap.className = 'chat-wrap';
 
-  var msgList = document.createElement('div');
-  msgList.className = 'chat-messages';
-  msgList.id = 'chat-messages-' + gatheringId;
-  wrap.appendChild(msgList);
-
-  // Input row
+  // Input row FIRST (sits at top visually)
   var inputRow = document.createElement('div');
   inputRow.className = 'chat-input-row';
   var input = document.createElement('input');
@@ -3648,7 +3915,6 @@ function renderGatheringChat(gatheringId) {
     };
     // Optimistic local add
     appendChatMessage(msgList, msg);
-    msgList.scrollTop = msgList.scrollHeight;
 
     // Save to Firestore
     if (window.__db && window.__firestoreHelpers) {
@@ -3666,6 +3932,12 @@ function renderGatheringChat(gatheringId) {
   inputRow.appendChild(input);
   inputRow.appendChild(sendBtn);
   wrap.appendChild(inputRow);
+
+  // Messages list BELOW input
+  var msgList = document.createElement('div');
+  msgList.className = 'chat-messages';
+  msgList.id = 'chat-messages-' + gatheringId;
+  wrap.appendChild(msgList);
 
   // Load messages
   loadChatMessages(gatheringId, msgList);
@@ -3706,7 +3978,6 @@ function loadChatMessages(gatheringId, container) {
         snap.forEach(function(doc) {
           appendChatMessage(container, doc.data());
         });
-        container.scrollTop = container.scrollHeight;
       }
     );
   } catch(e) {
@@ -3769,7 +4040,7 @@ function renderPhotoAlbum(gatheringId) {
     grid.appendChild(empty);
   } else {
     photos.forEach(function(photo, idx) {
-      grid.appendChild(buildPhotoThumb(photo, idx, photos));
+      grid.appendChild(buildPhotoThumb(photo, idx, photos, gatheringId));
     });
   }
 
@@ -3778,18 +4049,40 @@ function renderPhotoAlbum(gatheringId) {
   return wrap;
 }
 
-function buildPhotoThumb(photo, idx, allPhotos) {
+function buildPhotoThumb(photo, idx, allPhotos, gatheringId) {
   var thumb = document.createElement('div');
   thumb.className = 'photo-thumb';
+  thumb.dataset.photoId = photo.id;
+
   var img = document.createElement('img');
   img.src = photo.url || photo.dataUrl || '';
   img.alt = '';
   img.loading = 'lazy';
+
   var uploaderAv = document.createElement('div');
   uploaderAv.className = 'photo-uploader';
   uploaderAv.innerHTML = makeAvSvg(photo.uploaderAnimal || 'bear', 20);
+
+  // Delete button (only if uploader is me OR no uploaderId)
+  var delBtn = document.createElement('button');
+  delBtn.className = 'photo-del-btn';
+  delBtn.innerHTML = '&times;';
+  delBtn.title = 'Remove photo';
+  delBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (!gatheringId) return;
+    var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
+    if (gIdx < 0) return;
+    DATA.gatherings[gIdx].photos = (DATA.gatherings[gIdx].photos||[]).filter(function(p){ return p.id !== photo.id; });
+    saveFlockState();
+    thumb.parentNode && thumb.parentNode.removeChild(thumb);
+    toast('Photo removed');
+  });
+
   thumb.appendChild(img);
   thumb.appendChild(uploaderAv);
+  thumb.appendChild(delBtn);
+
   thumb.addEventListener('click', function(){
     openPhotoLightbox(photo, allPhotos, idx);
   });
@@ -3841,7 +4134,7 @@ function handlePhotoUpload(gatheringId, files, grid) {
       // Add thumb before the add button
       var addBtn = grid.querySelector('.photo-upload-btn');
       var photos = DATA.gatherings[gIdx].photos;
-      var thumb = buildPhotoThumb(photo, photos.length-1, photos);
+      var thumb = buildPhotoThumb(photo, photos.length-1, photos, gatheringId);
       grid.insertBefore(thumb, addBtn);
 
       toast('Photo added! &#127881;');
@@ -4285,6 +4578,65 @@ try {
   });
 })();
 
+
+// ── ADD IDEA SHEET ──────────────────────────────────────────
+(function(){
+  var selIdeaEmoji = '💡';
+
+  function openAddIdeaSheet() {
+    document.getElementById('idea-title-input').value = '';
+    document.getElementById('idea-desc-input').value = '';
+    document.getElementById('idea-title-err').style.display = 'none';
+    selIdeaEmoji = '💡';
+    document.querySelectorAll('#idea-emoji-row .gc-emoji-btn').forEach(function(b){
+      b.classList.toggle('selected', b.dataset.emoji === selIdeaEmoji);
+    });
+    document.getElementById('idea-overlay').classList.remove('hidden');
+    setTimeout(function(){ document.getElementById('idea-title-input').focus(); }, 250);
+  }
+  window.openAddIdeaSheet = openAddIdeaSheet;
+
+  document.getElementById('idea-close').addEventListener('click', function(){
+    document.getElementById('idea-overlay').classList.add('hidden');
+  });
+  document.getElementById('idea-overlay').addEventListener('click', function(e){
+    if (e.target === this) this.classList.add('hidden');
+  });
+
+  document.querySelectorAll('#idea-emoji-row .gc-emoji-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      selIdeaEmoji = this.dataset.emoji;
+      document.querySelectorAll('#idea-emoji-row .gc-emoji-btn').forEach(function(b){
+        b.classList.toggle('selected', b.dataset.emoji === selIdeaEmoji);
+      });
+    });
+  });
+
+  document.getElementById('idea-submit-btn').addEventListener('click', function(){
+    var title = document.getElementById('idea-title-input').value.trim();
+    if (!title) {
+      document.getElementById('idea-title-err').style.display = 'block';
+      document.getElementById('idea-title-input').focus();
+      return;
+    }
+    document.getElementById('idea-title-err').style.display = 'none';
+    var desc = document.getElementById('idea-desc-input').value.trim();
+    var newIdea = {
+      id: 'idea_'+Date.now().toString(36),
+      icon: selIdeaEmoji,
+      title: title,
+      sub: desc || 'Added by '+DATA.me.name,
+      votes: 1,
+      pct: 12,
+      voted: true
+    };
+    DATA.ideas.unshift(newIdea);
+    document.getElementById('idea-overlay').classList.add('hidden');
+    renderIdeas();
+    toast('Idea added! 💡 You automatically voted for it.');
+  });
+})();
+
 </script>
 
 
@@ -4351,6 +4703,34 @@ try {
       <button class="gc-save-btn" id="gc-save">Add to gatherings ✨</button>
       <p class="gc-hint">You can fill in tasks, RSVPs and more details after adding.</p>
 
+    </div>
+  </div>
+</div>
+
+
+<!-- ADD IDEA SHEET -->
+<div class="overlay hidden" id="idea-overlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-title">Add an idea</div>
+      <button class="sheet-close" id="idea-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <label class="gc-field-label" for="idea-title-input">Idea title</label>
+      <input class="gc-input" id="idea-title-input" type="text" placeholder="e.g. Escape room challenge" maxlength="60">
+      <div class="gc-err" id="idea-title-err">Give your idea a name</div>
+
+      <label class="gc-field-label" for="idea-desc-input">Why it would work</label>
+      <input class="gc-input" id="idea-desc-input" type="text" placeholder="Teams, works hybrid, everyone loves it…" maxlength="80">
+
+      <span class="gc-field-label">Pick an icon</span>
+      <div class="gc-emoji-row" id="idea-emoji-row">
+        <button class="gc-emoji-btn" data-emoji="💡">💡</button><button class="gc-emoji-btn" data-emoji="🎯">🎯</button><button class="gc-emoji-btn" data-emoji="🏕">🏕</button><button class="gc-emoji-btn" data-emoji="🌊">🌊</button><button class="gc-emoji-btn" data-emoji="🎉">🎉</button><button class="gc-emoji-btn" data-emoji="🎲">🎲</button><button class="gc-emoji-btn" data-emoji="🍕">🍕</button><button class="gc-emoji-btn" data-emoji="🎬">🎬</button><button class="gc-emoji-btn" data-emoji="🏡">🏡</button><button class="gc-emoji-btn" data-emoji="✈️">✈️</button><button class="gc-emoji-btn" data-emoji="🎨">🎨</button><button class="gc-emoji-btn" data-emoji="🏆">🏆</button><button class="gc-emoji-btn" data-emoji="🌿">🌿</button><button class="gc-emoji-btn" data-emoji="🎵">🎵</button><button class="gc-emoji-btn" data-emoji="🔥">🔥</button>
+      </div>
+
+      <button class="gc-save-btn" id="idea-submit-btn">Add to idea bank 💡</button>
     </div>
   </div>
 </div>
