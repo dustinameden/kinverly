@@ -1299,6 +1299,52 @@ img,svg{display:block}
 .rsvp-badge.pending{background:var(--surface2);color:var(--text3)}
 .rsvp-member-row.dimmed{opacity:.5}
 .rsvp-member-row{justify-content:space-between}
+
+/* ── RSVP CALENDAR RANGE PICKER ──────────────────────────── */
+.rsvp-cal{margin-top:4px}
+.rsvp-range-summary{
+  font-size:13px;font-weight:600;color:var(--text2);
+  margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:28px;
+}
+.rsvp-range-summary.hint{color:var(--text3);font-style:italic;font-weight:500}
+.rsvp-range-chip{
+  display:inline-flex;align-items:center;
+  padding:4px 10px;border-radius:20px;
+  font-size:12px;font-weight:800;
+}
+.rsvp-range-chip.arrive{background:var(--green-bg);color:var(--green)}
+.rsvp-range-chip.depart{background:var(--amber-bg);color:var(--amber)}
+.rsvp-range-sep{color:var(--text3);font-size:14px}
+.rsvp-range-hint{font-size:12px;color:var(--text3);font-style:italic}
+.rsvp-range-clear{
+  background:transparent;border:none;cursor:pointer;
+  font-size:11px;font-weight:800;color:var(--text3);
+  text-decoration:underline;padding:0;font-family:inherit;
+}
+/* Range day states */
+.cal-day.rsvp-arrive{
+  background:var(--green);color:#fff;border-color:var(--green);
+  border-radius:50% 0 0 50%;
+}
+.cal-day.rsvp-depart{
+  background:var(--amber);color:#fff;border-color:var(--amber);
+  border-radius:0 50% 50% 0;
+}
+.cal-day.rsvp-arrive.rsvp-depart{border-radius:50%}
+.cal-day.rsvp-in-range{
+  background:#e8f5eb;color:var(--green);
+  border-color:transparent;border-radius:0;
+}
+.cal-day.rsvp-gathering{
+  border-color:var(--gold)!important;
+  box-shadow:0 0 0 2px rgba(240,192,48,.3);
+}
+.cal-day.rsvp-gathering::after{
+  content:'\25CF';
+  position:absolute;bottom:2px;font-size:6px;
+  color:var(--gold);
+}
+.cal-day{position:relative}
 </style>
 </head>
 <body>
@@ -2504,7 +2550,8 @@ function buildStandardDetail(g) {
         '<div class="my-rsvp-status">' + myStatusLabel + '</div>' +
         (myRsvp.guests  ? '<div class="my-rsvp-detail">+' + myRsvp.guests + ' guest' + (myRsvp.guests>1?'s':'') + '</div>' : '') +
         (myRsvp.dietary ? '<div class="my-rsvp-detail">Dietary: ' + myRsvp.dietary + '</div>' : '') +
-        (myRsvp.travelFrom ? '<div class="my-rsvp-detail">Traveling from ' + myRsvp.travelFrom + (myRsvp.travelTo ? ' \u00b7 arriving ' + myRsvp.travelTo : '') + '</div>' : '') +
+        (myRsvp.travelFrom ? '<div class="my-rsvp-detail">Traveling from ' + myRsvp.travelFrom + '</div>' : '') +
+        (myRsvp.travelTo ? '<div class="my-rsvp-detail">\u2708\ufe0f Arriving ' + myRsvp.travelTo + (myRsvp.departTo ? ' \u2192 Leaving ' + myRsvp.departTo : '') + '</div>' : '') +
       '</div>'
     : '<div class="rsvp-cta-banner">' +
         '<div class="rsvp-cta-question">Are you coming?</div>' +
@@ -4037,7 +4084,7 @@ function openRSVP(gatheringId) {
         c.className = 'rsvp-option';
       });
       card.className = 'rsvp-option ' + opt.selClass;
-      renderRsvpDetails(body, detailSection, opt.id, myRsvp);
+      renderRsvpDetails(body, detailSection, opt.id, myRsvp, g);
     });
     grid.appendChild(card);
   });
@@ -4049,7 +4096,7 @@ function openRSVP(gatheringId) {
   body.appendChild(detailSection);
 
   if (currentStatus) {
-    renderRsvpDetails(body, detailSection, currentStatus, myRsvp);
+    renderRsvpDetails(body, detailSection, currentStatus, myRsvp, g);
   }
 
   // Save button
@@ -4061,22 +4108,29 @@ function openRSVP(gatheringId) {
   saveBtn.addEventListener('click', function() {
     if (!selectedStatus) { toast('Please select your attendance status'); return; }
 
-    var guestsEl = document.getElementById('rsvp-guests');
+    var guestsEl  = document.getElementById('rsvp-guests');
     var dietaryEl = document.getElementById('rsvp-dietary');
-    var fromEl = document.getElementById('rsvp-from');
-    var toEl = document.getElementById('rsvp-to');
+    var fromEl    = document.getElementById('rsvp-from');
+    var noMsgEl   = document.getElementById('rsvp-no-msg');
 
-    var noMsgEl = document.getElementById('rsvp-no-msg');
+    // Read calendar range if available
+    var rangeData = detailSection && detailSection._getRsvpRange
+      ? detailSection._getRsvpRange()
+      : {arriveDate:null, departDate:null, travelTo:'', departTo:''};
+
     var rsvp = {
       status: selectedStatus,
       memberName: me.name,
       memberAnimal: me.animal,
-      guests: guestsEl ? parseInt(guestsEl.value) || 0 : 0,
-      dietary: dietaryEl ? dietaryEl.value.trim() : '',
-      travelFrom: fromEl ? fromEl.value.trim() : '',
-      travelTo: toEl ? toEl.value.trim() : '',
-      noMsg: noMsgEl ? noMsgEl.value.trim() : '',
-      updatedAt: Date.now()
+      guests:      guestsEl  ? parseInt(guestsEl.value)  || 0 : 0,
+      dietary:     dietaryEl ? dietaryEl.value.trim()         : '',
+      travelFrom:  fromEl    ? fromEl.value.trim()            : '',
+      travelTo:    rangeData.travelTo,
+      departTo:    rangeData.departTo,
+      arriveDate:  rangeData.arriveDate,
+      departDate:  rangeData.departDate,
+      noMsg:       noMsgEl   ? noMsgEl.value.trim()           : '',
+      updatedAt:   Date.now()
     };
 
     if (!rsvpData[gatheringId]) rsvpData[gatheringId] = {};
@@ -4121,7 +4175,7 @@ function openRSVP(gatheringId) {
   document.getElementById('rsvp-overlay').classList.remove('hidden');
 }
 
-function renderRsvpDetails(body, section, status, existing) {
+function renderRsvpDetails(body, section, status, existing, gatheringRef) {
   section.innerHTML = '';
   section.className = 'rsvp-detail-section';
 
@@ -4146,36 +4200,214 @@ function renderRsvpDetails(body, section, status, existing) {
     return;
   }
 
-  var fields = [
-    {id:'rsvp-guests',   label:'Additional guests',    type:'number', placeholder:'0', val:existing.guests||''},
-    {id:'rsvp-dietary',  label:'Dietary notes',        type:'text',   placeholder:'e.g. vegetarian, nut allergy', val:existing.dietary||''},
-    {id:'rsvp-from',     label:'Traveling from',       type:'text',   placeholder:'e.g. Chicago, IL', val:existing.travelFrom||DATA.me.location||''},
-    {id:'rsvp-to',       label:'Arrival date',         type:'text',   placeholder:'e.g. Jul 18', val:existing.travelTo||''},
-  ];
+  // ── Guests ──
+  function field(id, label, type, placeholder, val, extraStyle) {
+    var w = document.createElement('div');
+    w.style.marginBottom = '12px';
+    var l = document.createElement('div');
+    l.style.cssText = 'font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+    l.textContent = label;
+    var i = document.createElement('input');
+    i.className = 'input-field';
+    i.type = type; i.id = id; i.placeholder = placeholder; i.value = val||'';
+    if (extraStyle) i.style.cssText = extraStyle;
+    if (type==='number'){i.min='0';i.max='20';}
+    w.appendChild(l); w.appendChild(i);
+    section.appendChild(w);
+  }
+  field('rsvp-guests', 'Additional guests', 'number', '0', existing.guests||'', 'width:80px');
+  field('rsvp-dietary', 'Dietary notes', 'text', 'e.g. vegetarian, nut allergy', existing.dietary||'');
 
-  if (status === 'virtual') {
-    fields = fields.slice(0,2); // Only guests + dietary for virtual
+  if (status === 'virtual') return; // virtual: no travel dates
+
+  // ── Travel origin ──
+  field('rsvp-from', 'Traveling from', 'text', 'e.g. Chicago, IL', existing.travelFrom||DATA.me.location||'');
+
+  // ── Arrival / Departure calendar range-picker ──
+  var calWrap = document.createElement('div');
+  calWrap.style.marginBottom = '12px';
+
+  var calLbl = document.createElement('div');
+  calLbl.style.cssText = 'font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px';
+  calLbl.textContent = 'Arrival & departure';
+  calWrap.appendChild(calLbl);
+
+  // Selected range summary
+  var rangeSummary = document.createElement('div');
+  rangeSummary.id = 'rsvp-range-summary';
+  rangeSummary.className = 'rsvp-range-summary';
+  calWrap.appendChild(rangeSummary);
+
+  // Calendar container
+  var calInner = document.createElement('div');
+  calInner.className = 'rsvp-cal';
+  calInner.id = 'rsvp-cal-inner';
+  calWrap.appendChild(calInner);
+
+  section.appendChild(calWrap);
+
+  // ── Build the calendar ──
+  // Figure out which month(s) to show around the gathering date
+  var g = gatheringRef;
+  var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MONTH_MAP = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
+  var gMonth = g && g.month ? (MONTH_MAP[g.month] !== undefined ? MONTH_MAP[g.month] : 6) : new Date().getMonth();
+  var gDay   = g && g.day   ? parseInt(g.day) : 1;
+  var gYear  = new Date().getFullYear();
+  // Show the month of the gathering + one prior month for travel
+  var months = [];
+  var prevM = gMonth - 1 < 0 ? 11 : gMonth - 1;
+  var prevY = gMonth - 1 < 0 ? gYear - 1 : gYear;
+  months.push({m: prevM, y: prevY});
+  months.push({m: gMonth, y: gYear});
+
+  // Range state: stored as {y,m,d} objects
+  var rangeState = { arrive: null, depart: null, phase: 'arrive' };
+
+  // Pre-fill from existing RSVP
+  if (existing.arriveDate) {
+    rangeState.arrive = existing.arriveDate;
+    rangeState.phase = 'depart';
+  }
+  if (existing.departDate) {
+    rangeState.depart = existing.departDate;
+    rangeState.phase = 'done';
   }
 
-  fields.forEach(function(f) {
-    var wrap = document.createElement('div');
-    wrap.className = 'field-group';
-    wrap.style.marginBottom = '12px';
-    var lbl = document.createElement('div');
-    lbl.className = 'field-label';
-    lbl.style.cssText = 'font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
-    lbl.textContent = f.label;
-    var inp = document.createElement('input');
-    inp.className = 'input-field';
-    inp.type = f.type;
-    inp.id = f.id;
-    inp.placeholder = f.placeholder;
-    inp.value = f.val;
-    if (f.type === 'number') { inp.min = '0'; inp.max = '20'; inp.style.width = '80px'; }
-    wrap.appendChild(lbl);
-    wrap.appendChild(inp);
-    section.appendChild(wrap);
-  });
+  function dateKey(y, m, d) { return y+'-'+(m<9?'0':'')+(m+1)+'-'+(d<10?'0':'')+d; }
+  function parseKey(k) {
+    var p = k.split('-');
+    return {y:+p[0], m:+p[1]-1, d:+p[2]};
+  }
+  function dateToNum(o) { return o ? o.y*10000 + o.m*100 + o.d : 0; }
+  function fmtDate(o) {
+    if (!o) return '';
+    return MONTH_NAMES[o.m] + ' ' + o.d;
+  }
+
+  function updateSummary() {
+    var s = rangeSummary;
+    if (!rangeState.arrive && !rangeState.depart) {
+      s.textContent = 'Tap a day to set your arrival';
+      s.className = 'rsvp-range-summary hint';
+    } else if (rangeState.arrive && !rangeState.depart) {
+      s.innerHTML = '<span class="rsvp-range-chip arrive">Arriving ' + fmtDate(rangeState.arrive) + '</span>'
+        + '  <span class="rsvp-range-hint">Now tap your departure</span>';
+      s.className = 'rsvp-range-summary';
+    } else {
+      s.innerHTML = '<span class="rsvp-range-chip arrive">Arriving ' + fmtDate(rangeState.arrive) + '</span>'
+        + '  <span class="rsvp-range-sep">\u2192</span>  '
+        + '<span class="rsvp-range-chip depart">Leaving ' + fmtDate(rangeState.depart) + '</span>'
+        + '  <button class="rsvp-range-clear" id="rsvp-range-clear-btn">Clear</button>';
+      s.className = 'rsvp-range-summary';
+    }
+    // wire clear
+    var clr = document.getElementById('rsvp-range-clear-btn');
+    if (clr) clr.addEventListener('click', function(e){
+      e.stopPropagation();
+      rangeState.arrive = null;
+      rangeState.depart = null;
+      rangeState.phase  = 'arrive';
+      renderCal();
+    });
+  }
+
+  function renderCal() {
+    calInner.innerHTML = '';
+    var arrN  = dateToNum(rangeState.arrive);
+    var depN  = dateToNum(rangeState.depart);
+    var DAYS  = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+    // Mark gathering day
+    var gathN = dateToNum({y:gYear, m:gMonth, d:gDay});
+
+    months.forEach(function(mo) {
+      var monthLabel = document.createElement('div');
+      monthLabel.className = 'cal-header';
+      monthLabel.textContent = MONTH_NAMES[mo.m] + ' ' + mo.y;
+      calInner.appendChild(monthLabel);
+
+      var grid = document.createElement('div');
+      grid.className = 'cal-grid';
+
+      // Day-of-week headers
+      DAYS.forEach(function(d){
+        var hdr = document.createElement('div');
+        hdr.className = 'cal-day-hdr';
+        hdr.textContent = d;
+        grid.appendChild(hdr);
+      });
+
+      var daysInMonth = new Date(mo.y, mo.m+1, 0).getDate();
+      var firstDay    = new Date(mo.y, mo.m, 1).getDay();
+
+      // Empty cells before month start
+      for (var e = 0; e < firstDay; e++) {
+        var empty = document.createElement('div');
+        empty.className = 'cal-day empty';
+        grid.appendChild(empty);
+      }
+
+      for (var day = 1; day <= daysInMonth; day++) {
+        var key  = dateKey(mo.y, mo.m, day);
+        var dobj = {y:mo.y, m:mo.m, d:day};
+        var dnum = dateToNum(dobj);
+        var cls  = 'cal-day';
+
+        if (dnum === arrN)  cls += ' rsvp-arrive';
+        if (dnum === depN)  cls += ' rsvp-depart';
+        if (arrN && depN && dnum > arrN && dnum < depN) cls += ' rsvp-in-range';
+        if (dnum === gathN) cls += ' rsvp-gathering';
+
+        var cell = document.createElement('div');
+        cell.className = cls;
+        cell.textContent = day;
+        cell.dataset.key = key;
+
+        (function(d_, dnum_) {
+          cell.addEventListener('click', function(){
+            if (!rangeState.arrive || rangeState.phase === 'arrive') {
+              rangeState.arrive = d_;
+              rangeState.depart = null;
+              rangeState.phase  = 'depart';
+            } else if (rangeState.phase === 'depart') {
+              if (dnum_ < arrN) {
+                // tapped before arrival — swap to new arrival
+                rangeState.arrive = d_;
+                rangeState.depart = null;
+              } else {
+                rangeState.depart = d_;
+                rangeState.phase  = 'done';
+              }
+            } else {
+              // reset and start fresh
+              rangeState.arrive = d_;
+              rangeState.depart = null;
+              rangeState.phase  = 'depart';
+            }
+            renderCal();
+          });
+        })(dobj, dnum);
+
+        grid.appendChild(cell);
+      }
+      calInner.appendChild(grid);
+    });
+    updateSummary();
+  }
+
+  renderCal();
+
+  // Expose getRange() so save handler can read it
+  section._getRsvpRange = function() {
+    return {
+      arriveDate: rangeState.arrive,
+      departDate: rangeState.depart,
+      travelTo:   rangeState.arrive ? fmtDate(rangeState.arrive) : '',
+      departTo:   rangeState.depart ? fmtDate(rangeState.depart) : ''
+    };
+  };
 }
 
 document.getElementById('rsvp-close').addEventListener('click', function(){
