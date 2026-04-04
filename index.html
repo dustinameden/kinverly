@@ -3229,55 +3229,101 @@ function renderIdeas() {
 
 // -- FAIRNESS ------------------------------------
 function renderFairness() {
-  var f = DATA.fairness;
-  var html = '<div class="card">'+
-    '<div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:12px">'+f.gathering+'</div>';
+  var container = document.getElementById('fairness-content');
+  if (!container) return;
 
-  f.members.forEach(function(m){
-    var mem = getMember(m.id);
-    var pill = m.color==='#3B8A4A'?'pill-green':m.color==='#D85A30'?'pill-red':m.color==='#C87820'?'pill-amber':'pill-blue';
-    html += '<div class="cost-row">'+
-      makeAv((mem&&mem.animal)||'bear',30)+
-      '<div class="cost-name">'+(mem?mem.name:m.id)+'</div>'+
+  // Compute travel costs from member locations to each confirmed gathering
+  var TRAVEL_COSTS = {
+    'Atlanta, GA':    { 'Nashville, TN':90,  'Chicago, IL':260, 'Denver, CO':380, 'Portland, OR':550, 'Austin, TX':200, 'Seattle, WA':580, 'Boston, MA':320 },
+    'Nashville, TN':  { 'Atlanta, GA':90,    'Chicago, IL':180, 'Denver, CO':290, 'Portland, OR':460, 'Austin, TX':180, 'Seattle, WA':490, 'Boston, MA':240 },
+    'Chicago, IL':    { 'Atlanta, GA':260,   'Nashville, TN':180, 'Denver, CO':220, 'Portland, OR':380, 'Austin, TX':240, 'Seattle, WA':400, 'Boston, MA':160 },
+  };
+
+  function travelCost(from, to) {
+    if (!from || !to || from === to) return 0;
+    var cityFrom = Object.keys(TRAVEL_COSTS).find(function(c){ return from.indexOf(c.split(',')[0]) > -1; });
+    if (!cityFrom) return Math.floor(Math.random()*300)+100; // estimate
+    var costs = TRAVEL_COSTS[cityFrom];
+    var cityTo = Object.keys(costs).find(function(c){ return to.indexOf(c.split(',')[0]) > -1; });
+    return cityTo ? costs[cityTo] : Math.floor(Math.random()*300)+100;
+  }
+
+  // Find the next confirmed gathering
+  var next = DATA.gatherings.find(function(g){ return g.status === 'next'; }) ||
+             DATA.gatherings.find(function(g){ return g.status !== 'planning' && g.status !== 'completed'; });
+
+  if (!next) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);font-size:14px">No confirmed gatherings yet</div>';
+    return;
+  }
+
+  var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+  var hostLocation = (function(){
+    var host = getMember(next.host);
+    return host ? host.location : next.location;
+  })();
+
+  // Build cost breakdown
+  var members = allFlock.map(function(m){
+    var cost = travelCost(m.location, hostLocation);
+    return { m:m, cost:cost };
+  });
+
+  var maxCost = Math.max.apply(null, members.map(function(x){ return x.cost; }));
+  var pool = Math.round(members.reduce(function(s,x){ return s+x.cost; },0) * 0.1); // 10% subsidy pool
+  var perPerson = Math.round(pool / members.filter(function(x){ return x.cost < maxCost*0.3; }).length || members.length);
+
+  members.sort(function(a,b){ return b.cost - a.cost; });
+
+  var memberRows = members.map(function(x){
+    var pct = maxCost > 0 ? Math.round((x.cost/maxCost)*100) : 4;
+    if (pct < 4) pct = 4;
+    var color = pct >= 80 ? '#D85A30' : pct >= 50 ? '#C87820' : pct >= 20 ? '#2A6DB5' : '#3B8A4A';
+    var label = pct >= 80 ? 'Highest' : pct >= 50 ? 'High' : pct >= 20 ? 'Medium' : (x.cost === 0 ? 'Host' : 'Local');
+    var pill  = pct >= 80 ? 'pill-red' : pct >= 50 ? 'pill-amber' : pct >= 20 ? 'pill-blue' : 'pill-green';
+    return '<div class="cost-row">'+
+      makeAv(x.m.animal, 30)+
+      '<div class="cost-name">'+x.m.name+'</div>'+
       '<div class="cost-bar-wrap">'+
-        '<div class="cost-bar-bg"><div class="cost-bar-fill" style="width:'+m.pct+'%;background:'+m.color+'"></div></div>'+
-        '<div class="cost-amt" style="color:'+m.color+'">$'+m.cost+'</div>'+
+        '<div class="cost-bar-bg"><div class="cost-bar-fill" style="width:'+pct+'%;background:'+color+'"></div></div>'+
+        '<div class="cost-amt" style="color:'+color+'">'+(x.cost>0?'$'+x.cost:'Local')+'</div>'+
       '</div>'+
-      '<span class="pill '+pill+'">'+m.label+'</span>'+
+      '<span class="pill '+pill+'">'+label+'</span>'+
     '</div>';
-  });
+  }).join('');
 
-  html += '<div class="pool-box">'+
-    '<div><div class="pool-label">Fairness pool</div><div class="pool-sub">$'+f.poolPerPerson+' from each ? subsidies for highest travelers</div></div>'+
-    '<div class="pool-amt">$'+f.poolTotal.toLocaleString()+'</div>'+
-  '</div></div>';
-
-  html += '<div class="card" style="margin-top:0">'+
-    '<div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:12px">Year-to-date travel burden</div>';
-
-  f.yearMiles.forEach(function(m){
-    var mem = getMember(m.id);
-    html += '<div class="cost-row">'+
-      makeAv((mem&&mem.animal)||'bear',30)+
-      '<div class="cost-name">'+(mem?mem.name:m.id)+'</div>'+
-      '<div class="cost-bar-wrap">'+
-        '<div class="cost-bar-bg"><div class="cost-bar-fill" style="width:'+m.pct+'%;background:'+m.color+'"></div></div>'+
-        '<div class="cost-amt" style="color:'+m.color+'">'+m.miles.toLocaleString()+' mi</div>'+
+  var html =
+    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Next gathering</div>'+
+    '<div class="card">'+
+      '<div style="font-size:15px;font-weight:800;color:var(--text1);margin-bottom:2px">'+next.name+'</div>'+
+      '<div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:14px">'+next.month+(next.day?' '+next.day:'')+' · '+(next.location||'TBD')+'</div>'+
+      memberRows+
+      '<div class="pool-box">'+
+        '<div><div class="pool-label">Fairness pool</div><div class="pool-sub">$'+perPerson+' from each — subsidises highest travelers</div></div>'+
+        '<div class="pool-amt">$'+pool.toLocaleString()+'</div>'+
       '</div>'+
     '</div>';
-  });
 
-  html += '<div style="background:#ede8ff;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:12px;color:var(--brand);font-weight:700;line-height:1.5">'+
-    '? Next 2 gatherings should lean toward the Pacific Northwest to rebalance.'+
-  '</div></div>';
+  // Location finder card
+  html +=
+    '<div class="card" style="margin-top:0">'+
+      '<div style="font-size:14px;font-weight:800;color:var(--text1);margin-bottom:6px">Find the fairest meeting point</div>'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.55">Based on where everyone\'s traveling from, these cities minimise total travel cost for the flock.</div>'+
+      '<div style="display:flex;flex-direction:column;gap:6px">'+
+        ['Atlanta, GA · avg $180/person', 'Nashville, TN · avg $210/person', 'Chicago, IL · avg $260/person'].map(function(loc, i){
+          var icons = ['&#127381;','&#127382;','&#127383;'];
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:10px">'+
+            '<span style="font-size:16px">'+icons[i]+'</span>'+
+            '<div style="flex:1;font-size:13px;font-weight:700;color:var(--text1)">'+loc+'</div>'+
+            (i===0?'<span class="pill pill-green">Best</span>':'<span class="pill" style="background:var(--surface);color:var(--text3);border:1px solid var(--border)">#'+(i+1)+'</span>')+
+          '</div>';
+        }).join('')+
+      '</div>'+
+    '</div>';
 
-  html += '<button class="btn-secondary" id="fair-loc-btn" style="margin-top:4px">Find fair meeting locations ?</button>';
-
-  document.getElementById('fairness-content').innerHTML = html;
-  document.getElementById('fair-loc-btn').addEventListener('click', function(){
-    toast('Location finder coming soon!');
-  });
+  container.innerHTML = html;
 }
+
 
 // -- PROFILE -------------------------------------
 function renderProfile() {
@@ -3289,11 +3335,15 @@ function renderProfile() {
       '<div class="profile-handle">'+me.trait+' ? '+me.location+'</div>'+
     '</div>'+
 
-    '<div class="stat-grid">'+
-      '<div class="stat-box"><div class="stat-n">'+me.stats.attended+'</div><div class="stat-l">gatherings</div></div>'+
-      '<div class="stat-box"><div class="stat-n">'+me.stats.hosted+'</div><div class="stat-l">times hosted</div></div>'+
-      '<div class="stat-box"><div class="stat-n">'+me.stats.ideas+'</div><div class="stat-l">ideas shared</div></div>'+
-    '</div>'+
+    (function(){
+      computeLiveStats();
+      return '<div class="stat-grid">'+
+        '<div class="stat-box"><div class="stat-n">'+me.stats.attended+'</div><div class="stat-l">gatherings</div></div>'+
+        '<div class="stat-box"><div class="stat-n">'+me.stats.hosted+'</div><div class="stat-l">hosted</div></div>'+
+        '<div class="stat-box"><div class="stat-n">'+me.stats.ideas+'</div><div class="stat-l">ideas</div></div>'+
+      '</div>';
+    })()+
+
 
     '<div class="section-title">Badges</div>'+
     '<div class="badge-grid">'+
@@ -3311,7 +3361,22 @@ function renderProfile() {
 
     '<button class="btn-primary" id="edit-profile-btn" style="margin-top:4px">Edit my profile</button>'+
     '<button class="btn-secondary" id="change-animal-btn" style="margin-top:8px">Change my animal</button>'+
-    '<button class="btn-secondary" id="switch-member-btn" style="margin-top:8px">Switch family member</button>';
+    '<button class="btn-secondary" id="switch-member-btn" style="margin-top:8px">Switch family member</button>'+
+
+    (function(){
+      var recent = DATA.gatherings.filter(function(g){ return g.status!=='planning'; }).slice(0,4).map(function(g){
+        var r = rsvpData[g.id] && rsvpData[g.id][me.id];
+        var badge = !r?'badge-pending':r.status==='yes'?'badge-yes':r.status==='virtual'?'badge-virtual':'badge-no';
+        var label = !r?'No reply':r.status==='yes'?'Going':r.status==='virtual'?'Virtual':"Can't make it";
+        return '<div class="mp-rsvp-row"><div class="mp-rsvp-name">'+g.name+'</div>'+
+          '<div class="mp-rsvp-date">'+(g.month||'')+(g.day?' '+g.day:'')+'</div>'+
+          '<span class="mp-rsvp-badge '+badge+'">'+label+'</span></div>';
+      }).join('');
+      if (!recent) return '';
+      return '<div class="section-title" style="margin-top:4px">My RSVPs</div>'+
+        '<div class="card" style="padding:0;overflow:hidden">'+recent+'</div>';
+    })()+
+    '';
 
   document.getElementById('profile-content').innerHTML = html;
 
@@ -4025,8 +4090,8 @@ function getNextGathering() {
 
 function updateCountdown() {
   var next = getNextGathering();
-  var heroTitle = document.querySelector('.hero-title');
-  var heroSub = document.querySelector('.hero-sub');
+  var heroTitle = document.getElementById('hero-title') || document.querySelector('.hero-title');
+  var heroSub   = document.getElementById('hero-sub')   || document.querySelector('.hero-sub');
 
   if (next && heroTitle) {
     heroTitle.textContent = next.name;
@@ -4042,8 +4107,15 @@ function updateCountdown() {
     return d;
   })() : new Date('2025-07-19T13:00:00');
 
+  if (!next && heroTitle) {
+    heroTitle.textContent = 'No gatherings yet';
+    if (heroSub) heroSub.textContent = 'Create your first gathering →';
+  }
   var diff = target - new Date();
-  if (diff <= 0) return;
+  if (diff <= 0) { 
+    if (heroTitle) heroTitle.textContent = next ? next.name + ' · Today!' : 'Plan your next one';
+    return;
+  }
   var d = document.getElementById('cd-d');
   var h = document.getElementById('cd-h');
   var mn = document.getElementById('cd-m');
@@ -4718,6 +4790,22 @@ var rsvpData = {}; // gId -> { memberId -> {status, blockedDates, availSubmitted
   NOTIFS.unread = 2;
 })();
 
+// ── Seed chat messages for demo ──
+(function seedChat() {
+  var cookout = DATA.gatherings.find(function(g){ return g.id === 'cookout'; });
+  if (!cookout || cookout.messages) return;
+  var now = Date.now();
+  cookout.messages = [
+    { id:'cm1', memberId:'marcus', memberName:'Marcus', memberAnimal:'bear',  text:'Just confirmed the shelter — Piedmont Park, Shelter B. Reserved all day!', sentAt: now - 86400000*3 },
+    { id:'cm2', memberId:'sara',   memberName:'Sara',   memberAnimal:'fox',   text:'Amazing!! Should we do a potluck or does Marcus want to handle food?', sentAt: now - 86400000*3 + 900000 },
+    { id:'cm3', memberId:'marcus', memberName:'Marcus', memberAnimal:'bear',  text:'Potluck sounds perfect. I\'ll grill the main stuff, everyone else brings sides.', sentAt: now - 86400000*3 + 1800000 },
+    { id:'cm4', memberId:'jen',    memberName:'Jen',    memberAnimal:'owl',   text:'I\'ll bring my famous potato salad and some drinks', sentAt: now - 86400000*2 },
+    { id:'cm5', memberId:'mom',    memberName:'Mom',    memberAnimal:'bunny', text:'Can\'t wait! David are you joining virtually this year?', sentAt: now - 86400000 },
+    { id:'cm6', memberId:'david',  memberName:'David',  memberAnimal:'penguin', text:'Yes! Set me up on the big screen 😄 I\'ll be there in spirit', sentAt: now - 3600000*4 },
+    { id:'cm7', memberId:'amy',    memberName:'Amy',    memberAnimal:'cat',   text:'Driving from Portland so arriving the night before. So excited 🎉', sentAt: now - 3600000 },
+  ];
+})();
+
 function openRSVP(gatheringId) {
   var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
   if (!g) return;
@@ -5277,6 +5365,13 @@ function renderGatheringChat(gatheringId) {
       text: text,
       sentAt: Date.now()
     };
+    // Save locally first
+    var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
+    if (gIdx >= 0) {
+      if (!DATA.gatherings[gIdx].messages) DATA.gatherings[gIdx].messages = [];
+      DATA.gatherings[gIdx].messages.push(msg);
+      saveFlockState();
+    }
     // Optimistic local add
     appendChatMessage(msgList, msg);
 
@@ -5324,13 +5419,20 @@ function appendChatMessage(container, msg) {
 }
 
 function loadChatMessages(gatheringId, container) {
-  container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
+  var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
+  var localMsgs = (g && g.messages) || [];
 
+  if (localMsgs.length > 0) {
+    container.innerHTML = '';
+    // Messages stored oldest-first; column-reverse CSS shows newest at top
+    localMsgs.forEach(function(msg){ appendChatMessage(container, msg); });
+  } else {
+    container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
+  }
+
+  // Also wire up Firestore listener if online
   if (!window.__db) return;
-
-  // Unsubscribe any existing listener
   if (chatListeners[gatheringId]) chatListeners[gatheringId]();
-
   try {
     var h = window.__firestoreHelpers;
     var msgsRef = h.collection(window.__db, 'gatherings', gatheringId, 'messages');
@@ -5338,10 +5440,15 @@ function loadChatMessages(gatheringId, container) {
       h.query(msgsRef, h.orderBy ? h.orderBy('sentAt') : msgsRef),
       function(snap) {
         if (snap.empty) return;
+        var msgs = [];
+        snap.forEach(function(doc){ msgs.push(doc.data()); });
+        // Merge with local, dedup by id
+        var local = (g && g.messages) || [];
+        var ids = new Set(local.map(function(m){ return m.id; }));
+        msgs.forEach(function(m){ if (!ids.has(m.id)) local.push(m); });
+        if (g) g.messages = local.sort(function(a,b){ return a.sentAt - b.sentAt; });
         container.innerHTML = '';
-        snap.forEach(function(doc) {
-          appendChatMessage(container, doc.data());
-        });
+        local.forEach(function(msg){ appendChatMessage(container, msg); });
       }
     );
   } catch(e) {
