@@ -12,22 +12,22 @@
 <meta name="twitter:title" content="Kinverly">
 <meta name="twitter:description" content="Your family gathering app. Your people. Your place. Your turn.">
 <title>Kinverly — Your People. Your Place. Your Turn.</title>
-<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#3D2B6E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kinverly">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%233D2B6E'/><text y='.9em' font-size='72' x='50%' text-anchor='middle' font-family='serif'>K</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%233D2B6E'/><text y='.9em' font-size='72' x='50%' text-anchor='middle' fill='%23F0C030' font-family='serif'>K</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+
 <style>
 /* ═══════════════════════════════════════════════
    RESET & BASE
 ═══════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:'Nunito',sans-serif;background:#f0eeff;color:#1E1433;-webkit-font-smoothing:antialiased}
+html,body{height:100%;font-family:'Nunito','Segoe UI',system-ui,-apple-system,sans-serif;background:#f0eeff;color:#1E1433;-webkit-font-smoothing:antialiased}
 button,input{font-family:inherit;outline:none}
 button{cursor:pointer}
 img,svg{display:block}
@@ -89,7 +89,7 @@ img,svg{display:block}
   z-index:50;
 }
 .topbar-logo{
-  font-family:'Fredoka One',cursive;
+  font-family:'Fredoka One','Trebuchet MS',cursive;
   font-size:26px;
   color:var(--gold);
   letter-spacing:0.3px;
@@ -238,7 +238,7 @@ img,svg{display:block}
   position:relative;overflow:hidden;
 }
 .hero-label{font-size:11px;font-weight:800;color:rgba(240,192,48,0.75);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
-.hero-title{font-family:'Fredoka One',cursive;font-size:28px;color:#fff;line-height:1.1;margin-bottom:4px}
+.hero-title{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:28px;color:#fff;line-height:1.1;margin-bottom:4px}
 .hero-sub{font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:16px}
 .countdown{
   display:inline-flex;align-items:center;gap:6px;
@@ -371,7 +371,7 @@ img,svg{display:block}
 }
 .detail-hero.beach{background:linear-gradient(135deg,#1a5a4a,#0d3a2e)}
 .detail-eyebrow{font-size:10px;font-weight:800;color:rgba(240,192,48,.8);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px}
-.detail-title{font-family:'Fredoka One',cursive;font-size:26px;color:#fff;margin-bottom:3px}
+.detail-title{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:26px;color:#fff;margin-bottom:3px}
 .detail-sub{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:14px}
 .detail-stats{display:flex;gap:8px}
 .detail-stat{
@@ -509,7 +509,7 @@ img,svg{display:block}
   border:3px solid var(--gold);margin-bottom:10px;cursor:pointer;
 }
 .profile-av-wrap svg{width:88px;height:88px}
-.profile-name{font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1)}
+.profile-name{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:26px;color:var(--text1)}
 .profile-handle{font-size:13px;color:var(--text2);margin-top:2px;font-weight:600}
 .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
 .stat-box{background:var(--surface2);border-radius:var(--radius-sm);padding:10px;text-align:center}
@@ -555,7 +555,7 @@ img,svg{display:block}
   border-bottom:1px solid var(--border);
   flex-shrink:0;
 }
-.sheet-title{font-family:'Fredoka One',cursive;font-size:22px;color:var(--text1)}
+.sheet-title{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:22px;color:var(--text1)}
 .sheet-close{
   width:32px;height:32px;border-radius:50%;
   background:var(--surface2);border:none;
@@ -592,7 +592,7 @@ img,svg{display:block}
 .quiz-progress{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:14px}
 .quiz-progress-fill{height:100%;border-radius:2px;background:var(--gold);transition:width .4s}
 .quiz-label{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
-.quiz-q{font-family:'Fredoka One',cursive;font-size:20px;color:var(--text1);margin-bottom:14px;line-height:1.3}
+.quiz-q{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:20px;color:var(--text1);margin-bottom:14px;line-height:1.3}
 .quiz-opts{display:flex;flex-direction:column;gap:8px}
 .quiz-opt{
   padding:13px 16px;border-radius:12px;
@@ -604,7 +604,7 @@ img,svg{display:block}
 .quiz-opt.selected{background:#ede8ff;color:var(--brand);font-weight:800}
 .quiz-result{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:8px}
 .quiz-result-label{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
-.quiz-result-name{font-family:'Fredoka One',cursive;font-size:28px;color:var(--text1);margin-top:10px;margin-bottom:2px}
+.quiz-result-name{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:28px;color:var(--text1);margin-top:10px;margin-bottom:2px}
 .quiz-result-trait{font-size:13px;font-weight:800;color:var(--brand);margin-bottom:10px}
 .quiz-result-desc{font-size:13px;color:var(--text2);line-height:1.6;max-width:260px;margin-bottom:14px}
 .quiz-retry{font-size:13px;font-weight:800;color:var(--brand);background:#ede8ff;border:none;border-radius:20px;padding:8px 20px;margin-bottom:8px;cursor:pointer}
@@ -646,11 +646,11 @@ img,svg{display:block}
   width:100%;max-width:390px;
   display:flex;flex-direction:column;align-items:center;
 }
-.login-logo{font-family:'Fredoka One',cursive;font-size:42px;color:var(--gold);margin-bottom:4px}
+.login-logo{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:42px;color:var(--gold);margin-bottom:4px}
 .login-tagline{font-size:10px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.12em;text-transform:uppercase;margin-bottom:20px}
 .login-koro{width:72px;height:72px;border-radius:50%;overflow:hidden;border:3px solid var(--gold);margin-bottom:18px}
 .login-koro svg{width:72px;height:72px}
-.login-prompt{font-family:'Fredoka One',cursive;font-size:22px;color:#fff;margin-bottom:14px}
+.login-prompt{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:22px;color:#fff;margin-bottom:14px}
 .login-members{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;margin-bottom:14px}
 .login-chip{
   display:flex;flex-direction:column;align-items:center;gap:5px;
@@ -753,10 +753,10 @@ img,svg{display:block}
 /* ═══════════════════════════════════════════════
    FLOCK SCREENS
 ═══════════════════════════════════════════════ */
-.flock-logo{font-family:'Fredoka One',cursive;font-size:38px;color:var(--gold);margin-bottom:4px;text-align:center}
+.flock-logo{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:38px;color:var(--gold);margin-bottom:4px;text-align:center}
 .flock-tagline{font-size:10px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.12em;text-transform:uppercase;margin-bottom:24px;text-align:center}
 .flock-koro{display:flex;justify-content:center;margin:0 auto 16px}
-.flock-prompt{font-family:'Fredoka One',cursive;font-size:22px;color:#fff;margin-bottom:6px;text-align:center}
+.flock-prompt{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:22px;color:#fff;margin-bottom:6px;text-align:center}
 .flock-sub{font-size:13px;color:rgba(255,255,255,.5);font-weight:600;margin-bottom:20px;text-align:center;line-height:1.5}
 
 .flock-big-btn{
@@ -1052,7 +1052,7 @@ img,svg{display:block}
   position:relative;overflow:hidden;margin-bottom:14px;
 }
 .recap-eyebrow{font-size:10px;font-weight:800;color:rgba(240,192,48,.8);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
-.recap-title{font-family:'Fredoka One',cursive;font-size:28px;color:#fff;margin-bottom:2px}
+.recap-title{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:28px;color:#fff;margin-bottom:2px}
 .recap-date{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:16px}
 .recap-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
 .recap-stat{background:rgba(255,255,255,.1);border-radius:10px;padding:10px;text-align:center}
@@ -1275,7 +1275,7 @@ img,svg{display:block}
   background:linear-gradient(135deg,var(--brand),var(--brand2));
   border-radius:14px;padding:16px 18px;margin-bottom:10px;color:#fff;
 }
-.rsvp-cta-question{font-family:'Fredoka One',cursive;font-size:18px;margin-bottom:3px}
+.rsvp-cta-question{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:18px;margin-bottom:3px}
 .rsvp-cta-sub{font-size:12.5px;opacity:.8;font-weight:600}
 .my-rsvp-banner{
   background:var(--surface2);border-radius:14px;
@@ -1288,7 +1288,7 @@ img,svg{display:block}
   width:100%;padding:14px;border-radius:14px;
   background:var(--brand);color:#fff;
   font-size:15px;font-weight:800;border:none;cursor:pointer;
-  font-family:'Fredoka One',cursive;letter-spacing:.02em;
+  font-family:'Fredoka One','Trebuchet MS',cursive;letter-spacing:.02em;
   margin-bottom:4px;transition:opacity .15s;
 }
 .rsvp-big-btn:active{opacity:.85}
@@ -1496,7 +1496,7 @@ img,svg{display:block}
   background:linear-gradient(135deg,var(--brand),var(--brand2));
   padding:14px 16px;
 }
-.sched-title{font-family:'Fredoka One',cursive;font-size:18px;color:#fff;margin-bottom:2px}
+.sched-title{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:18px;color:#fff;margin-bottom:2px}
 .sched-sub{font-size:12px;color:rgba(255,255,255,.75);font-weight:600}
 
 /* Per-gathering rows */
@@ -1585,7 +1585,7 @@ img,svg{display:block}
   padding:16px 18px 12px;border-bottom:1px solid var(--border);
   flex-shrink:0;
 }
-.notif-panel-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--text1)}
+.notif-panel-title{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:18px;color:var(--text1)}
 .notif-panel-close{background:none;border:none;cursor:pointer;color:var(--text3);padding:4px}
 .notif-list{overflow-y:auto;flex:1;padding:6px 0}
 .notif-item{
@@ -1606,7 +1606,7 @@ img,svg{display:block}
 /* ── MEMBER PROFILE SHEET ────────────────────────────────────── */
 .mp-hero{display:flex;gap:14px;align-items:flex-start;margin-bottom:16px}
 .mp-av{width:72px;height:72px;border-radius:50%;overflow:hidden;flex-shrink:0;border:3px solid var(--border)}
-.mp-name{font-family:'Fredoka One',cursive;font-size:22px;color:var(--text1);margin-bottom:2px}
+.mp-name{font-family:'Fredoka One','Trebuchet MS',cursive;font-size:22px;color:var(--text1);margin-bottom:2px}
 .mp-loc{font-size:13px;color:var(--text3);font-weight:600;margin-bottom:4px}
 .mp-trait{font-size:12px;color:var(--brand);font-weight:800;font-style:italic}
 .mp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px}
@@ -1701,7 +1701,7 @@ img,svg{display:block}
     <!-- GATHERINGS -->
     <div class="page" id="page-gatherings">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1)">Gatherings</div>
+        <div style="font-family:'Fredoka One','Trebuchet MS',cursive;font-size:26px;color:var(--text1)">Gatherings</div>
         <button id="new-gathering-btn" style="width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text1)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
@@ -1730,7 +1730,7 @@ img,svg{display:block}
     <!-- IDEAS -->
     <div class="page" id="page-ideas">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1)">Idea bank</div>
+        <div style="font-family:'Fredoka One','Trebuchet MS',cursive;font-size:26px;color:var(--text1)">Idea bank</div>
         <button id="add-idea-btn" style="width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text1)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
@@ -1741,7 +1741,7 @@ img,svg{display:block}
 
     <!-- FAIRNESS -->
     <div class="page" id="page-fairness">
-      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:8px">Fairness tracker</div>
+      <div style="font-family:'Fredoka One','Trebuchet MS',cursive;font-size:26px;color:var(--text1);margin-bottom:8px">Fairness tracker</div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;font-weight:600">No one should always pay the most. Equal pool contributions, subsidies for highest travelers.</div>
       <div id="fairness-content"></div>
     </div>
@@ -4255,9 +4255,12 @@ function joinFlockByCode(code, callback) {
         addMeToFlock(d.id);
         saveFlockState();
         callback(null, d);
-      }).catch(function() { callback('Could not connect. Check your internet.'); });
+      }).catch(function() { callback('Live sync is offline — the app works great locally, but joining by code needs an internet connection.'); });
     } else { callback('Code not found. Double-check and try again.'); }
-  } else { callback('Code not found. Double-check and try again.'); }
+  } else {
+    // Firebase not available — app is in offline/demo mode
+    callback('You\'re in demo mode. To join a real flock, open kinverly.com in a browser with internet access.');
+  }
 }
 
 function addMeToFlock(flockId) {
@@ -5807,9 +5810,13 @@ function renderFlockSchedule() {
    FIREBASE (optional — enables live sync)
 ═══════════════════════════════════════════════ -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion, orderBy }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// Firebase is completely optional — app works 100% offline without it
+try {
+const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js").catch(()=>({}));
+if (!initializeApp) { console.log("[Kinverly] Firebase unavailable — running in offline mode"); throw new Error("Firebase load failed"); }
+const { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion, orderBy } =
+  await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").catch(()=>({}));
+if (!getFirestore) throw new Error("Firestore load failed");
 
 var firebaseConfig = {
   apiKey:            "AIzaSyBiJFbnv8nUcyNbv_aUqeCUvtTDfk8d_QA",
@@ -5914,9 +5921,14 @@ try {
   seedIfEmpty();
   console.log('[Kinverly] Firebase connected');
 } catch(e) {
-  console.warn('[Kinverly] Firebase offline:', e.message);
+  console.log('[Kinverly] Running in offline mode — all features work locally');
 }
+} catch(outerE) {
+  console.log('[Kinverly] Offline mode');
+}
+</script>
 
+<script>
 // ── GATHER CREATOR ──────────────────────────────
 (function(){
   var selEmoji = '🏠';
@@ -6727,8 +6739,6 @@ openRSVP = function(gatheringId) {
     if (rsvpOverlay) obs.observe(rsvpOverlay, { attributes: true });
   }, 300);
 };
-
-
 </script>
 
 
