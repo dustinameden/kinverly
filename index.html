@@ -1269,6 +1269,36 @@ img,svg{display:block}
   opacity:0;transition:opacity .15s;z-index:2;
 }
 .photo-thumb:hover .photo-del-btn{opacity:1}
+
+/* ── RSVP OVERVIEW ELEMENTS ──────────────────────────────── */
+.rsvp-cta-banner{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  border-radius:14px;padding:16px 18px;margin-bottom:10px;color:#fff;
+}
+.rsvp-cta-question{font-family:'Fredoka One',cursive;font-size:18px;margin-bottom:3px}
+.rsvp-cta-sub{font-size:12.5px;opacity:.8;font-weight:600}
+.my-rsvp-banner{
+  background:var(--surface2);border-radius:14px;
+  padding:13px 16px;margin-bottom:10px;
+  border-left:4px solid var(--brand);
+}
+.my-rsvp-status{font-size:14px;font-weight:800;color:var(--text1);margin-bottom:4px}
+.my-rsvp-detail{font-size:12px;color:var(--text2);font-weight:600;margin-top:3px}
+.rsvp-big-btn{
+  width:100%;padding:14px;border-radius:14px;
+  background:var(--brand);color:#fff;
+  font-size:15px;font-weight:800;border:none;cursor:pointer;
+  font-family:'Fredoka One',cursive;letter-spacing:.02em;
+  margin-bottom:4px;transition:opacity .15s;
+}
+.rsvp-big-btn:active{opacity:.85}
+.rsvp-badge{font-size:11px;font-weight:800;padding:4px 9px;border-radius:20px;flex-shrink:0}
+.rsvp-badge.going{background:var(--green-bg);color:var(--green)}
+.rsvp-badge.virtual{background:var(--blue-bg);color:var(--blue)}
+.rsvp-badge.no{background:var(--red-bg);color:var(--red)}
+.rsvp-badge.pending{background:var(--surface2);color:var(--text3)}
+.rsvp-member-row.dimmed{opacity:.5}
+.rsvp-member-row{justify-content:space-between}
 </style>
 </head>
 <body>
@@ -2383,71 +2413,127 @@ function wireDetailButtons(g) {
 
   // Wire RSVP button
   var rsvpBtn = document.getElementById('rsvp-btn');
-  if (rsvpBtn) {
-    rsvpBtn.addEventListener('click', function(){ toast('RSVP updated! ?'); });
-  }
+  if (rsvpBtn) { rsvpBtn.addEventListener('click', function(){ openRSVP(g.id); }); }
 
   // Wire nudge button
   var nudgeBtn = document.getElementById('nudge-btn');
-  if (nudgeBtn) {
-    nudgeBtn.addEventListener('click', function(){ toast('Nudge sent to the flock! ?'); });
-  }
+  if (nudgeBtn) { nudgeBtn.addEventListener('click', function(){
+    var nr=[DATA.me].concat(DATA.members||[]).filter(function(m){return m&&!(rsvpData[g.id]&&rsvpData[g.id][m.id]);});
+    if(!nr.length){toast('Everyone has replied \u2713');return;}
+    toast('\ud83d\udce3 Nudge sent to: '+nr.map(function(m){return m.name;}).join(', '));
+  }); }
 }
 
 function buildStandardDetail(g) {
-  var tasksDone = (g.tasks||[]).filter(function(t){ return t.done; }).length;
+  var tasksDone  = (g.tasks||[]).filter(function(t){ return t.done; }).length;
   var tasksTotal = (g.tasks||[]).length;
 
   var taskHTML = (g.tasks||[]).map(function(t){
     var owner = getMember(t.owner);
-    return '<div class="task-item" id="task-row-'+t.id+'">'+
-      '<div class="task-check'+(t.done?' done':'')+'" id="chk-'+t.id+'">'+
-        (t.done ? '<svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+
-      '</div>'+
-      makeAv((owner&&owner.animal)||'bear', 28)+
-      '<div class="task-info">'+
-        '<div class="task-title'+(t.done?' done':'')+'" id="task-title-'+t.id+'">'+t.title+'</div>'+
-        '<div class="task-owner">'+(owner?owner.name:t.owner)+' ? '+t.note+'</div>'+
-      '</div>'+
+    return '<div class="task-item" id="task-row-'+t.id+'">' +
+      '<div class="task-check'+(t.done?' done':'')+'" id="chk-'+t.id+'">' +
+        (t.done ? '<svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '') +
+      '</div>' +
+      makeAv((owner&&owner.animal)||'bear', 28) +
+      '<div class="task-info">' +
+        '<div class="task-title'+(t.done?' done':'')+'" id="task-title-'+t.id+'">' + t.title + '</div>' +
+        '<div class="task-owner">' + (owner?owner.name:t.owner) + ' &middot; ' + t.note + '</div>' +
+      '</div>' +
     '</div>';
   }).join('');
 
-  var memberRows = (g.attending||[]).map(function(id){
-    var m = getMember(id); if(!m) return '';
-    var pct = m.pct||0;
-    var color = pct>=90?'#3B8A4A':pct>=50?'#C87820':'#D85A30';
-    var modeClass = m.mode==='virtual'?'pill-blue':m.mode==='pending'?'pill-amber':'pill-green';
-    return '<div class="member-row">'+
-      makeAv(m.animal, 32)+
-      '<div class="member-info"><div class="member-name">'+m.name+'</div><div class="member-loc">'+m.location+'</div></div>'+
-      '<span class="pill '+modeClass+'">'+m.mode+'</span>'+
-      '<div class="pct-bar-wrap"><div class="pct-bar"><div class="pct-fill" style="width:'+pct+'%;background:'+color+'"></div></div><div class="pct-num" style="color:'+color+'">'+pct+'%</div></div>'+
+  // Seed rsvpData from attending array (for pre-existing gatherings)
+  if (!rsvpData[g.id]) {
+    rsvpData[g.id] = {};
+    (g.attending||[]).forEach(function(id){
+      rsvpData[g.id][id] = {status:'yes', memberName:'', guests:0, dietary:'', travelFrom:'', travelTo:''};
+    });
+  }
+
+  // Build RSVP-aware member list
+  var allFlock = [DATA.me].concat(DATA.members||[]);
+  var confirmed = [], notComing = [], noReply = [];
+  allFlock.forEach(function(m){
+    if (!m) return;
+    var rsvp = rsvpData[g.id] && rsvpData[g.id][m.id];
+    if (rsvp) {
+      if (rsvp.status==='yes' || rsvp.status==='virtual') confirmed.push({m:m, rsvp:rsvp});
+      else if (rsvp.status==='no') notComing.push({m:m, rsvp:rsvp});
+    } else {
+      noReply.push(m);
+    }
+  });
+
+  function rsvpBadge(rsvp) {
+    if (!rsvp) return '<span class="rsvp-badge pending">No reply</span>';
+    if (rsvp.status==='yes')     return '<span class="rsvp-badge going">In person</span>';
+    if (rsvp.status==='virtual') return '<span class="rsvp-badge virtual">Virtual</span>';
+    if (rsvp.status==='no')      return '<span class="rsvp-badge no">Can\'t make it</span>';
+    return '';
+  }
+
+  function memberRsvpRow(m, rsvp) {
+    var isMe = m.id === DATA.me.id;
+    return '<div class="member-row rsvp-member-row' + (rsvp&&rsvp.status==='no' ? ' dimmed' : '') + '">' +
+      makeAv(m.animal, 34) +
+      '<div class="member-info">' +
+        '<div class="member-name">' + (isMe ? 'You (' + m.name + ')' : m.name) + '</div>' +
+        (m.location ? '<div class="member-loc">' + m.location + '</div>' : '') +
+      '</div>' +
+      rsvpBadge(rsvp) +
     '</div>';
-  }).join('');
+  }
 
-  return '<div class="detail-hero">'+
-    '<div class="detail-eyebrow">'+(g.type==='planned'?'Planned gathering':'? Bonus gathering')+'</div>'+
-    '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">'+g.month+' '+g.day+' ? '+g.location+'</div>'+
-    '<div class="detail-stats">'+
-      '<div class="detail-stat"><div class="detail-stat-n">'+((g.attending||[]).length)+'</div><div class="detail-stat-l">attending</div></div>'+
-      (tasksTotal?'<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">'+tasksDone+'/'+tasksTotal+'</div><div class="detail-stat-l">tasks done</div></div>':'')+
-      '<div class="detail-stat"><div class="detail-stat-n" id="detail-prog-pct-'+g.id+'">'+(g.progress||0)+'%</div><div class="detail-stat-l">ready</div></div>'+
-    '</div>'+
-  '</div>'+
+  var rsvpRows = '';
+  confirmed.forEach(function(x)  { rsvpRows += memberRsvpRow(x.m, x.rsvp); });
+  noReply.forEach(function(m)    { rsvpRows += memberRsvpRow(m, null); });
+  notComing.forEach(function(x)  { rsvpRows += memberRsvpRow(x.m, x.rsvp); });
 
-  '<div class="collab-box">'+
-    '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>'+
-    '<div><div class="collab-title">Everyone owns a piece of this</div><div class="collab-sub">'+tasksTotal+' tasks spread across the flock ? no one carries it all.</div></div>'+
-  '</div>'+
+  // My current RSVP
+  var myRsvp = rsvpData[g.id] && rsvpData[g.id][DATA.me.id];
+  var iHaveRsvpd = !!(myRsvp && myRsvp.status);
+  var myStatusLabel = '';
+  if (iHaveRsvpd) {
+    if (myRsvp.status==='yes')     myStatusLabel = '\u2705 You\u2019re going \u2014 in person';
+    else if (myRsvp.status==='virtual') myStatusLabel = '\ud83d\udcbb You\u2019re joining virtually';
+    else                                myStatusLabel = '\ud83d\udc94 You can\u2019t make this one';
+  }
 
-  (tasksTotal ? '<div class="section-title">Shared tasks</div>'+taskHTML : '')+
+  var rsvpBannerHtml = iHaveRsvpd
+    ? '<div class="my-rsvp-banner">' +
+        '<div class="my-rsvp-status">' + myStatusLabel + '</div>' +
+        (myRsvp.guests  ? '<div class="my-rsvp-detail">+' + myRsvp.guests + ' guest' + (myRsvp.guests>1?'s':'') + '</div>' : '') +
+        (myRsvp.dietary ? '<div class="my-rsvp-detail">Dietary: ' + myRsvp.dietary + '</div>' : '') +
+        (myRsvp.travelFrom ? '<div class="my-rsvp-detail">Traveling from ' + myRsvp.travelFrom + (myRsvp.travelTo ? ' \u00b7 arriving ' + myRsvp.travelTo : '') + '</div>' : '') +
+      '</div>'
+    : '<div class="rsvp-cta-banner">' +
+        '<div class="rsvp-cta-question">Are you coming?</div>' +
+        '<div class="rsvp-cta-sub">Let the flock know so everyone can plan.</div>' +
+      '</div>';
 
-  '<div class="section-title">Who\'s coming</div>'+
-  '<div class="card"><div>'+memberRows+'</div></div>'+
+  return '<div class="detail-hero">' +
+    '<div class="detail-eyebrow">' + (g.type==='planned' ? 'Planned gathering' : '\u2728 Bonus gathering') + '</div>' +
+    '<div class="detail-title">' + g.name + '</div>' +
+    '<div class="detail-sub">' + g.month + ' ' + g.day + ' \u00b7 ' + g.location + '</div>' +
+    '<div class="detail-stats">' +
+      '<div class="detail-stat"><div class="detail-stat-n">' + (confirmed.length+notComing.length) + '/' + allFlock.length + '</div><div class="detail-stat-l">replied</div></div>' +
+      '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attending</div></div>' +
+      (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
+    '</div>' +
+  '</div>' +
 
-  '<button class="btn-primary" id="rsvp-btn" style="margin-top:4px">Update my details</button>'+
-  '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge stragglers</button>';
+  rsvpBannerHtml +
+
+  '<button class="rsvp-big-btn" id="rsvp-btn">' +
+    (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
+  '</button>' +
+
+  (tasksTotal ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '') +
+
+  '<div class="section-title" style="margin-top:16px">Who\'s coming</div>' +
+  '<div class="card"><div>' + rsvpRows + '</div></div>' +
+
+  '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>';
 }
 
 function buildBeachDetail(g) {
@@ -3897,7 +3983,8 @@ function openRSVP(gatheringId) {
   var me = DATA.me;
   var myRsvp = (rsvpData[gatheringId] && rsvpData[gatheringId][me.id]) || {};
 
-  document.getElementById('rsvp-sheet-title').textContent = g.name;
+  var isPlanning = g.status === 'planning';
+  document.getElementById('rsvp-sheet-title').textContent = isPlanning ? 'Express interest' : 'Your RSVP';
   var body = document.getElementById('rsvp-body');
 
   // Current RSVP status
@@ -3905,21 +3992,38 @@ function openRSVP(gatheringId) {
 
   body.innerHTML = '';
 
+  // Gathering title in sheet
+  var gtitle = document.createElement('div');
+  gtitle.style.cssText = 'font-family:"Fredoka One",cursive;font-size:17px;color:var(--text1);margin-bottom:4px';
+  gtitle.textContent = g.name;
+  body.appendChild(gtitle);
+
+  var gsub = document.createElement('div');
+  gsub.style.cssText = 'font-size:12px;color:var(--text3);font-weight:600;margin-bottom:14px';
+  gsub.textContent = (g.month && g.month!=='TBD' ? g.month+' '+g.day+' · ' : '') + (g.location||'');
+  body.appendChild(gsub);
+
   // Status options
   var statusLabel = document.createElement('div');
   statusLabel.className = 'field-label';
-  statusLabel.style.marginBottom = '10px';
-  statusLabel.textContent = 'Are you coming?';
+  statusLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px';
+  statusLabel.textContent = isPlanning ? 'Are you interested?' : 'Are you coming?';
   body.appendChild(statusLabel);
 
   var grid = document.createElement('div');
   grid.className = 'rsvp-status-grid';
 
-  var options = [
-    {id:'yes',      icon:'&#127881;', label:'In person', sub:'I will be there!', selClass:'selected'},
-    {id:'virtual',  icon:'&#128187;', label:'Virtually', sub:'Joining by video',  selClass:'selected-virtual'},
-    {id:'no',       icon:'&#128148;', label:'Cannot make it', sub:'Will be missed', selClass:'selected-no'},
-  ];
+  var options = isPlanning
+    ? [
+        {id:'yes',     icon:'&#127775;', label:'Count me in',  sub:'I want to come!',    selClass:'selected'},
+        {id:'virtual', icon:'&#128187;', label:'Virtually',    sub:'Remotely if possible', selClass:'selected-virtual'},
+        {id:'no',      icon:'&#128148;', label:'Can\'t do it', sub:'Not this time',       selClass:'selected-no'},
+      ]
+    : [
+        {id:'yes',     icon:'&#127881;', label:'In person',    sub:'I will be there!',   selClass:'selected'},
+        {id:'virtual', icon:'&#128187;', label:'Virtually',    sub:'Joining by video',   selClass:'selected-virtual'},
+        {id:'no',      icon:'&#128148;', label:'Can\'t make it', sub:'Will be missed',   selClass:'selected-no'},
+      ];
 
   var selectedStatus = currentStatus;
 
@@ -3953,7 +4057,7 @@ function openRSVP(gatheringId) {
   saveBtn.className = 'btn-primary';
   saveBtn.style.marginTop = '8px';
   saveBtn.style.marginBottom = '32px';
-  saveBtn.textContent = 'Save RSVP';
+  saveBtn.textContent = isPlanning ? 'Save interest' : 'Save RSVP';
   saveBtn.addEventListener('click', function() {
     if (!selectedStatus) { toast('Please select your attendance status'); return; }
 
@@ -3962,6 +4066,7 @@ function openRSVP(gatheringId) {
     var fromEl = document.getElementById('rsvp-from');
     var toEl = document.getElementById('rsvp-to');
 
+    var noMsgEl = document.getElementById('rsvp-no-msg');
     var rsvp = {
       status: selectedStatus,
       memberName: me.name,
@@ -3970,6 +4075,7 @@ function openRSVP(gatheringId) {
       dietary: dietaryEl ? dietaryEl.value.trim() : '',
       travelFrom: fromEl ? fromEl.value.trim() : '',
       travelTo: toEl ? toEl.value.trim() : '',
+      noMsg: noMsgEl ? noMsgEl.value.trim() : '',
       updatedAt: Date.now()
     };
 
@@ -4022,8 +4128,21 @@ function renderRsvpDetails(body, section, status, existing) {
   if (status === 'no') {
     var note = document.createElement('div');
     note.style.cssText = 'background:var(--red-bg);border-radius:12px;padding:12px;font-size:13px;color:var(--red);font-weight:600;text-align:center;margin-bottom:12px';
-    note.textContent = 'We will miss you! Hit save to let the host know.';
+    note.textContent = 'You will be missed! Add a note if you like.';
     section.appendChild(note);
+    var msgWrap = document.createElement('div');
+    msgWrap.style.marginBottom = '12px';
+    var msgLbl = document.createElement('div');
+    msgLbl.style.cssText = 'font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+    msgLbl.textContent = 'Message (optional)';
+    var msgInp = document.createElement('input');
+    msgInp.className = 'input-field';
+    msgInp.id = 'rsvp-no-msg';
+    msgInp.placeholder = 'e.g. Traveling that weekend, new baby!';
+    msgInp.value = existing.noMsg || '';
+    msgWrap.appendChild(msgLbl);
+    msgWrap.appendChild(msgInp);
+    section.appendChild(msgWrap);
     return;
   }
 
