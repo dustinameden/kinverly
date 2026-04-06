@@ -5732,18 +5732,90 @@ function renderGatheringRecap(gatheringId) {
 
   return wrap;
 }
-
 // ── FLOCK SCHEDULE OVERVIEW ──────────────────────────────────────────────────
 // Shows cross-gathering conflicts and member schedule summaries
+
+function getAllFlockMembers() {
+  return [DATA.me].concat(DATA.members || []).filter(Boolean);
+}
+
+function normalizeMembersForActiveFlock(flock) {
+  if (!flock || !flock.members) {
+    DATA.members = [];
+    return;
+  }
+
+  var allMembers = Object.values(flock.members).filter(Boolean);
+
+  DATA.members = allMembers.filter(function(m) {
+    return !DATA.me || m.id !== DATA.me.id;
+  });
+}
+
+function hydrateActiveFlockIntoData(flock) {
+  if (!flock) {
+    DATA.members = [];
+    return;
+  }
+
+  normalizeMembersForActiveFlock(flock);
+
+  if (Array.isArray(flock.gatherings)) DATA.gatherings = flock.gatherings;
+  if (Array.isArray(flock.ideas)) DATA.ideas = flock.ideas;
+  if (Array.isArray(flock.activity)) DATA.activity = flock.activity;
+}
+
+function rerenderAllMainViews() {
+  renderHome();
+  renderGatherings();
+  renderIdeas();
+  renderFairness();
+  renderProfile();
+  if (typeof renderFlockSchedule === 'function') renderFlockSchedule();
+}
+
+function bindCurrentFlockListener() {
+  if (!window.__db || !window.__firestoreHelpers || !currentFlockId) return;
+
+  var h = window.__firestoreHelpers;
+  if (!h.onSnapshot || !h.doc) return;
+
+  if (window._currentFlockListener) {
+    try { window._currentFlockListener(); } catch (e) {}
+    window._currentFlockListener = null;
+  }
+
+  window._currentFlockListener = h.onSnapshot(h.doc(window.__db, 'flocks', currentFlockId), function(snap) {
+    if (!snap.exists()) return;
+
+    var flockData = snap.data() || {};
+
+    if (!window.FLOCKS) window.FLOCKS = {};
+    if (!window.FLOCKS[currentFlockId]) window.FLOCKS[currentFlockId] = { id: currentFlockId };
+
+    window.FLOCKS[currentFlockId] = Object.assign(
+      {},
+      window.FLOCKS[currentFlockId],
+      flockData,
+      { id: currentFlockId }
+    );
+
+    hydrateActiveFlockIntoData(window.FLOCKS[currentFlockId]);
+
+    var nameEl = document.getElementById('topbar-flock-name');
+    if (nameEl) nameEl.textContent = window.FLOCKS[currentFlockId].name || '';
+
+    rerenderAllMainViews();
+  });
+}
 
 function renderFlockSchedule() {
   var panel = document.getElementById('flock-schedule-panel');
   if (!panel) return;
 
-  var allFlock = [DATA.me].concat(DATA.members || []).filter(Boolean);
+  var allFlock = getAllFlockMembers();
 
-  // Only show gatherings that are in planning mode (need dates) or upcoming
-  var planningGatherings = DATA.gatherings.filter(function(g) {
+  var planningGatherings = (DATA.gatherings || []).filter(function(g) {
     return g.status === 'planning';
   });
 
@@ -5752,10 +5824,9 @@ function renderFlockSchedule() {
     return;
   }
 
-  // Build a map: member → total blocked dates across all gatherings
   function getMemberBlockedDates(memberId) {
     var all = [];
-    DATA.gatherings.forEach(function(g) {
+    (DATA.gatherings || []).forEach(function(g) {
       var rd = rsvpData[g.id] && rsvpData[g.id][memberId];
       if (rd && rd.blockedDates) {
         rd.blockedDates.forEach(function(k) {
@@ -5766,7 +5837,6 @@ function renderFlockSchedule() {
     return all;
   }
 
-  // Build conflict map across all planning gatherings for a member
   function memberConflictLabel(m) {
     var totalBlocked = getMemberBlockedDates(m.id).length;
     var submitted = planningGatherings.filter(function(g) {
@@ -5776,8 +5846,6 @@ function renderFlockSchedule() {
     return { submitted: submitted, blocked: totalBlocked };
   }
 
-  // ── Build cross-gathering calendar ──
-  // Collect all months across planning gatherings
   var monthsNeeded = {};
   planningGatherings.forEach(function(g) {
     var months = gatheringMonths(g);
@@ -5786,12 +5854,12 @@ function renderFlockSchedule() {
       if (!monthsNeeded[key]) monthsNeeded[key] = mo;
     });
   });
+
   var sortedMonths = Object.values(monthsNeeded).sort(function(a, b) {
     return (a.y * 12 + a.m) - (b.y * 12 + b.m);
   });
 
-  // For each day: how many planning gatherings have conflicts?
-  var crossConflicts = {}; // dateKey -> { gatheringConflicts: {gId: count}, memberConflicts: [] }
+  var crossConflicts = {};
   planningGatherings.forEach(function(g) {
     var conf = computeConflicts(g.id, allFlock);
     Object.keys(conf).forEach(function(k) {
@@ -5803,11 +5871,11 @@ function renderFlockSchedule() {
     });
   });
 
-  // ── Member response summary ──
   var memberRows = allFlock.map(function(m) {
     if (!m) return '';
     var info = memberConflictLabel(m);
     var submittedAll = info.submitted === planningGatherings.length;
+
     return '<div class="sched-member-row">' +
       makeAv(m.animal, 30) +
       '<div class="sched-member-info">' +
@@ -5830,14 +5898,15 @@ function renderFlockSchedule() {
         '<div class="sched-sub">' + planningGatherings.length + ' gathering' + (planningGatherings.length > 1 ? 's' : '') + ' collecting availability</div>' +
       '</div>' +
 
-      // Per-gathering quick status
       '<div class="sched-gathering-list">' +
         planningGatherings.map(function(g) {
           var submitted = allFlock.filter(function(m) {
             var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
             return rd && rd.availSubmitted;
           }).length;
-          var pct = Math.round((submitted / allFlock.length) * 100);
+
+          var pct = allFlock.length ? Math.round((submitted / allFlock.length) * 100) : 0;
+
           return '<div class="sched-g-row">' +
             '<span class="sched-g-emoji">' + (g.emoji || '📅') + '</span>' +
             '<div class="sched-g-info">' +
@@ -5852,62 +5921,48 @@ function renderFlockSchedule() {
         }).join('') +
       '</div>' +
 
-      // Member responses
       '<div class="sched-section-lbl">Who\'s shared availability</div>' +
       '<div class="sched-member-list">' + memberRows + '</div>' +
-
     '</div>';
 }
 
 // -- BOOT -----------------------------------------
 (function init() {
-  // Load flock state first
   loadFlockState();
   loadPersistedExtras();
 
-  // Check for invite code in URL (?join=XXX-XXX)
   var urlParams = new URLSearchParams(window.location.search);
   var joinCode = urlParams.get('join');
   if (joinCode) {
-    // Store it to use after login
     window._pendingJoinCode = joinCode.toUpperCase();
-    // Clean URL without reload
     history.replaceState({}, '', '/');
   }
 
   var isLoggedIn = restoreSession();
 
-  // Restore current flock name in topbar
   var flock = getCurrentFlock();
   if (flock) {
     var nameEl = document.getElementById('topbar-flock-name');
-    if (nameEl) nameEl.textContent = flock.name;
-    // Load flock members into DATA if available
-    if (flock.members && Object.keys(flock.members).length > 0) {
-      DATA.members = Object.values(flock.members);
-    }
+    if (nameEl) nameEl.textContent = flock.name || '';
+    hydrateActiveFlockIntoData(flock);
+  } else {
+    DATA.members = [];
   }
 
-  // Render everything
-  renderHome();
-  renderGatherings();
-  renderIdeas();
-  renderFairness();
-  renderProfile();
+  rerenderAllMainViews();
   updateCountdown();
   renderNotifBadge();
   setInterval(updateCountdown, 60000);
 
-  // Decide what to show on startup
   setTimeout(function() {
     if (!isLoggedIn) {
-      // Brand new user ? show login first, then flock onboarding after they set up profile
       showLoginScreen();
     } else if (Object.keys(FLOCKS).length === 0) {
-      // Logged in but no flocks yet ? show flock onboarding
       showFlockOnboarding();
     } else {
-      var ls = document.getElementById('login-screen'); if(ls) ls.style.display = 'none';
+      var ls = document.getElementById('login-screen');
+      if (ls) ls.style.display = 'none';
+      bindCurrentFlockListener();
     }
   }, 400);
 })();
@@ -5917,120 +5972,138 @@ function renderFlockSchedule() {
    FIREBASE (optional — enables live sync)
 ═══════════════════════════════════════════════ -->
 <script type="module">
-// Firebase is completely optional — app works 100% offline without it
 try {
-const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js").catch(()=>({}));
-if (!initializeApp) { console.log("[Kinverly] Firebase unavailable — running in offline mode"); throw new Error("Firebase load failed"); }
-const { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion, orderBy } =
-  await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").catch(()=>({}));
-if (!getFirestore) throw new Error("Firestore load failed");
-
-var firebaseConfig = {
-  apiKey:            "AIzaSyBiJFbnv8nUcyNbv_aUqeCUvtTDfk8d_QA",
-  authDomain:        "kinverly-73cb9.firebaseapp.com",
-  projectId:         "kinverly-73cb9",
-  storageBucket:     "kinverly-73cb9.firebasestorage.app",
-  messagingSenderId: "651356988560",
-  appId:             "1:651356988560:web:930e3394910638f5576415"
-};
-
-try {
-  var app = initializeApp(firebaseConfig);
-  var db = getFirestore(app);
-  window.__db = db;
-
-  // Seed default data if Firestore is empty
-  async function seedIfEmpty() {
-    for (var g of DATA.gatherings) {
-      var snap = await getDoc(doc(db,'gatherings',g.id));
-      if (!snap.exists()) await setDoc(doc(db,'gatherings',g.id), Object.assign({},g,{_seeded:serverTimestamp()}));
-    }
-    for (var idea of DATA.ideas) {
-      var snap2 = await getDoc(doc(db,'ideas',idea.id));
-      if (!snap2.exists()) await setDoc(doc(db,'ideas',idea.id), Object.assign({},idea,{_seeded:serverTimestamp()}));
-    }
+  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js").catch(() => ({}));
+  if (!initializeApp) {
+    console.log("[Kinverly] Firebase unavailable — running in offline mode");
+    throw new Error("Firebase load failed");
   }
 
-  // Live listeners
-  onSnapshot(collection(db,'gatherings'), function(snap){
-    snap.forEach(function(ds){
-      var data = ds.data();
-      var idx = DATA.gatherings.findIndex(function(g){ return g.id === data.id; });
-      if (idx >= 0) DATA.gatherings[idx] = Object.assign({}, DATA.gatherings[idx], data);
-    });
-  });
+  const {
+    getFirestore,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    setDoc,
+    updateDoc,
+    onSnapshot,
+    serverTimestamp,
+    query,
+    where,
+    arrayUnion,
+    orderBy
+  } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").catch(() => ({}));
 
-  onSnapshot(collection(db,'ideas'), function(snap){
-    snap.forEach(function(ds){
-      var data = ds.data();
-      var idx = DATA.ideas.findIndex(function(i){ return i.id === data.id; });
-      if (idx >= 0) DATA.ideas[idx] = Object.assign({}, DATA.ideas[idx], data);
-    });
-  });
+  if (!getFirestore) throw new Error("Firestore load failed");
 
-  // Save task toggles to Firebase
-  window.__saveTask = async function(gId, tasks) {
-    try { await updateDoc(doc(db,'gatherings',gId), {tasks:tasks}); } catch(e){}
-  };
-  window.__saveVote = async function(ideaId, voted, votes) {
-    try { await updateDoc(doc(db,'ideas',ideaId), {voted:voted,votes:votes}); } catch(e){}
-  };
-  window.__saveAvailability = async function(memberId, blocked) {
-    try {
-      var field = 'availability.'+memberId;
-      var update = {};
-      update[field] = {blocked:blocked, submittedAt:serverTimestamp()};
-      await updateDoc(doc(db,'gatherings','beach'), update);
-    } catch(e){}
+  var firebaseConfig = {
+    apiKey: "AIzaSyBiJFbnv8nUcyNbv_aUqeCUvtTDfk8d_QA",
+    authDomain: "kinverly-73cb9.firebaseapp.com",
+    projectId: "kinverly-73cb9",
+    storageBucket: "kinverly-73cb9.firebasestorage.app",
+    messagingSenderId: "651356988560",
+    appId: "1:651356988560:web:930e3394910638f5576415"
   };
 
-  // Expose firestore helpers for flock join-by-code
-  window.__firestoreHelpers = { collection, doc, getDocs, query, where, updateDoc, setDoc, serverTimestamp, arrayUnion: null };
-  // arrayUnion needs to be imported separately
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(function(m) {
-    window.__firestoreHelpers.arrayUnion = m.arrayUnion;
-  });
+  try {
+    var app = initializeApp(firebaseConfig);
+    var db = getFirestore(app);
+    window.__db = db;
 
-  // Expose for flock join-by-code lookup
-  window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion, orderBy, onSnapshot };
+    window.__firestoreHelpers = {
+      collection: collection,
+      doc: doc,
+      getDoc: getDoc,
+      getDocs: getDocs,
+      setDoc: setDoc,
+      updateDoc: updateDoc,
+      onSnapshot: onSnapshot,
+      serverTimestamp: serverTimestamp,
+      query: query,
+      where: where,
+      arrayUnion: arrayUnion,
+      orderBy: orderBy
+    };
 
-  // Listen for flock member updates in real time
-  if (window._currentFlockListener) window._currentFlockListener();
-  var flockId = window.currentFlockId || localStorage.getItem('kinverly_current_flock');
-  if (flockId) {
-    window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
-      if (!snap.exists()) return;
-      var flockData = snap.data();
-      if (flockData.members) {
-        var members = Object.values(flockData.members);
-        if (members.length > 0) {
-          DATA.members = members;
-          if (window.FLOCKS && window.FLOCKS[flockId]) {
-            window.FLOCKS[flockId].members = flockData.members;
-            window.FLOCKS[flockId].memberIds = flockData.memberIds || members.map(function(m){ return m.id; });
-          }
-          renderHome();
+    async function seedIfEmpty() {
+      for (var g of (DATA.gatherings || [])) {
+        var snap = await getDoc(doc(db, 'gatherings', g.id));
+        if (!snap.exists()) {
+          await setDoc(doc(db, 'gatherings', g.id), Object.assign({}, g, { _seeded: serverTimestamp() }));
         }
       }
+
+      for (var idea of (DATA.ideas || [])) {
+        var snap2 = await getDoc(doc(db, 'ideas', idea.id));
+        if (!snap2.exists()) {
+          await setDoc(doc(db, 'ideas', idea.id), Object.assign({}, idea, { _seeded: serverTimestamp() }));
+        }
+      }
+    }
+
+    onSnapshot(collection(db, 'gatherings'), function(snap) {
+      snap.forEach(function(ds) {
+        var data = ds.data();
+        var idx = DATA.gatherings.findIndex(function(g) { return g.id === data.id; });
+        if (idx >= 0) {
+          DATA.gatherings[idx] = Object.assign({}, DATA.gatherings[idx], data);
+        }
+      });
+
+      renderGatherings();
+      renderHome();
+      if (typeof renderFlockSchedule === 'function') renderFlockSchedule();
     });
+
+    onSnapshot(collection(db, 'ideas'), function(snap) {
+      snap.forEach(function(ds) {
+        var data = ds.data();
+        var idx = DATA.ideas.findIndex(function(i) { return i.id === data.id; });
+        if (idx >= 0) {
+          DATA.ideas[idx] = Object.assign({}, DATA.ideas[idx], data);
+        }
+      });
+
+      renderIdeas();
+      renderHome();
+    });
+
+    window.__saveTask = async function(gId, tasks) {
+      try { await updateDoc(doc(db, 'gatherings', gId), { tasks: tasks }); } catch (e) {}
+    };
+
+    window.__saveVote = async function(ideaId, voted, votes) {
+      try { await updateDoc(doc(db, 'ideas', ideaId), { voted: voted, votes: votes }); } catch (e) {}
+    };
+
+    window.__saveAvailability = async function(memberId, blocked) {
+      try {
+        var field = 'availability.' + memberId;
+        var update = {};
+        update[field] = { blocked: blocked, submittedAt: serverTimestamp() };
+        await updateDoc(doc(db, 'gatherings', 'beach'), update);
+      } catch (e) {}
+    };
+
+    window.__saveMemberToFlock = async function(flockId, member) {
+      try {
+        var update = {};
+        update['members.' + member.id] = member;
+        update['memberIds'] = arrayUnion(member.id);
+        await updateDoc(doc(db, 'flocks', flockId), update);
+      } catch (e) {
+        console.warn('[Kinverly] Member save offline');
+      }
+    };
+
+    bindCurrentFlockListener();
+    seedIfEmpty();
+    console.log('[Kinverly] Firebase connected');
+  } catch (e) {
+    console.log('[Kinverly] Running in offline mode — all features work locally');
   }
-
-  // Save member to Firestore when they join a flock
-  window.__saveMemberToFlock = async function(flockId, member) {
-    try {
-      var update = {};
-      update['members.' + member.id] = member;
-      update['memberIds'] = arrayUnion(member.id);
-      await updateDoc(doc(db, 'flocks', flockId), update);
-    } catch(e) { console.warn('[Kinverly] Member save offline'); }
-  };
-
-  seedIfEmpty();
-  console.log('[Kinverly] Firebase connected');
-} catch(e) {
-  console.log('[Kinverly] Running in offline mode — all features work locally');
-}
-} catch(outerE) {
+} catch (outerE) {
   console.log('[Kinverly] Offline mode');
 }
 </script>
@@ -6042,32 +6115,28 @@ try {
   var selType  = 'in-person';
 
   function openGatherCreator() {
-    // Populate host select with flock members
     var hostSel = document.getElementById('gc-host');
     hostSel.innerHTML = '<option value="me">Me</option><option value="rotating">Rotating — decide later</option>';
-    if (DATA && DATA.members) {
-      DATA.members.forEach(function(m) {
-        var opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.name;
-        hostSel.appendChild(opt);
-      });
-    }
 
-    // Reset form
+    getAllFlockMembers().forEach(function(m) {
+      if (!m || m.id === (DATA.me && DATA.me.id)) return;
+      var opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name;
+      hostSel.appendChild(opt);
+    });
+
     document.getElementById('gc-name').value = '';
     document.getElementById('gc-loc').value = '';
     document.getElementById('gc-date').value = '';
     document.getElementById('gc-theme').value = '';
     document.getElementById('gc-name-err').style.display = 'none';
 
-    // Reset type selection
     selType = 'in-person';
     document.querySelectorAll('.gc-type-btn').forEach(function(b){
       b.classList.toggle('selected', b.dataset.type === selType);
     });
 
-    // Reset emoji selection
     selEmoji = '🏠';
     document.querySelectorAll('.gc-emoji-btn').forEach(function(b){
       b.classList.toggle('selected', b.dataset.emoji === selEmoji);
@@ -6079,24 +6148,21 @@ try {
 
   window.openGatherCreator = openGatherCreator;
 
-  // Close button
   document.getElementById('gather-close').addEventListener('click', function(){
     document.getElementById('gather-overlay').classList.add('hidden');
   });
 
-  // Close on backdrop tap
   document.getElementById('gather-overlay').addEventListener('click', function(e){
     if (e.target === this) this.classList.add('hidden');
   });
 
-  // Type buttons
   document.querySelectorAll('.gc-type-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       selType = this.dataset.type;
       document.querySelectorAll('.gc-type-btn').forEach(function(b){
         b.classList.toggle('selected', b.dataset.type === selType);
       });
-      // Show/hide location label hint
+
       var locInput = document.getElementById('gc-loc');
       if (selType === 'virtual') {
         locInput.placeholder = 'Zoom, Meet, or FaceTime link…';
@@ -6108,7 +6174,6 @@ try {
     });
   });
 
-  // Emoji buttons
   document.querySelectorAll('.gc-emoji-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       selEmoji = this.dataset.emoji;
@@ -6118,7 +6183,6 @@ try {
     });
   });
 
-  // Save
   document.getElementById('gc-save').addEventListener('click', function(){
     var name = document.getElementById('gc-name').value.trim();
     if (!name) {
@@ -6126,6 +6190,7 @@ try {
       document.getElementById('gc-name').focus();
       return;
     }
+
     document.getElementById('gc-name-err').style.display = 'none';
 
     var dateVal  = document.getElementById('gc-date').value;
@@ -6133,7 +6198,6 @@ try {
     var themeVal = document.getElementById('gc-theme').value.trim();
     var hostVal  = document.getElementById('gc-host').value;
 
-    // Parse date → month/day display strings
     var monthStr = 'TBD', dayStr = '?';
     if (dateVal) {
       var d = new Date(dateVal + 'T12:00:00');
@@ -6141,7 +6205,6 @@ try {
       dayStr   = String(d.getDate());
     }
 
-    // Resolve host label
     var hostLabel = 'me';
     if (hostVal === 'me') {
       hostLabel = DATA.me ? DATA.me.id : 'me';
@@ -6149,7 +6212,6 @@ try {
       hostLabel = hostVal;
     }
 
-    // Build a new gathering object matching DATA schema
     var newId = 'g' + Date.now();
     var newG = {
       id:       newId,
@@ -6159,7 +6221,7 @@ try {
       location: locVal || 'TBD',
       host:     hostLabel,
       type:     'planned',
-      status:   dateVal ? 'planning' : 'planning',
+      status:   'planning',
       theme:    themeVal || 'Gathering',
       themePill:'pill-amber',
       hybrid:   selType === 'hybrid',
@@ -6167,20 +6229,15 @@ try {
       progress: 0,
       emoji:    selEmoji,
       attending:[],
-      tasks:    [],
+      tasks:    []
     };
 
-    // Add to DATA
     if (!DATA.gatherings) DATA.gatherings = [];
     DATA.gatherings.unshift(newG);
 
-    // Close sheet
     document.getElementById('gather-overlay').classList.add('hidden');
 
-    // Refresh gatherings list if visible
-    if (document.getElementById('gatherings-list')) {
-      renderGatherings();
-    }
+    if (document.getElementById('gatherings-list')) renderGatherings();
 
     toast('Gathering added! Fill in the details anytime. 🎉');
   });
@@ -6207,6 +6264,7 @@ try {
   document.getElementById('idea-close').addEventListener('click', function(){
     document.getElementById('idea-overlay').classList.add('hidden');
   });
+
   document.getElementById('idea-overlay').addEventListener('click', function(e){
     if (e.target === this) this.classList.add('hidden');
   });
@@ -6227,17 +6285,20 @@ try {
       document.getElementById('idea-title-input').focus();
       return;
     }
+
     document.getElementById('idea-title-err').style.display = 'none';
     var desc = document.getElementById('idea-desc-input').value.trim();
+
     var newIdea = {
-      id: 'idea_'+Date.now().toString(36),
+      id: 'idea_' + Date.now().toString(36),
       icon: selIdeaEmoji,
       title: title,
-      sub: desc || 'Added by '+DATA.me.name,
+      sub: desc || 'Added by ' + DATA.me.name,
       votes: 1,
       pct: 12,
       voted: true
     };
+
     DATA.ideas.unshift(newIdea);
     document.getElementById('idea-overlay').classList.add('hidden');
     renderIdeas();
@@ -6254,63 +6315,47 @@ try {
   var MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var MONTH_MAP  = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
 
-  // Wire detail edit button — delegated since detail re-renders
   document.getElementById('page-detail').addEventListener('click', function(e) {
     var btn = e.target.closest('#detail-edit-btn');
     if (!btn) return;
-    // Find the currently-open gathering
-    var gList = DATA.gatherings;
-    // detailOpen gathering: walk up from button → not reliable; use currentGathering
     if (window._currentDetailGathering) openGatherEdit(window._currentDetailGathering);
   });
 
   function openGatherEdit(g) {
     editingGathering = g;
     var body = document.getElementById('gather-edit-body');
-    var year = new Date().getFullYear();
-
-    // Parse existing date
     var gMonthIdx = g.month ? (MONTH_MAP[g.month] !== undefined ? MONTH_MAP[g.month] : 0) : 0;
-    var gDay      = parseInt(g.day) || 0;
-
-    // Type: derive from hybrid/virtual flags
+    var gDay = parseInt(g.day) || 0;
     var curType = g.hybrid ? 'hybrid' : (g.virtual ? 'virtual' : 'in-person');
 
     body.innerHTML =
-      // ── Name ──
       '<label class="gc-field-label" style="margin-top:0">Gathering name</label>' +
-      '<input class="gc-input" id="ge-name" type="text" maxlength="60" value="'+g.name.replace(/"/g,'&quot;')+'"><br>' +
+      '<input class="gc-input" id="ge-name" type="text" maxlength="60" value="' + g.name.replace(/"/g,'&quot;') + '"><br>' +
 
-      // ── Type ──
       '<label class="gc-field-label">Type</label>' +
       '<div class="gc-type-row" id="ge-type-row">' +
-        '<button class="gc-type-btn'+(curType==='in-person'?' selected':'')+'" data-type="in-person"><span class="gc-type-icon">&#128205;</span><span class="gc-type-lbl">In person</span></button>' +
-        '<button class="gc-type-btn'+(curType==='virtual'?' selected':'')+'" data-type="virtual"><span class="gc-type-icon">&#128187;</span><span class="gc-type-lbl">Virtual</span></button>' +
-        '<button class="gc-type-btn'+(curType==='hybrid'?' selected':'')+'" data-type="hybrid"><span class="gc-type-icon">&#127758;</span><span class="gc-type-lbl">Hybrid</span></button>' +
+        '<button class="gc-type-btn' + (curType==='in-person'?' selected':'') + '" data-type="in-person"><span class="gc-type-icon">&#128205;</span><span class="gc-type-lbl">In person</span></button>' +
+        '<button class="gc-type-btn' + (curType==='virtual'?' selected':'') + '" data-type="virtual"><span class="gc-type-icon">&#128187;</span><span class="gc-type-lbl">Virtual</span></button>' +
+        '<button class="gc-type-btn' + (curType==='hybrid'?' selected':'') + '" data-type="hybrid"><span class="gc-type-icon">&#127758;</span><span class="gc-type-lbl">Hybrid</span></button>' +
       '</div>' +
 
-      // ── Location ──
       '<label class="gc-field-label" id="ge-loc-label">Location</label>' +
-      '<input class="gc-input" id="ge-loc" type="text" maxlength="80" placeholder="City, address, or link\u2026" value="'+g.location.replace(/"/g,'&quot;')+'"><br>' +
+      '<input class="gc-input" id="ge-loc" type="text" maxlength="80" placeholder="City, address, or link&#8230;" value="' + g.location.replace(/"/g,'&quot;') + '"><br>' +
 
-      // ── Date ── mini month + day picker
       '<label class="gc-field-label">Date</label>' +
       '<div class="ge-date-row">' +
         '<select class="tadd-select ge-select" id="ge-month">' +
-          MONTHS.map(function(m,i){ return '<option value="'+i+'"'+(i===gMonthIdx?' selected':'')+'>'+MONTH_FULL[i]+'</option>'; }).join('') +
+          MONTHS.map(function(m,i){ return '<option value="' + i + '"' + (i===gMonthIdx?' selected':'') + '>' + MONTH_FULL[i] + '</option>'; }).join('') +
         '</select>' +
-        '<input class="gc-input ge-day-inp" id="ge-day" type="number" min="1" max="31" placeholder="Day" value="'+(gDay||'')+'"><br>' +
+        '<input class="gc-input ge-day-inp" id="ge-day" type="number" min="1" max="31" placeholder="Day" value="' + (gDay||'') + '"><br>' +
       '</div>' +
-      '<div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:4px;margin-bottom:10px">Leave day blank if date isn\'t set yet.</div>' +
+      '<div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:4px;margin-bottom:10px">Leave day blank if date isn&#39;t set yet.</div>' +
 
-      // ── Theme ──
       '<label class="gc-field-label">Theme or vibe</label>' +
-      '<input class="gc-input" id="ge-theme" type="text" maxlength="40" placeholder="e.g. BBQ + games, beach week\u2026" value="'+(g.theme||'').replace(/"/g,'&quot;')+'"><br>' +
+      '<input class="gc-input" id="ge-theme" type="text" maxlength="40" placeholder="e.g. BBQ + games, beach week&#8230;" value="' + (g.theme||'').replace(/"/g,'&quot;') + '"><br>' +
 
-      // ── Save ──
       '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>';
 
-    // Wire type buttons
     var selType = curType;
     document.querySelectorAll('#ge-type-row .gc-type-btn').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -6318,19 +6363,20 @@ try {
         document.querySelectorAll('#ge-type-row .gc-type-btn').forEach(function(b){
           b.classList.toggle('selected', b.dataset.type === selType);
         });
+
         var locLbl = document.getElementById('ge-loc-label');
         var locInp = document.getElementById('ge-loc');
+
         if (selType === 'virtual') {
           if (locLbl) locLbl.textContent = 'Meeting link';
-          if (locInp) locInp.placeholder = 'Zoom, Meet, or FaceTime link\u2026';
+          if (locInp) locInp.placeholder = 'Zoom, Meet, or FaceTime link…';
         } else {
           if (locLbl) locLbl.textContent = 'Location';
-          if (locInp) locInp.placeholder = 'City, address, or neighbourhood\u2026';
+          if (locInp) locInp.placeholder = 'City, address, or neighbourhood…';
         }
       });
     });
 
-    // Wire save
     document.getElementById('ge-save-btn').addEventListener('click', function(){
       var name    = document.getElementById('ge-name').value.trim();
       var loc     = document.getElementById('ge-loc').value.trim();
@@ -6338,9 +6384,12 @@ try {
       var dayV    = parseInt(document.getElementById('ge-day').value) || 0;
       var theme   = document.getElementById('ge-theme').value.trim();
 
-      if (!name) { document.getElementById('ge-name').focus(); toast('Please enter a gathering name'); return; }
+      if (!name) {
+        document.getElementById('ge-name').focus();
+        toast('Please enter a gathering name');
+        return;
+      }
 
-      // Apply to the gathering object
       g.name     = name;
       g.location = loc || g.location;
       g.month    = MONTHS[monthI];
@@ -6350,15 +6399,10 @@ try {
       g.virtual  = selType === 'virtual';
 
       saveFlockState();
-
-      // Close sheet
       document.getElementById('gather-edit-overlay').classList.add('hidden');
-
-      // Re-render detail and gatherings list
       renderDetail(g);
       if (document.getElementById('gatherings-list')) renderGatherings();
-
-      toast('Gathering updated \u2713');
+      toast('Gathering updated ✓');
     });
 
     document.getElementById('gather-edit-overlay').classList.remove('hidden');
@@ -6369,6 +6413,7 @@ try {
   document.getElementById('gather-edit-close').addEventListener('click', function(){
     document.getElementById('gather-edit-overlay').classList.add('hidden');
   });
+
   document.getElementById('gather-edit-overlay').addEventListener('click', function(e){
     if (e.target === this) this.classList.add('hidden');
   });
@@ -6382,11 +6427,16 @@ try {
 function computeLiveStats() {
   var me = DATA.me.id;
   var attended = 0, hosted = 0, ideas = 0;
+
   DATA.gatherings.forEach(function(g) {
-    if (g.status === 'completed' || (g.attending||[]).indexOf(me) > -1) attended++;
+    if (g.status === 'completed' || (g.attending || []).indexOf(me) > -1) attended++;
     if (g.host === me) hosted++;
   });
-  DATA.ideas.forEach(function(i) { if (i.addedBy === me) ideas++; });
+
+  DATA.ideas.forEach(function(i) {
+    if (i.addedBy === me) ideas++;
+  });
+
   DATA.me.stats.attended = attended;
   DATA.me.stats.hosted   = hosted;
   DATA.me.stats.ideas    = ideas;
@@ -6399,29 +6449,29 @@ function buildActionItems() {
   DATA.gatherings.forEach(function(g) {
     if (g.status === 'completed') return;
 
-    // Un-RSVPed confirmed gathering
     var myRsvp = rsvpData[g.id] && rsvpData[g.id][me.id];
     if (!myRsvp && g.status !== 'planning') {
       actions.push({
         priority: 10,
         icon: '🎉',
         title: 'RSVP to ' + g.name,
-        sub: (g.month||'') + (g.day?' '+g.day:'') + (g.location?' · '+g.location:''),
+        sub: (g.month || '') + (g.day ? ' ' + g.day : '') + (g.location ? ' · ' + g.location : ''),
         color: 'action-purple',
         action: function(gid){ return function(){ openRSVP(gid); }; }(g.id)
       });
     }
 
-    // Availability not shared for planning gathering
     if (g.status === 'planning') {
       var avail = rsvpData[g.id] && rsvpData[g.id][me.id];
       if (!avail || !avail.availSubmitted) {
-        var responded  = [me].concat(DATA.members||[]).filter(function(m){
+        var responded = getAllFlockMembers().filter(function(m){
           if (!m) return false;
           var r = rsvpData[g.id] && rsvpData[g.id][m.id];
           return r && r.availSubmitted;
         }).length;
-        var total = 1 + (DATA.members||[]).length;
+
+        var total = getAllFlockMembers().length;
+
         actions.push({
           priority: 8,
           icon: '📅',
@@ -6433,10 +6483,10 @@ function buildActionItems() {
       }
     }
 
-    // My assigned tasks still todo
-    var myTasks = (g.tasks||[]).filter(function(t){
+    var myTasks = (g.tasks || []).filter(function(t){
       return t.owner === me.id && t.status !== 'done' && !t.done;
     });
+
     if (myTasks.length > 0) {
       actions.push({
         priority: 6,
@@ -6449,7 +6499,6 @@ function buildActionItems() {
     }
   });
 
-  // Sort by priority
   actions.sort(function(a,b){ return b.priority - a.priority; });
   return actions.slice(0, 5);
 }
@@ -6461,14 +6510,14 @@ function renderActionItems() {
   var actions = buildActionItems();
 
   if (actions.length === 0) {
-    wrap.innerHTML = '<div class="action-empty">You\'re all caught up! 🎉</div>';
+    wrap.innerHTML = '<div class="action-empty">You&#39;re all caught up! 🎉</div>';
     return;
   }
 
   var html = '<div class="action-section-lbl">Needs your attention</div>';
   html += '<div class="action-list">';
   actions.forEach(function(a, i) {
-    html += '<div class="action-item ' + a.color + '" id="ai-'+i+'">' +
+    html += '<div class="action-item ' + a.color + '" id="ai-' + i + '">' +
       '<span class="action-icon">' + a.icon + '</span>' +
       '<div class="action-body">' +
         '<div class="action-title">' + a.title + '</div>' +
@@ -6480,28 +6529,30 @@ function renderActionItems() {
   html += '</div>';
   wrap.innerHTML = html;
 
-  // Wire clicks
   actions.forEach(function(a, i) {
-    var el = document.getElementById('ai-'+i);
-    if (el) el.addEventListener('click', function(){ 
-      showPage('gatherings');
-      setTimeout(a.action, 80);
-    });
+    var el = document.getElementById('ai-' + i);
+    if (el) {
+      el.addEventListener('click', function(){
+        showPage('gatherings');
+        setTimeout(a.action, 80);
+      });
+    }
   });
 }
 
-// Patch renderHome: live stats + action items + flock chip wiring
 var _origRenderHome = renderHome;
 renderHome = function() {
   _origRenderHome();
   computeLiveStats();
   renderActionItems();
-  // Wire flock chip clicks
+
   setTimeout(function() {
     var row = document.getElementById('flock-row');
     if (!row) return;
+
     var chips = row.querySelectorAll('.flock-chip');
-    var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+    var allFlock = getAllFlockMembers();
+
     allFlock.forEach(function(m, i) {
       if (chips[i]) {
         chips[i].style.cursor = 'pointer';
@@ -6518,82 +6569,77 @@ renderHome = function() {
 function buildStatusBanner(g) {
   var me = DATA.me;
   var myRsvp = rsvpData[g.id] && rsvpData[g.id][me.id];
-  var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+  var allFlock = getAllFlockMembers();
 
-  // Compute open tasks for me
-  var myTasks = (g.tasks||[]).filter(function(t){
+  var myTasks = (g.tasks || []).filter(function(t){
     return t.owner === me.id && t.status !== 'done' && !t.done;
   });
 
-  // Planning mode — show availability response progress
   if (g.status === 'planning') {
     var submitted = allFlock.filter(function(m){
       var r = rsvpData[g.id] && rsvpData[g.id][m.id];
       return r && r.availSubmitted;
     }).length;
+
     var pending = allFlock.length - submitted;
     var myAvail = rsvpData[g.id] && rsvpData[g.id][me.id] && rsvpData[g.id][me.id].availSubmitted;
+
     return '<div class="status-banner planning">' +
       '<div class="status-banner-icon">📅</div>' +
       '<div class="status-banner-body">' +
-        '<div class="status-banner-title">' + (myAvail ? 'You\'ve shared your dates' : 'Your dates are needed') + '</div>' +
-        '<div class="status-banner-sub">' + submitted + ' of ' + allFlock.length + ' responded' + (pending>0?' · '+pending+' still pending':'') + '</div>' +
+        '<div class="status-banner-title">' + (myAvail ? 'You&#39;ve shared your dates' : 'Your dates are needed') + '</div>' +
+        '<div class="status-banner-sub">' + submitted + ' of ' + allFlock.length + ' responded' + (pending > 0 ? ' · ' + pending + ' still pending' : '') + '</div>' +
       '</div>' +
       (!myAvail ? '<button class="status-banner-btn" id="sb-avail-btn">Share</button>' : '') +
     '</div>';
   }
 
-  // Confirmed but no RSVP
   if (!myRsvp) {
     return '<div class="status-banner needs-rsvp">' +
       '<div class="status-banner-icon">👋</div>' +
       '<div class="status-banner-body">' +
-        '<div class="status-banner-title">You haven\'t RSVPed yet</div>' +
-        '<div class="status-banner-sub">Let the flock know if you\'re coming</div>' +
+        '<div class="status-banner-title">You haven&#39;t RSVPed yet</div>' +
+        '<div class="status-banner-sub">Let the flock know if you&#39;re coming</div>' +
       '</div>' +
       '<button class="status-banner-btn" id="sb-rsvp-btn">RSVP</button>' +
     '</div>';
   }
 
-  // Has tasks
   if (myTasks.length > 0) {
     return '<div class="status-banner has-tasks">' +
       '<div class="status-banner-icon">✅</div>' +
       '<div class="status-banner-body">' +
         '<div class="status-banner-title">' + myTasks.length + ' task' + (myTasks.length>1?'s':'') + ' assigned to you</div>' +
-        '<div class="status-banner-sub">' + myTasks.slice(0,2).map(function(t){return t.title;}).join(' · ') + (myTasks.length>2?' +' + (myTasks.length-2) + ' more':'') + '</div>' +
+        '<div class="status-banner-sub">' + myTasks.slice(0,2).map(function(t){ return t.title; }).join(' · ') + (myTasks.length>2?' +' + (myTasks.length-2) + ' more':'') + '</div>' +
       '</div>' +
     '</div>';
   }
 
-  // All good
   var statusIcon  = myRsvp.status === 'yes' ? '✅' : myRsvp.status === 'virtual' ? '💻' : '💔';
-  var statusLabel = myRsvp.status === 'yes' ? 'You\'re going — in person' : myRsvp.status === 'virtual' ? 'Joining virtually' : 'Can\'t make this one';
+  var statusLabel = myRsvp.status === 'yes' ? 'You&#39;re going — in person' : myRsvp.status === 'virtual' ? 'Joining virtually' : 'Can&#39;t make this one';
+
   return '<div class="status-banner all-good">' +
     '<div class="status-banner-icon">' + statusIcon + '</div>' +
     '<div class="status-banner-body">' +
       '<div class="status-banner-title">' + statusLabel + '</div>' +
-      '<div class="status-banner-sub">You\'re up to date — nothing outstanding</div>' +
+      '<div class="status-banner-sub">You&#39;re up to date — nothing outstanding</div>' +
     '</div>' +
   '</div>';
 }
 
-// Patch wireDetailButtons to add status banner wiring
-// Status banner button wiring handled in renderDetail override
-
-// Status banner injected via renderDetail override below
 var _origRenderDetail = renderDetail;
 renderDetail = function(g) {
   window._currentDetailGathering = g;
   _origRenderDetail(g);
-  // After render, insert status banner before the first child of gtab-content
+
   var content = document.getElementById('gtab-content');
   if (!content) return;
+
   var banner = buildStatusBanner(g);
   var bannerEl = document.createElement('div');
   bannerEl.innerHTML = banner;
+
   var first = bannerEl.firstChild;
-  // Insert banner AFTER the detail-hero (first child)
   if (first) {
     var hero = content.querySelector('.detail-hero');
     if (hero && hero.nextSibling) {
@@ -6606,9 +6652,10 @@ renderDetail = function(g) {
       content.appendChild(first);
     }
   }
-  // Wire banner buttons
-  var sbRsvp  = document.getElementById('sb-rsvp-btn');
-  if (sbRsvp)  sbRsvp.addEventListener('click', function(){ openRSVP(g.id); });
+
+  var sbRsvp = document.getElementById('sb-rsvp-btn');
+  if (sbRsvp) sbRsvp.addEventListener('click', function(){ openRSVP(g.id); });
+
   var sbAvail = document.getElementById('sb-avail-btn');
   if (sbAvail) sbAvail.addEventListener('click', function(){ openAvailModal(g); });
 };
@@ -6617,17 +6664,14 @@ renderDetail = function(g) {
 //  UX UPDATE 4: NOTIFICATION CENTRE
 // ════════════════════════════════════════════════════════════════
 
-// Patch nudge to push real notification
-var _origWireNudge = null; // handled in wireDetailButtons override below
+var _origWireNudge = null;
 var _nudgePatchApplied = false;
 function patchNudge() {
   if (_nudgePatchApplied) return;
   _nudgePatchApplied = true;
 }
 
-// Notification panel (slides in from top)
 (function() {
-  // Create the notif overlay element
   var overlay = document.createElement('div');
   overlay.id = 'notif-overlay';
   overlay.className = 'overlay hidden';
@@ -6641,18 +6685,21 @@ function patchNudge() {
       '</div>' +
       '<div class="notif-list" id="notif-list"></div>' +
     '</div>';
+
   document.body.appendChild(overlay);
 
   function openNotifPanel() {
     markAllNotifsRead();
+
     var list = document.getElementById('notif-list');
     if (!list) return;
+
     if (NOTIFS.items.length === 0) {
       list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
     } else {
       list.innerHTML = NOTIFS.items.map(function(n){
         var icon = n.type==='nudge'?'📣':n.type==='rsvp'?'🎉':n.type==='task'?'✅':n.type==='date'?'📅':'ℹ️';
-        return '<div class="notif-item' + (n.read?'':' unread') + '"' + (n.gId?' data-gid="'+n.gId+'"':'') + '>' +
+        return '<div class="notif-item' + (n.read?'':' unread') + '"' + (n.gId?' data-gid="' + n.gId + '"':'') + '>' +
           '<span class="notif-icon">' + icon + '</span>' +
           '<div class="notif-body">' +
             '<div class="notif-text">' + n.text + '</div>' +
@@ -6661,8 +6708,9 @@ function patchNudge() {
         '</div>';
       }).join('');
     }
+
     overlay.classList.remove('hidden');
-    // Wire notif item clicks
+
     list.querySelectorAll('[data-gid]').forEach(function(el) {
       el.addEventListener('click', function() {
         overlay.classList.add('hidden');
@@ -6684,48 +6732,62 @@ function patchNudge() {
 
 function getMemberStats(memberId) {
   var attended = 0, hosted = 0, tasksOwned = 0, tasksDone = 0;
+
   DATA.gatherings.forEach(function(g) {
-    if ((g.attending||[]).indexOf(memberId) > -1) attended++;
+    if ((g.attending || []).indexOf(memberId) > -1) attended++;
     if (g.host === memberId) hosted++;
-    (g.tasks||[]).forEach(function(t){
+
+    (g.tasks || []).forEach(function(t){
       if (t.owner === memberId) {
         tasksOwned++;
         if (t.done || t.status === 'done') tasksDone++;
       }
     });
   });
+
   var ideas = DATA.ideas.filter(function(i){ return i.addedBy === memberId; }).length;
   var rsvpCount = 0;
+
   DATA.gatherings.forEach(function(g){
     var r = rsvpData[g.id] && rsvpData[g.id][memberId];
     if (r && r.status) rsvpCount++;
   });
-  return { attended:attended, hosted:hosted, tasksOwned:tasksOwned, tasksDone:tasksDone, ideas:ideas, rsvpCount:rsvpCount };
+
+  return {
+    attended: attended,
+    hosted: hosted,
+    tasksOwned: tasksOwned,
+    tasksDone: tasksDone,
+    ideas: ideas,
+    rsvpCount: rsvpCount
+  };
 }
 
 function openMemberProfile(memberId) {
   var m = getMember(memberId);
   if (!m) return;
+
   var isMe = memberId === DATA.me.id;
   var stats = getMemberStats(memberId);
 
-  // Build RSVP history
   var rsvpHistory = DATA.gatherings.filter(function(g){ return g.status !== 'planning'; }).map(function(g) {
     var r = rsvpData[g.id] && rsvpData[g.id][memberId];
-    var badge = !r ? 'badge-pending' : r.status==='yes'?'badge-yes':r.status==='virtual'?'badge-virtual':'badge-no';
-    var label = !r ? 'No reply' : r.status==='yes'?'Going':r.status==='virtual'?'Virtual':'Can\'t make it';
+    var badge = !r ? 'badge-pending' : r.status==='yes' ? 'badge-yes' : r.status==='virtual' ? 'badge-virtual' : 'badge-no';
+    var label = !r ? 'No reply' : r.status==='yes' ? 'Going' : r.status==='virtual' ? 'Virtual' : 'Can&#39;t make it';
+
     return '<div class="mp-rsvp-row">' +
       '<div class="mp-rsvp-name">' + g.name + '</div>' +
-      '<div class="mp-rsvp-date">' + (g.month||'') + (g.day?' '+g.day:'') + '</div>' +
+      '<div class="mp-rsvp-date">' + (g.month || '') + (g.day ? ' ' + g.day : '') + '</div>' +
       '<span class="mp-rsvp-badge ' + badge + '">' + label + '</span>' +
     '</div>';
   }).join('');
 
-  // Build task history
   var taskHistory = [];
   DATA.gatherings.forEach(function(g){
-    (g.tasks||[]).forEach(function(t){
-      if (t.owner === memberId) taskHistory.push({title:t.title, gathering:g.name, done:t.done||t.status==='done'});
+    (g.tasks || []).forEach(function(t){
+      if (t.owner === memberId) {
+        taskHistory.push({ title: t.title, gathering: g.name, done: t.done || t.status === 'done' });
+      }
     });
   });
 
@@ -6741,39 +6803,38 @@ function openMemberProfile(memberId) {
         '</button>' +
       '</div>' +
       '<div class="sheet-body">' +
-        // Avatar + info
         '<div class="mp-hero">' +
           '<div class="mp-av">' + makeAvSvg(m.animal, 72) + '</div>' +
           '<div class="mp-info">' +
             '<div class="mp-name">' + m.name + '</div>' +
-            '<div class="mp-loc">' + (m.location||'') + '</div>' +
-            '<div class="mp-trait">' + (m.trait||ANIMALS[m.animal]&&ANIMALS[m.animal].trait||'') + '</div>' +
+            '<div class="mp-loc">' + (m.location || '') + '</div>' +
+            '<div class="mp-trait">' + (m.trait || ANIMALS[m.animal] && ANIMALS[m.animal].trait || '') + '</div>' +
           '</div>' +
         '</div>' +
-        // Live stats
+
         '<div class="mp-stats">' +
           '<div class="mp-stat"><div class="mp-stat-n">' + stats.attended + '</div><div class="mp-stat-l">attended</div></div>' +
           '<div class="mp-stat"><div class="mp-stat-n">' + stats.hosted + '</div><div class="mp-stat-l">hosted</div></div>' +
           '<div class="mp-stat"><div class="mp-stat-n">' + stats.rsvpCount + '</div><div class="mp-stat-l">RSVPs</div></div>' +
           '<div class="mp-stat"><div class="mp-stat-n">' + stats.tasksDone + '/' + stats.tasksOwned + '</div><div class="mp-stat-l">tasks done</div></div>' +
         '</div>' +
-        // Prefs
+
         (m.prefs ? '<div class="mp-section-lbl">Preferences</div>' +
           '<div class="mp-prefs">' +
             Object.entries(m.prefs).map(function(kv){
               return '<div class="mp-pref"><span class="mp-pref-k">' + kv[0] + '</span><span class="mp-pref-v">' + kv[1] + '</span></div>';
             }).join('') +
           '</div>' : '') +
-        // RSVP history
+
         '<div class="mp-section-lbl">RSVP history</div>' +
         '<div class="mp-rsvp-list">' + (rsvpHistory || '<div style="color:var(--text3);font-size:13px;padding:8px 0">No RSVPs yet</div>') + '</div>' +
-        // Task history
+
         (taskHistory.length > 0 ?
           '<div class="mp-section-lbl">Tasks</div>' +
           '<div class="mp-task-list">' +
             taskHistory.slice(0,6).map(function(t){
               return '<div class="mp-task-row">' +
-                '<span class="mp-task-check ' + (t.done?'done':'') + '">' + (t.done?'✓':'○') + '</span>' +
+                '<span class="mp-task-check ' + (t.done ? 'done' : '') + '">' + (t.done ? '✓' : '○') + '</span>' +
                 '<div class="mp-task-info"><div class="mp-task-title">' + t.title + '</div><div class="mp-task-g">' + t.gathering + '</div></div>' +
               '</div>';
             }).join('') +
@@ -6787,54 +6848,54 @@ function openMemberProfile(memberId) {
   document.getElementById('mp-close').addEventListener('click', function(){ overlay.parentNode.removeChild(overlay); });
 }
 
-
-
-// Wire nudge to push notifications
 var _origNudgePatch = wireDetailButtons;
 wireDetailButtons = function(g) {
   _origNudgePatch(g);
-  // Re-wire nudge with notification push
+
   var nb = document.getElementById('nudge-btn');
   if (nb) {
     var cloned = nb.cloneNode(true);
     nb.parentNode.replaceChild(cloned, nb);
+
     cloned.addEventListener('click', function(){
-      var nr = [DATA.me].concat(DATA.members||[]).filter(function(m){
+      var nr = getAllFlockMembers().filter(function(m){
         return m && !(rsvpData[g.id] && rsvpData[g.id][m.id]);
       });
-      if (!nr.length) { toast('Everyone has replied \u2713'); return; }
+
+      if (!nr.length) {
+        toast('Everyone has replied ✓');
+        return;
+      }
+
       var names = nr.map(function(m){ return m.name; }).join(', ');
-      toast('\uD83D\uDCE3 Nudge sent to: ' + names);
-      pushNotif('nudge', '\uD83D\uDCE3 You nudged ' + names + ' about ' + g.name, g.id);
+      toast('📣 Nudge sent to: ' + names);
+      pushNotif('nudge', '📣 You nudged ' + names + ' about ' + g.name, g.id);
     });
   }
 };
 
-// Push notif when RSVP saved
 var _origOpenRSVP = openRSVP;
 openRSVP = function(gatheringId) {
   _origOpenRSVP(gatheringId);
-  // Patch the save button inside the opened sheet
+
   setTimeout(function() {
     var body = document.getElementById('rsvp-body');
     if (!body) return;
+
     var saveBtn = body.querySelector('.btn-primary');
     if (!saveBtn || saveBtn._notifPatched) return;
     saveBtn._notifPatched = true;
-    var origClick = saveBtn.onclick;
-    var origListeners = [];
-    // Can't easily intercept, so we observe the overlay hide
+
     var obs = new MutationObserver(function(muts) {
       muts.forEach(function(mut) {
         if (mut.type === 'attributes' && mut.attributeName === 'class') {
           var el = mut.target;
           if (el.classList.contains('hidden')) {
-            // RSVP was saved
-            var g2 = DATA.gatherings.find(function(x){ return x.id===gatheringId; });
+            var g2 = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
             var r  = rsvpData[gatheringId] && rsvpData[gatheringId][DATA.me.id];
             if (g2 && r) {
-              var label = r.status==='yes'?'going in person':r.status==='virtual'?'joining virtually':'can\'t make it';
-              pushNotif('rsvp', '\uD83C\uDF89 You RSVPed to ' + g2.name + ' \u2014 ' + label, gatheringId);
+              var label = r.status === 'yes' ? 'going in person' : r.status === 'virtual' ? 'joining virtually' : 'can&#39;t make it';
+              pushNotif('rsvp', '🎉 You RSVPed to ' + g2.name + ' — ' + label, gatheringId);
               renderActionItems();
             }
             obs.disconnect();
@@ -6842,12 +6903,12 @@ openRSVP = function(gatheringId) {
         }
       });
     });
+
     var rsvpOverlay = document.getElementById('rsvp-overlay');
     if (rsvpOverlay) obs.observe(rsvpOverlay, { attributes: true });
   }, 300);
 };
 </script>
-
 
 <!-- GATHER CREATOR OVERLAY -->
 <div class="overlay hidden" id="gather-overlay">
@@ -6855,17 +6916,14 @@ openRSVP = function(gatheringId) {
     <div class="sheet-header">
       <div class="sheet-title">Plan a gathering</div>
       <button class="sheet-close" id="gather-close">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
     <div class="sheet-body" id="gather-body">
-
-      <!-- Name -->
       <label class="gc-field-label" for="gc-name">What are you calling it?</label>
       <input class="gc-input" id="gc-name" type="text" placeholder="e.g. Summer Cookout, Holiday Weekend…" maxlength="60">
       <div class="gc-err" id="gc-name-err">Give your gathering a name</div>
 
-      <!-- Type -->
       <span class="gc-field-label">Type</span>
       <div class="gc-type-row">
         <button class="gc-type-btn selected" data-type="in-person">
@@ -6882,40 +6940,32 @@ openRSVP = function(gatheringId) {
         </button>
       </div>
 
-      <!-- Location -->
       <label class="gc-field-label" for="gc-loc">Location or link</label>
       <input class="gc-input" id="gc-loc" type="text" placeholder="City, address, or Zoom link…">
 
-      <!-- Date -->
       <label class="gc-field-label" for="gc-date">Date</label>
       <input class="gc-input" id="gc-date" type="date">
       <div class="gc-hint" style="text-align:left;margin-top:4px;">Not sure yet? Leave blank — you can collect availability first.</div>
 
-      <!-- Theme -->
       <label class="gc-field-label" for="gc-theme">Theme or vibe</label>
       <input class="gc-input" id="gc-theme" type="text" placeholder="e.g. BBQ + games, beach week, holiday…" maxlength="40">
 
-      <!-- Emoji -->
       <span class="gc-field-label">Pick an emoji</span>
       <div class="gc-emoji-row" id="gc-emoji-row">
         <button class="gc-emoji-btn" data-emoji="🏠">🏠</button><button class="gc-emoji-btn" data-emoji="🌊">🌊</button><button class="gc-emoji-btn" data-emoji="🏕">🏕</button><button class="gc-emoji-btn" data-emoji="🎉">🎉</button><button class="gc-emoji-btn" data-emoji="⭐">⭐</button><button class="gc-emoji-btn" data-emoji="🌿">🌿</button><button class="gc-emoji-btn" data-emoji="🦋">🦋</button><button class="gc-emoji-btn" data-emoji="🔥">🔥</button><button class="gc-emoji-btn" data-emoji="🌸">🌸</button><button class="gc-emoji-btn" data-emoji="🎯">🎯</button><button class="gc-emoji-btn" data-emoji="🏡">🏡</button><button class="gc-emoji-btn" data-emoji="🍂">🍂</button>
       </div>
 
-      <!-- Who's hosting -->
-      <label class="gc-field-label" for="gc-host">Who's hosting?</label>
+      <label class="gc-field-label" for="gc-host">Who&#39;s hosting?</label>
       <select class="gc-input" id="gc-host">
         <option value="me">Me</option>
         <option value="rotating">Rotating — decide later</option>
-        <!-- members added by JS -->
       </select>
 
       <button class="gc-save-btn" id="gc-save">Add to gatherings ✨</button>
       <p class="gc-hint">You can fill in tasks, RSVPs and more details after adding.</p>
-
     </div>
   </div>
 </div>
-
 
 <!-- ADD IDEA SHEET -->
 <div class="overlay hidden" id="idea-overlay">
@@ -6923,7 +6973,7 @@ openRSVP = function(gatheringId) {
     <div class="sheet-header">
       <div class="sheet-title">Add an idea</div>
       <button class="sheet-close" id="idea-close">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
     <div class="sheet-body">
@@ -6944,14 +6994,13 @@ openRSVP = function(gatheringId) {
   </div>
 </div>
 
-
 <!-- GATHER EDIT OVERLAY -->
 <div class="overlay hidden" id="gather-edit-overlay">
   <div class="sheet">
     <div class="sheet-header">
       <div class="sheet-title">Edit gathering</div>
       <button class="sheet-close" id="gather-edit-close">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
     <div class="sheet-body" id="gather-edit-body"></div>
