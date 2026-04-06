@@ -4232,20 +4232,22 @@ function saveFlockState() {
     localStorage.setItem('kinverly_notifs',         JSON.stringify(NOTIFS));
   } catch(e) {}
 }
-
 function loadPersistedExtras() {
   try {
     var r = localStorage.getItem('kinverly_rsvp');
     if (r) {
       var parsed = JSON.parse(r);
-      // Merge parsed into rsvpData (don't overwrite seed data entirely)
       Object.keys(parsed).forEach(function(gId) {
         if (!rsvpData[gId]) rsvpData[gId] = {};
         Object.assign(rsvpData[gId], parsed[gId]);
       });
     }
     var n = localStorage.getItem('kinverly_notifs');
-    if (n) { var pn = JSON.parse(n); NOTIFS.items = pn.items || []; NOTIFS.unread = pn.unread || 0; }
+    if (n) {
+      var pn = JSON.parse(n);
+      NOTIFS.items = pn.items || [];
+      NOTIFS.unread = pn.unread || 0;
+    }
   } catch(e) {}
 }
 
@@ -4254,6 +4256,15 @@ function loadFlockState() {
     var s = localStorage.getItem('kinverly_flocks');
     if (s) FLOCKS = JSON.parse(s);
     currentFlockId = localStorage.getItem('kinverly_current_flock') || null;
+    window.currentFlockId = currentFlockId || null;
+  } catch(e) {}
+}
+
+function saveFlockState() {
+  try {
+    localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS || {}));
+    localStorage.setItem('kinverly_current_flock', currentFlockId || '');
+    window.currentFlockId = currentFlockId || null;
   } catch(e) {}
 }
 
@@ -4261,102 +4272,238 @@ function getCurrentFlock() {
   return currentFlockId ? FLOCKS[currentFlockId] : null;
 }
 
-function switchToFlock(flockId) {
-  currentFlockId = flockId;
-  saveFlockState();
-  var flock = FLOCKS[flockId];
-  if (!flock) return;
-  var nameEl = document.getElementById('topbar-flock-name');
-  if (nameEl) nameEl.textContent = flock.name;
+function getMeAsFlockMember(role) {
+  return {
+    id: DATA.me.id,
+    name: DATA.me.name,
+    animal: DATA.me.animal,
+    location: DATA.me.location,
+    stats: DATA.me.stats || {},
+    prefs: DATA.me.prefs || {},
+    role: role || 'member'
+  };
+}
 
-  // Load flock members
-  if (flock.members && Object.keys(flock.members).length > 0) {
-    DATA.members = Object.values(flock.members);
+function normalizeCurrentFlockMembers(flock) {
+  if (!flock || !flock.members) {
+    DATA.members = [];
+    return;
   }
 
-  // Load flock-specific gatherings and ideas, or start fresh
-  if (flock.gatherings && flock.gatherings.length > 0) {
-    DATA.gatherings = flock.gatherings;
-  } else {
-    DATA.gatherings = []; // fresh flock starts empty
-  }
-  if (flock.ideas && flock.ideas.length > 0) {
-    DATA.ideas = flock.ideas;
-  } else {
+  var allMembers = Object.values(flock.members).filter(Boolean);
+
+  DATA.members = allMembers.filter(function(m) {
+    return !DATA.me || m.id !== DATA.me.id;
+  });
+}
+
+function hydrateCurrentFlockData(flock) {
+  if (!flock) {
+    DATA.members = [];
+    DATA.gatherings = [];
     DATA.ideas = [];
-  }
-  if (flock.activity) {
-    DATA.activity = flock.activity;
-  } else {
     DATA.activity = [];
+    return;
   }
 
+  normalizeCurrentFlockMembers(flock);
+
+  DATA.gatherings = Array.isArray(flock.gatherings) ? flock.gatherings : [];
+  DATA.ideas = Array.isArray(flock.ideas) ? flock.ideas : [];
+  DATA.activity = Array.isArray(flock.activity) ? flock.activity : [];
+}
+
+function rerenderFlockViews() {
   renderHome();
   renderGatherings();
   renderIdeas();
   renderFairness();
   renderProfile();
-  toast(flock.emoji + ' ' + flock.name);
+  if (typeof renderFlockSchedule === 'function') renderFlockSchedule();
+}
+
+function bindCurrentFlockListener(flockId) {
+  if (!flockId) return;
+  if (!window.__db || !window.__firestoreHelpers) return;
+
+  var h = window.__firestoreHelpers;
+  if (!h.onSnapshot || !h.doc) return;
+
+  if (window._currentFlockListener) {
+    try { window._currentFlockListener(); } catch (e) {}
+    window._currentFlockListener = null;
+  }
+
+  window._currentFlockListener = h.onSnapshot(h.doc(window.__db, 'flocks', flockId), function(snap) {
+    if (!snap.exists()) return;
+
+    var flockData = snap.data() || {};
+    if (!window.FLOCKS) window.FLOCKS = {};
+
+    window.FLOCKS[flockId] = Object.assign({}, window.FLOCKS[flockId] || {}, flockData, { id: flockId });
+
+    if (currentFlockId === flockId) {
+      var nameEl = document.getElementById('topbar-flock-name');
+      if (nameEl) nameEl.textContent = window.FLOCKS[flockId].name || '';
+
+      hydrateCurrentFlockData(window.FLOCKS[flockId]);
+      saveFlockState();
+      rerenderFlockViews();
+    }
+  });
+}
+
+function switchToFlock(flockId) {
+  currentFlockId = flockId;
+  window.currentFlockId = flockId;
+  saveFlockState();
+
+  var flock = FLOCKS[flockId];
+  if (!flock) return;
+
+  var nameEl = document.getElementById('topbar-flock-name');
+  if (nameEl) nameEl.textContent = flock.name || '';
+
+  hydrateCurrentFlockData(flock);
+  bindCurrentFlockListener(flockId);
+  rerenderFlockViews();
+
+  toast((flock.emoji || '🏠') + ' ' + flock.name);
 }
 
 function createFlock(name, emoji) {
   var id = generateFlockId();
   var code = generateCode();
-  var flock = { id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id, members:{}, memberIds:[] };
-  var creator = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator' };
+
+  var flock = {
+    id: id,
+    name: name,
+    emoji: emoji || 'HOME',
+    inviteCode: code,
+    createdBy: DATA.me.id,
+    members: {},
+    memberIds: [],
+    gatherings: [],
+    ideas: [],
+    activity: []
+  };
+
+  var creator = getMeAsFlockMember('creator');
   flock.members[DATA.me.id] = creator;
   flock.memberIds = [DATA.me.id];
+
   FLOCKS[id] = flock;
   saveFlockState();
   saveFlockToFirebase(flock, creator);
+  switchToFlock(id);
+
   return flock;
 }
 
-function joinFlockByCode(code, callback) {
-  var norm = code.trim().toUpperCase().replace(/[^A-Z0-9-]/g,'');
-  var found = Object.values(FLOCKS).find(function(f){ return f.inviteCode === norm; });
-  if (found) { addMeToFlock(found.id); callback(null, found); return; }
-  if (window.__db && window.__firestoreHelpers) {
-    var h = window.__firestoreHelpers;
-    if (h.getDocs && h.query && h.where && h.collection) {
-      var q = h.query(h.collection(window.__db, 'flocks'), h.where('inviteCode', '==', norm));
-      h.getDocs(q).then(function(snap) {
-        if (snap.empty) { callback('Code not found. Double-check and try again.'); return; }
-        var d = snap.docs[0].data();
-        FLOCKS[d.id] = d;
-        addMeToFlock(d.id);
-        saveFlockState();
-        callback(null, d);
-      }).catch(function() { callback('Live sync is offline — the app works great locally, but joining by code needs an internet connection.'); });
-    } else { callback('Code not found. Double-check and try again.'); }
+function addMeToFlock(flockId, callback) {
+  callback = callback || function(){};
+
+  var flock = FLOCKS[flockId];
+  if (!flock) {
+    callback('Flock not found.');
+    return;
+  }
+
+  if (!flock.members) flock.members = {};
+  if (!flock.memberIds) flock.memberIds = [];
+
+  var existingRole = (flock.members[DATA.me.id] && flock.members[DATA.me.id].role) || 'member';
+  var me = getMeAsFlockMember(existingRole);
+
+  flock.members[DATA.me.id] = me;
+  if (flock.memberIds.indexOf(DATA.me.id) === -1) flock.memberIds.push(DATA.me.id);
+
+  saveFlockState();
+
+  if (window.__saveMemberToFlock) {
+    Promise.resolve(window.__saveMemberToFlock(flockId, me))
+      .then(function(){ callback(null, flock); })
+      .catch(function(){ callback(null, flock); });
   } else {
-    // Firebase not available — app is in offline/demo mode
-    callback('You\'re in demo mode. To join a real flock, open kinverly.com in a browser with internet access.');
+    callback(null, flock);
   }
 }
 
-function addMeToFlock(flockId) {
-  var flock = FLOCKS[flockId];
-  if (!flock) return;
-  if (!flock.members) flock.members = {};
-  if (!flock.memberIds) flock.memberIds = [];
-  var me = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'member' };
-  flock.members[DATA.me.id] = me;
-  if (flock.memberIds.indexOf(DATA.me.id) === -1) flock.memberIds.push(DATA.me.id);
-  saveFlockState();
-  // Sync to Firestore so other members see this person appear
-  if (window.__saveMemberToFlock) window.__saveMemberToFlock(flockId, me);
+function joinFlockByCode(code, callback) {
+  callback = callback || function(){};
+
+  var norm = code.trim().toUpperCase().replace(/[^A-Z0-9-]/g,'');
+  var found = Object.values(FLOCKS).find(function(f){ return f.inviteCode === norm; });
+
+  if (found) {
+    addMeToFlock(found.id, function(err) {
+      if (err) { callback(err); return; }
+      switchToFlock(found.id);
+      callback(null, found);
+    });
+    return;
+  }
+
+  if (window.__db && window.__firestoreHelpers) {
+    var h = window.__firestoreHelpers;
+
+    if (h.getDocs && h.query && h.where && h.collection) {
+      var q = h.query(h.collection(window.__db, 'flocks'), h.where('inviteCode', '==', norm));
+
+      h.getDocs(q).then(function(snap) {
+        if (snap.empty) {
+          callback('Code not found. Double-check and try again.');
+          return;
+        }
+
+        var docSnap = snap.docs[0];
+        var d = Object.assign({ id: docSnap.id }, docSnap.data() || {});
+        FLOCKS[d.id] = d;
+        saveFlockState();
+
+        addMeToFlock(d.id, function(err) {
+          if (err) {
+            callback(err);
+            return;
+          }
+          switchToFlock(d.id);
+          callback(null, FLOCKS[d.id]);
+        });
+      }).catch(function() {
+        callback('Live sync is offline — the app works great locally, but joining by code needs an internet connection.');
+      });
+    } else {
+      callback('Code not found. Double-check and try again.');
+    }
+  } else {
+    callback('You\'re in demo mode. To join a real flock, open kinverly.com in a browser with internet access.');
+  }
 }
 
 async function saveFlockToFirebase(flock, creator) {
   if (!window.__db || !window.__firestoreHelpers) return;
   try {
     var h = window.__firestoreHelpers;
-    var data = { id:flock.id, name:flock.name, emoji:flock.emoji, inviteCode:flock.inviteCode, createdBy:flock.createdBy, memberIds:flock.memberIds };
-    data['members.' + creator.id] = creator;
-    if (h.serverTimestamp) data.createdAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
-  } catch(e) { console.warn('[Kinverly] Flock save offline'); }
+    await h.setDoc(
+      h.doc(window.__db, 'flocks', flock.id),
+      {
+        id: flock.id,
+        name: flock.name,
+        emoji: flock.emoji,
+        inviteCode: flock.inviteCode,
+        createdBy: flock.createdBy,
+        memberIds: flock.memberIds || [],
+        members: flock.members || {},
+        gatherings: flock.gatherings || [],
+        ideas: flock.ideas || [],
+        activity: flock.activity || [],
+        createdAt: h.serverTimestamp ? h.serverTimestamp() : Date.now()
+      },
+      { merge: true }
+    );
+  } catch(e) {
+    console.warn('[Kinverly] Flock save offline');
+  }
 }
 
 function showFlockOnboarding() {
@@ -5944,12 +6091,12 @@ function renderFlockSchedule() {
   if (flock) {
     var nameEl = document.getElementById('topbar-flock-name');
     if (nameEl) nameEl.textContent = flock.name || '';
-    hydrateActiveFlockIntoData(flock);
+    hydrateCurrentFlockData(flock);
   } else {
     DATA.members = [];
   }
 
-  rerenderAllMainViews();
+  rerenderFlockViews();
   updateCountdown();
   renderNotifBadge();
   setInterval(updateCountdown, 60000);
@@ -5962,7 +6109,7 @@ function renderFlockSchedule() {
     } else {
       var ls = document.getElementById('login-screen');
       if (ls) ls.style.display = 'none';
-      bindCurrentFlockListener();
+      bindCurrentFlockListener(currentFlockId);
     }
   }, 400);
 })();
