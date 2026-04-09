@@ -1813,98 +1813,21 @@ function makeAv(type, size, extraClass) {
 ═══════════════════════════════════════════════ -->
 <script>
 var DATA = {
-  me: { id:'mom', name:'Mom', animal:'bunny', location:'Nashville, TN', trait:'The energizer',
-    stats:{ attended:7, hosted:2, ideas:5 },
+  me: { id:'', name:'', animal:'bear', location:'', trait:'Family member',
+    stats:{ attended:0, hosted:0, ideas:0 },
     prefs:{ Travel:'Flexible', 'Fav activity':'Anything together', Notifications:'All on' },
-    badges:[
-      {icon:'?',label:'The energizer',earned:true},
-      {icon:'?',label:'Party starter',earned:true},
-      {icon:'?',label:'Head planner',earned:true},
-      {icon:'?',label:'Host legend',earned:false},
-      {icon:'??',label:'Trailblazer',earned:false},
-      {icon:'?',label:'Idea machine',earned:false},
-      {icon:'?',label:'Never missed',earned:false},
-      {icon:'?',label:'All-star',earned:false},
-    ]
+    badges:[]
   },
-  members:[
-    {id:'sara',  name:'Sara',   animal:'fox',      location:'Nashville, TN', online:true,  mode:'in-person', pct:100, stats:{attended:7,hosted:1,ideas:3}, prefs:{Travel:'Flexible','Fav activity':'Games + trivia',Notifications:'All on'}},
-    {id:'marcus',name:'Marcus', animal:'bear',     location:'Atlanta, GA',   online:true,  mode:'local',     pct:100, stats:{attended:7,hosted:2,ideas:5}, prefs:{Travel:'Flexible','Fav activity':'Outdoors + nature',Notifications:'All on'}},
-    {id:'jen',   name:'Jen',    animal:'owl',      location:'Chicago, IL',   online:false, mode:'in-person', pct:60,  stats:{attended:6,hosted:1,ideas:4}, prefs:{Travel:'Somewhat limited','Fav activity':'Food + cooking',Notifications:'Gatherings only'}},
-    {id:'david', name:'David',  animal:'penguin',  location:'Denver, CO',    online:true,  mode:'virtual',   pct:100, stats:{attended:5,hosted:0,ideas:2}, prefs:{Travel:'Hard to travel','Fav activity':'Movies + TV',Notifications:'All on'}},
-    {id:'amy',   name:'Amy',    animal:'cat',      location:'Portland, OR',  online:false, mode:'in-person', pct:30,  stats:{attended:5,hosted:1,ideas:8}, prefs:{Travel:'Flexible','Fav activity':'Arts + crafts',Notifications:'Ideas only'}},
-    {id:'tom',   name:'Tom',    animal:'deer',     location:'Seattle, WA',   online:true,  mode:'in-person', pct:75,  stats:{attended:6,hosted:1,ideas:3}, prefs:{Travel:'Flexible','Fav activity':'Outdoors + nature',Notifications:'Gatherings only'}},
-    {id:'lily',  name:'Lily',   animal:'frog',     location:'Boston, MA',    online:false, mode:'in-person', pct:100, stats:{attended:7,hosted:1,ideas:6}, prefs:{Travel:'Flexible','Fav activity':'Music + dancing',Notifications:'All on'}},
-    {id:'grace', name:'Grace',  animal:'hedgehog', location:'Austin, TX',    online:true,  mode:'pending',   pct:10,  stats:{attended:3,hosted:0,ideas:1}, prefs:{Travel:'Somewhat limited','Fav activity':'Food + cooking',Notifications:'Off'}},
-  ],
-  gatherings:[
-    {id:'cookout',name:'Summer Cookout',month:'Jul',day:19,location:'Atlanta, GA',host:'marcus',
-     type:'planned',status:'next',theme:'BBQ + games',themePill:'pill-amber',hybrid:true,progress:72,
-     attending:['sara','marcus','jen','david','tom','lily'],
-     tasks:[
-       {id:'t1',title:'Pick & reserve the location',owner:'marcus',note:'Piedmont Park · Shelter B',done:true},
-       {id:'t2',title:'Organize grill & equipment',owner:'tom',note:'Charcoal, tools, cooler',done:true},
-       {id:'t3',title:'Set up video call for David',owner:'sara',note:'Tablet + good wifi spot',done:true},
-       {id:'t4',title:'Mail remote kit to David',owner:'lily',note:'Snacks, game card, photo',done:true},
-       {id:'t5',title:'Plan the group activity',owner:'jen',note:'Trivia night — in progress',done:false},
-       {id:'t6',title:'Collect food sign-up list',owner:'grace',note:'Waiting on RSVP first',done:false},
-       {id:'t7',title:'Create shared photo album',owner:'amy',note:'Shared after the event',done:false},
-       {id:'t8',title:'Send directions + parking info',owner:'marcus',note:'1 week before + day-of',done:false},
-     ]},
-    {id:'beach',name:'Summer Beach Week',month:'Jul',day:19,location:'TBD — voting in progress',
-     host:'mom',type:'bonus',status:'planning',theme:'Beach rental',themePill:'pill-blue',
-     progress:15,beachMode:true,attending:[],
-     windows:[
-       {dates:'Jul 12?19',label:'Blocked for 3',status:'blocked'},
-       {dates:'Jul 19?26',label:'Best window',status:'best'},
-       {dates:'Jul 26?Aug 2',label:'Lauren partial',status:'partial'},
-     ],
-     responses:[
-       {id:'sara',status:'responded'},{id:'marcus',status:'responded'},{id:'jen',status:'responded'},
-       {id:'david',status:'pending'},{id:'amy',status:'pending'},{id:'tom',status:'pending'},
-       {id:'lily',status:'pending'},{id:'grace',status:'pending'},
-     ]},
-    {id:'fall',name:'Fall Harvest',month:'Oct',day:5,location:'TBD — your turn!',host:'mom',
-     type:'planned',status:'upcoming',theme:'Planning opens Aug 1',themePill:'pill-amber',attending:[],progress:0},
-    {id:'winter',name:'Winter Celebration',month:'Dec',day:21,location:'TBD',host:'jen',
-     type:'planned',status:'upcoming',theme:'Coming soon',themePill:'pill-gray',attending:[],progress:0},
-  ],
-  ideas:[
-    {id:'i1',icon:'?',title:'Family trivia night',sub:'Teams, custom questions ? works hybrid!',votes:7,pct:85,voted:false},
-    {id:'i2',icon:'?',title:'Cook-off competition',sub:'Each sibling makes a dish, everyone rates blind',votes:6,pct:72,voted:false},
-    {id:'i3',icon:'?',title:'Escape room challenge',sub:'Book same-time rooms in different cities',votes:5,pct:60,voted:false},
-    {id:'i4',icon:'?',title:'Paint + sip night',sub:'Everyone paints the same image ? compare!',votes:4,pct:48,voted:false},
-    {id:'i5',icon:'?',title:'Camping weekend',sub:'National park, cabins for those who prefer',votes:3,pct:36,voted:false},
-  ],
+  members:[],
+  gatherings:[],
+  ideas:[],
   fairness:{
-    gathering:'Summer Cookout · Atlanta, GA',
-    members:[
-      {id:'sara',  cost:0,   pct:4,  label:'Local',   color:'#3B8A4A'},
-      {id:'marcus',cost:0,   pct:4,  label:'Host',    color:'#3B8A4A'},
-      {id:'jen',   cost:260, pct:38, label:'Medium',  color:'#2A6DB5'},
-      {id:'david', cost:380, pct:56, label:'High',    color:'#C87820'},
-      {id:'amy',   cost:550, pct:80, label:'Highest', color:'#D85A30'},
-      {id:'tom',   cost:580, pct:85, label:'Highest', color:'#D85A30'},
-      {id:'lily',  cost:320, pct:47, label:'Medium',  color:'#2A6DB5'},
-      {id:'grace', cost:180, pct:26, label:'Low',     color:'#3B8A4A'},
-    ],
-    poolPerPerson:125,poolTotal:1000,
-    yearMiles:[
-      {id:'amy',miles:2840,pct:90,color:'#D85A30'},
-      {id:'tom',miles:2650,pct:84,color:'#D85A30'},
-      {id:'david',miles:1720,pct:55,color:'#C87820'},
-      {id:'lily',miles:1340,pct:42,color:'#2A6DB5'},
-      {id:'jen',miles:1100,pct:35,color:'#2A6DB5'},
-      {id:'grace',miles:820,pct:26,color:'#3B8A4A'},
-    ]
+    gathering:'',
+    members:[],
+    poolPerPerson:0,poolTotal:0,
+    yearMiles:[]
   },
-  activity:[
-    {member:'amy',  text:'added "Escape room challenge" to the idea bank',         time:'2h ago'},
-    {member:'david',text:"RSVP'd to Summer Cookout — joining virtually",           time:'5h ago'},
-    {member:'sara', text:'voted on 3 ideas — "Trivia night" is leading!',          time:'Yesterday'},
-    {member:'tom',  text:'booked flights ? arriving Jul 18',                       time:'2 days ago'},
-    {member:'marcus',text:'confirmed Piedmont Park Shelter B ? reserved all day',  time:'3 days ago'},
-  ]
+  activity:[]
 };
 
 function getMember(id) {
@@ -2122,6 +2045,9 @@ function renderHome() {
   // Flock row
   var row = document.getElementById('flock-row');
   row.innerHTML = '';
+  if (DATA.members.length === 0) {
+    row.innerHTML = '<div style="padding:12px 4px;font-size:13px;color:var(--text3);font-weight:600">Invite family to your flock to see them here!</div>';
+  }
   DATA.members.forEach(function(m){
     var chip = document.createElement('div');
     chip.className = 'flock-chip';
@@ -2142,8 +2068,7 @@ function renderHome() {
   var events = buildFlockActivity();
   if (events.length === 0) {
     feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet — start planning!</div>';
-    return;
-  }
+  } else {
   events.forEach(function(a){
     var m = a.member !== 'group' ? getMember(a.member) : null;
     var item = document.createElement('div');
@@ -2156,6 +2081,7 @@ function renderHome() {
       '</div>';
     feed.appendChild(item);
   });
+  } // end else (has events)
 
   // Update the dynamic alert card based on current flock state
   updateAlertCard();
@@ -3151,19 +3077,17 @@ function buildBeachDetail(g) {
   }).join('');
 
   return '<div class="detail-hero beach">'+
-    '<div class="detail-eyebrow">? Bonus ? Collecting availability</div>'+
+    '<div class="detail-eyebrow">✨ Collecting availability</div>'+
     '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">July 2025 ? beach rental ? all ages ? relaxed week</div>'+
+    '<div class="detail-sub">'+(g.month||'TBD')+' '+(g.day||'')+' · '+(g.theme||'Trip')+' · '+(g.location||'Location TBD')+'</div>'+
     '<div class="detail-stats">'+
       '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">responded</div></div>'+
-      '<div class="detail-stat"><div class="detail-stat-n">7</div><div class="detail-stat-l">nights</div></div>'+
-      '<div class="detail-stat"><div class="detail-stat-n">Jun 28</div><div class="detail-stat-l">deadline</div></div>'+
     '</div>'+
-    '<div class="window-grid">'+windowsHTML+'</div>'+
+    (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
   '</div>'+
   '<div class="collab-box">'+
     '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
-    '<div><div class="collab-title">Jul 19?26 is the leading window</div><div class="collab-sub">Updates live as more responses come in.</div></div>'+
+    '<div><div class="collab-title">Share your availability</div><div class="collab-sub">Updates live as more responses come in.</div></div>'+
   '</div>'+
   '<div class="section-title">Mark your availability</div>'+
   '<button class="btn-primary" id="open-avail-btn" style="margin-bottom:12px">'+
@@ -3179,6 +3103,20 @@ function buildBeachDetail(g) {
 function renderIdeas() {
   var list = document.getElementById('ideas-list');
   list.innerHTML = '';
+
+  if (!DATA.ideas || DATA.ideas.length === 0) {
+    list.innerHTML =
+      '<div style="text-align:center;padding:40px 20px">'+
+        '<div style="font-size:48px;margin-bottom:12px">💡</div>'+
+        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">No ideas yet</div>'+
+        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">Add your first idea and let the flock vote on what to do next!</div>'+
+        '<button class="btn-primary" style="max-width:240px;margin:0 auto" id="first-idea-btn">+ Add an idea</button>'+
+      '</div>';
+    var fi = document.getElementById('first-idea-btn');
+    if (fi) fi.addEventListener('click', function(){ if(typeof openAddIdeaSheet==='function') openAddIdeaSheet(); });
+    return;
+  }
+
   DATA.ideas.forEach(function(idea){
     var card = document.createElement('div');
     card.className = 'idea-card';
@@ -3223,6 +3161,27 @@ function renderIdeas() {
 // -- FAIRNESS ------------------------------------
 function renderFairness() {
   var f = DATA.fairness;
+
+  // Empty state — no gatherings or no fairness data
+  if (!f || !f.members || f.members.length === 0) {
+    document.getElementById('fairness-content').innerHTML =
+      '<div style="text-align:center;padding:40px 20px">'+
+        '<div style="font-size:48px;margin-bottom:12px">⚖️</div>'+
+        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">Fairness tracking</div>'+
+        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:8px">Once your flock has gatherings with locations, Kinverly will track travel costs and help you find fair meeting spots.</div>'+
+        '<div style="background:#ede8ff;border-radius:12px;padding:14px 16px;text-align:left;margin-top:16px">'+
+          '<div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px">How fairness works</div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.7">'+
+            '• Each member\'s travel cost is estimated based on their location<br>'+
+            '• A fairness pool can be set up to subsidize high travelers<br>'+
+            '• Year-to-date miles help rotate where you gather<br>'+
+            '• The app suggests locations that minimize the overall burden'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    return;
+  }
+
   var html = '<div class="card">'+
     '<div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:12px">'+f.gathering+'</div>';
 
@@ -3305,9 +3264,9 @@ function renderProfile() {
 
     '<div class="section-title">Badges</div>'+
     '<div class="badge-grid">'+
-      me.badges.map(function(b){
+      (me.badges && me.badges.length > 0 ? me.badges.map(function(b){
         return '<div class="badge'+(b.earned?' earned':'')+'"><div class="badge-icon">'+b.icon+'</div>'+b.label+'</div>';
-      }).join('')+
+      }).join('') : '<div style="grid-column:1/-1;text-align:center;padding:12px;font-size:12px;color:var(--text3)">Attend gatherings, host, and share ideas to earn badges!</div>')+
     '</div>'+
 
     '<div class="section-title">Preferences</div>'+
@@ -4035,6 +3994,21 @@ function updateCountdown() {
   var next = getNextGathering();
   var heroTitle = document.querySelector('.hero-title');
   var heroSub = document.querySelector('.hero-sub');
+  var hero = document.getElementById('hero');
+
+  if (!next) {
+    // No gatherings — show welcome state
+    if (heroTitle) heroTitle.textContent = 'Plan your first gathering';
+    if (heroSub) heroSub.textContent = 'Tap the Gatherings tab to get started';
+    // Hide countdown numbers
+    var cd = document.querySelector('.countdown');
+    if (cd) cd.style.display = 'none';
+    return;
+  }
+
+  // Show countdown
+  var cd = document.querySelector('.countdown');
+  if (cd) cd.style.display = '';
 
   if (next && heroTitle) {
     heroTitle.textContent = next.name;
@@ -4042,13 +4016,13 @@ function updateCountdown() {
   }
 
   var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  var target = next ? (function(){
+  var target = (function(){
     var now = new Date();
     var yr = now.getFullYear();
     var d = new Date(yr, months[next.month]||6, next.day, 13, 0, 0);
     if (d < now) d = new Date(yr+1, months[next.month]||6, next.day, 13, 0, 0);
     return d;
-  })() : new Date('2025-07-19T13:00:00');
+  })();
 
   var diff = target - new Date();
   if (diff <= 0) return;
@@ -4662,21 +4636,6 @@ document.getElementById('create-gathering-overlay').addEventListener('click', fu
 // ════════════════════════════════════════════════
 
 var rsvpData = {}; // gId -> { memberId -> {status, blockedDates, availSubmitted, ...} }
-
-// ── Seed realistic availability for the beach planning gathering ──
-// Each member has marked certain dates as blocked
-(function seedAvailability() {
-  rsvpData['beach'] = {
-    'sara':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14'] },
-    'marcus': { status:'yes', availSubmitted:true, blockedDates:[] },
-    'jen':    { status:'yes', availSubmitted:true, blockedDates:['Jul-26','Jul-27','Jul-28','Jul-29','Jul-30','Jul-31','Aug-1','Aug-2'] },
-    'david':  { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15','Jul-16','Jul-17','Jul-18'] },
-    'amy':    { status:'yes', availSubmitted:true, blockedDates:['Jul-25','Jul-26','Jul-27','Jul-28','Jul-29','Jul-30','Jul-31'] },
-    'tom':    { status:'yes', availSubmitted:false, blockedDates:[] },
-    'lily':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15'] },
-    'grace':  { status:'yes', availSubmitted:false, blockedDates:[] },
-  };
-})();
 
 function openRSVP(gatheringId) {
   var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
@@ -5791,17 +5750,7 @@ try {
   var db = getFirestore(app);
   window.__db = db;
 
-  // Seed default data if Firestore is empty
-  async function seedIfEmpty() {
-    for (var g of DATA.gatherings) {
-      var snap = await getDoc(doc(db,'gatherings',g.id));
-      if (!snap.exists()) await setDoc(doc(db,'gatherings',g.id), Object.assign({},g,{_seeded:serverTimestamp()}));
-    }
-    for (var idea of DATA.ideas) {
-      var snap2 = await getDoc(doc(db,'ideas',idea.id));
-      if (!snap2.exists()) await setDoc(doc(db,'ideas',idea.id), Object.assign({},idea,{_seeded:serverTimestamp()}));
-    }
-  }
+  // No seed data — users create everything from scratch
 
   // Live listeners
   onSnapshot(collection(db,'gatherings'), function(snap){
@@ -5827,12 +5776,13 @@ try {
   window.__saveVote = async function(ideaId, voted, votes) {
     try { await updateDoc(doc(db,'ideas',ideaId), {voted:voted,votes:votes}); } catch(e){}
   };
-  window.__saveAvailability = async function(memberId, blocked) {
+  window.__saveAvailability = async function(gatheringId, memberId, blocked) {
     try {
+      if (!gatheringId) return;
       var field = 'availability.'+memberId;
       var update = {};
       update[field] = {blocked:blocked, submittedAt:serverTimestamp()};
-      await updateDoc(doc(db,'gatherings','beach'), update);
+      await updateDoc(doc(db,'gatherings',gatheringId), update);
     } catch(e){}
   };
 
@@ -5877,7 +5827,7 @@ try {
     } catch(e) { console.warn('[Kinverly] Member save offline'); }
   };
 
-  seedIfEmpty();
+  // seedIfEmpty removed — users create from scratch
   console.log('[Kinverly] Firebase connected');
 } catch(e) {
   console.warn('[Kinverly] Firebase offline:', e.message);
