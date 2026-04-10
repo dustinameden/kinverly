@@ -3429,8 +3429,11 @@ function renderProfile() {
   document.getElementById('edit-profile-btn').addEventListener('click', openEditProfile);
   document.getElementById('change-animal-btn').addEventListener('click', openAnimalPicker);
   document.getElementById('switch-member-btn').addEventListener('click', function(){
-    if (confirm('Switch to a different family member? Your current session will end.')) {
-      // Clear saved session so login screen shows fresh
+    if (confirm('Switch to a different family member?')) {
+      // Save current state before switching
+      saveFlockState();
+      persistMyProfile();
+      // Clear the active user but keep all flock/profile data
       localStorage.removeItem('kinverly_user_id');
       showLoginScreen();
     }
@@ -3628,12 +3631,12 @@ function openEditProfile() {
     if (notifSel) me.prefs.Notifications = notifSel.dataset.val;
 
     // Save per-member profile so each person keeps their own edits
-    localStorage.setItem('kinverly_profile_' + me.id, JSON.stringify({
-      name:me.name, nickname:me.nickname, location:me.location, animal:me.animal, prefs:me.prefs
-    }));
+    persistMyProfile();
     // Also sync back to members array
     var mIdx = DATA.members.findIndex(function(m){ return m.id === me.id; });
     if (mIdx >= 0) Object.assign(DATA.members[mIdx], {name:me.name, animal:me.animal, location:me.location, prefs:me.prefs});
+    // Persist flock state so other members see updates
+    saveFlockState();
 
     document.getElementById('edit-overlay').classList.add('hidden');
     // Re-render profile AND update topbar avatar immediately
@@ -3832,9 +3835,8 @@ function confirmAnimal() {
   if (!pendingAnimal) return;
   DATA.me.animal = pendingAnimal;
   DATA.me.trait = ANIMALS[pendingAnimal].trait;
-  var saved = JSON.parse(localStorage.getItem('kinverly_profile')||'{}');
-  saved.animal = pendingAnimal;
-  localStorage.setItem('kinverly_profile', JSON.stringify(saved));
+  persistMyProfile();
+  saveFlockState();
   document.getElementById('animal-overlay').classList.add('hidden');
   renderProfile();
   renderHome();
@@ -4011,7 +4013,9 @@ function selectMember(id) {
     }
   } catch(e) {}
 
-  localStorage.setItem('kinverly_user_id', id);
+  // Persist profile and session
+  persistMyProfile();
+  saveFlockState();
 
   var ls = document.getElementById('login-screen'); if(ls) ls.style.display = 'none';
   renderHome();
@@ -4101,6 +4105,20 @@ function renderJoinForm() {
     newMember.prefs = {Travel:'Flexible','Fav activity':'Anything together',Notifications:'All on'};
     DATA.members.push(newMember);
 
+    // Immediately persist this new member into the flock + profile
+    DATA.me.id = id;
+    DATA.me.name = name;
+    DATA.me.animal = pickedAnimal;
+    DATA.me.location = city;
+    DATA.me.stats = newMember.stats;
+    DATA.me.prefs = newMember.prefs;
+    DATA.me.trait = ANIMALS[pickedAnimal] ? ANIMALS[pickedAnimal].trait : 'Family member';
+    DATA.me.badges = buildBadges(DATA.me.stats, pickedAnimal);
+
+    persistMyProfile();
+    saveFlockState();
+
+    // Now do the standard login flow
     selectMember(id);
   });
 
@@ -4181,32 +4199,63 @@ function updateCountdown() {
 function restoreSession() {
   try {
     var userId = localStorage.getItem('kinverly_user_id');
-    if (userId) {
-      var member = DATA.members.find(function(m){ return m.id === userId; });
-      if (member) {
-        DATA.me.id = member.id;
-        DATA.me.name = member.name;
-        DATA.me.animal = member.animal;
-        DATA.me.location = member.location;
-        DATA.me.trait = ANIMALS[member.animal] ? ANIMALS[member.animal].trait : DATA.me.trait;
-      }
-    }
+    if (!userId) return false;
 
-    // Load per-member saved profile
+    // First try to restore from per-member saved profile (always available)
     var savedProfile = localStorage.getItem('kinverly_profile_' + userId);
     if (savedProfile) {
       var p = JSON.parse(savedProfile);
+      DATA.me.id       = userId;
       if (p.name)     DATA.me.name     = p.name;
-      if (p.animal)   { DATA.me.animal = p.animal; DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : DATA.me.trait; }
+      if (p.animal)   { DATA.me.animal = p.animal; DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : 'Family member'; }
       if (p.location) DATA.me.location = p.location;
       if (p.nickname) DATA.me.nickname = p.nickname;
       if (p.prefs)    DATA.me.prefs    = Object.assign({}, DATA.me.prefs, p.prefs);
+      if (p.stats)    DATA.me.stats    = Object.assign({}, DATA.me.stats, p.stats);
+      DATA.me.badges = buildBadges(DATA.me.stats, DATA.me.animal);
+      return true;
     }
 
-    return !!userId;
+    // Fallback: try to find in DATA.members (from loaded flock)
+    var member = DATA.members.find(function(m){ return m.id === userId; });
+    if (member) {
+      DATA.me.id       = member.id;
+      DATA.me.name     = member.name;
+      DATA.me.animal   = member.animal;
+      DATA.me.location = member.location;
+      DATA.me.trait    = ANIMALS[member.animal] ? ANIMALS[member.animal].trait : 'Family member';
+      if (member.stats) DATA.me.stats = Object.assign({}, member.stats);
+      if (member.prefs) DATA.me.prefs = Object.assign({}, DATA.me.prefs, member.prefs);
+      DATA.me.badges = buildBadges(DATA.me.stats, DATA.me.animal);
+
+      // Save the profile so next restore is instant
+      persistMyProfile();
+      return true;
+    }
+
+    // userId exists but can't find member data yet — still count as logged in
+    // (flock data may load later from switchToFlock)
+    DATA.me.id = userId;
+    return true;
   } catch(e) {
     return false;
   }
+}
+
+// Centralized profile persistence — call this after any profile change
+function persistMyProfile() {
+  if (!DATA.me.id) return;
+  try {
+    localStorage.setItem('kinverly_profile_' + DATA.me.id, JSON.stringify({
+      name: DATA.me.name,
+      nickname: DATA.me.nickname || '',
+      location: DATA.me.location,
+      animal: DATA.me.animal,
+      prefs: DATA.me.prefs,
+      stats: DATA.me.stats
+    }));
+    localStorage.setItem('kinverly_user_id', DATA.me.id);
+  } catch(e) {}
 }
 
 
@@ -4317,7 +4366,9 @@ function createFlock(name, emoji) {
   flock.members[DATA.me.id] = creator;
   flock.memberIds = [DATA.me.id];
   FLOCKS[id] = flock;
+  currentFlockId = id;
   saveFlockState();
+  persistMyProfile();
   saveFlockToFirebase(flock, creator);
   return flock;
 }
@@ -4362,6 +4413,7 @@ function addMeToFlock(flockId) {
   if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
 
   saveFlockState();
+  persistMyProfile();
   if (window.__saveMemberToFlock) window.__saveMemberToFlock(flockId, me);
 }
 
@@ -5959,7 +6011,7 @@ function renderFlockSchedule() {
 
 // -- BOOT -----------------------------------------
 (function init() {
-  // Load flock state first
+  // Load flock state first — this populates FLOCKS and currentFlockId
   loadFlockState();
 
   // Load rsvp/notif data persisted separately
@@ -5969,25 +6021,31 @@ function renderFlockSchedule() {
   var urlParams = new URLSearchParams(window.location.search);
   var joinCode = urlParams.get('join');
   if (joinCode) {
-    // Store it to use after login
     window._pendingJoinCode = joinCode.toUpperCase();
-    // Clean URL without reload
     history.replaceState({}, '', '/');
   }
 
-  var isLoggedIn = restoreSession();
-
-  // Restore current flock fully on refresh
+  // Load flock members into DATA BEFORE restoring session
+  // so restoreSession can find the user in DATA.members
   var flock = getCurrentFlock();
   if (flock) {
     var nameEl = document.getElementById('topbar-flock-name');
     if (nameEl) nameEl.textContent = flock.name;
     if (flock.members && Object.keys(flock.members).length > 0) {
-      DATA.members = Object.values(flock.members).filter(function(m){ return m && m.id !== DATA.me.id; });
+      // Load ALL members first (we'll filter out self after restoreSession sets DATA.me.id)
+      DATA.members = Object.values(flock.members).filter(Boolean);
     }
     if (flock.gatherings && flock.gatherings.length > 0) DATA.gatherings = flock.gatherings;
     if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
     if (flock.activity   && flock.activity.length   > 0) DATA.activity   = flock.activity;
+  }
+
+  // Now restore the user session — DATA.members is populated so lookup works
+  var isLoggedIn = restoreSession();
+
+  // Now that DATA.me.id is set, filter self out of DATA.members
+  if (DATA.me.id) {
+    DATA.members = DATA.members.filter(function(m){ return m && m.id !== DATA.me.id; });
   }
 
   // Render everything
@@ -6002,15 +6060,28 @@ function renderFlockSchedule() {
   // Decide what to show on startup
   setTimeout(function() {
     if (!isLoggedIn) {
-      // Brand new user ? show login first, then flock onboarding after they set up profile
       showLoginScreen();
     } else if (Object.keys(FLOCKS).length === 0) {
-      // Logged in but no flocks yet ? show flock onboarding
       showFlockOnboarding();
     } else {
       var ls = document.getElementById('login-screen'); if(ls) ls.style.display = 'none';
     }
   }, 400);
+
+  // Auto-save on page unload — never lose data
+  window.addEventListener('beforeunload', function() {
+    if (DATA.me.id) {
+      persistMyProfile();
+      saveFlockState();
+    }
+  });
+
+  // Also auto-save periodically (every 30 seconds)
+  setInterval(function() {
+    if (DATA.me.id && currentFlockId) {
+      saveFlockState();
+    }
+  }, 30000);
 })();
 </script>
 
