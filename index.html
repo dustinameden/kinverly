@@ -1019,9 +1019,8 @@ img,svg{display:block}
 .chat-empty-icon{font-size:36px;margin-bottom:10px}
 .chat-empty-text{font-size:13px;font-weight:700;color:var(--text2)}
 .chat-empty-sub{font-size:12px;margin-top:4px}
-.gathering-tabs{display:flex;border-bottom:1.5px solid var(--border);margin-bottom:14px;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.gathering-tabs::-webkit-scrollbar{display:none}
-.gtab{flex-shrink:0;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text2);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s;white-space:nowrap}
+.gathering-tabs{display:flex;border-bottom:1.5px solid var(--border);margin-bottom:14px;gap:0}
+.gtab{flex:1;padding:10px 4px;font-size:12px;font-weight:700;color:var(--text2);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s}
 .gtab.active{color:var(--brand);border-bottom-color:var(--brand)}
 
 /* ── PHOTO ALBUM ─────────────────────────────── */
@@ -1531,62 +1530,6 @@ img,svg{display:block}
 .sched-resp-pill.done{background:var(--green-bg);color:var(--green)}
 .sched-resp-pill.partial{background:var(--amber-bg);color:var(--amber)}
 .sched-blocked-pill{font-size:10px;font-weight:700;color:var(--text3);padding:1px 4px}
-/* ── PINBOARD / NOTES ──────────────────────────── */
-.pin-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
-.pin-card{background:var(--amber-bg);border:1px solid rgba(200,120,32,.2);border-radius:12px;padding:12px 14px;position:relative}
-.pin-card.pinned{border-left:3px solid var(--gold)}
-.pin-author{font-size:10px;font-weight:700;color:var(--amber);margin-bottom:4px;display:flex;align-items:center;gap:6px}
-.pin-text{font-size:13px;color:var(--text1);line-height:1.55;font-weight:600}
-.pin-actions{position:absolute;top:8px;right:8px;display:flex;gap:2px}
-.pin-action-btn{width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s}
-.pin-action-btn:hover{background:rgba(0,0,0,.06);color:var(--text1)}
-.pin-add-row{display:flex;gap:8px}
-.pin-add-input{flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:13px;font-weight:600;font-family:inherit;outline:none;transition:border-color .15s}
-.pin-add-input:focus{border-color:var(--brand2)}
-.pin-add-input::placeholder{color:var(--text3);font-weight:400}
-.pin-add-btn{padding:10px 16px;border-radius:10px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;flex-shrink:0;font-family:inherit}
-
-/* ── POLLS ────────────────────────────────────── */
-.poll-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
-.poll-q{font-size:14px;font-weight:800;color:var(--text1);margin-bottom:10px;line-height:1.35}
-.poll-opts{display:flex;flex-direction:column;gap:6px}
-.poll-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
-.poll-opt:hover{border-color:var(--brand2)}
-.poll-opt.voted{border-color:var(--brand);background:#ede8ff}
-.poll-opt-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(61,43,110,.06);border-radius:10px;transition:width .4s}
-.poll-opt.voted .poll-opt-fill{background:rgba(61,43,110,.1)}
-.poll-opt-label{flex:1;font-size:13px;font-weight:700;color:var(--text1);position:relative;z-index:1}
-.poll-opt-count{font-size:12px;font-weight:800;color:var(--text2);position:relative;z-index:1;min-width:20px;text-align:right}
-.poll-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px;color:var(--text3);font-weight:600}
-.poll-add-row{margin-bottom:10px}
-
-/* ── BRING LIST ───────────────────────────────── */
-.bring-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;transition:border-color .15s}
-.bring-item.claimed{border-color:var(--green);background:var(--green-bg)}
-.bring-icon{font-size:18px;flex-shrink:0;width:28px;text-align:center}
-.bring-info{flex:1;min-width:0}
-.bring-name{font-size:13px;font-weight:700;color:var(--text1)}
-.bring-owner{font-size:11px;color:var(--text2);margin-top:1px}
-.bring-claim-btn{padding:6px 14px;border-radius:8px;border:1.5px solid var(--brand);background:transparent;color:var(--brand);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;flex-shrink:0;transition:all .15s}
-.bring-claim-btn:hover{background:#ede8ff}
-.bring-claim-btn.mine{background:var(--green-bg);border-color:var(--green);color:var(--green)}
-
-/* ── BUDGET / EXPENSES ────────────────────────── */
-.expense-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
-.expense-item:last-child{border-bottom:none}
-.expense-desc{flex:1;min-width:0}
-.expense-title{font-size:13px;font-weight:700;color:var(--text1)}
-.expense-who{font-size:11px;color:var(--text2);margin-top:1px}
-.expense-amt{font-size:15px;font-weight:800;color:var(--text1);flex-shrink:0}
-.expense-summary{background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
-.expense-total-label{font-size:13px;font-weight:800;color:var(--text1)}
-.expense-total-sub{font-size:11px;color:var(--text2);margin-top:2px}
-.expense-total-amt{font-size:24px;font-weight:300;color:var(--brand)}
-.expense-split{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.expense-split-chip{background:#ede8ff;border-radius:10px;padding:8px 12px;text-align:center;flex:1;min-width:80px}
-.expense-split-name{font-size:11px;font-weight:700;color:var(--brand)}
-.expense-split-amt{font-size:16px;font-weight:300;color:var(--text1);margin-top:2px}
-
 </style>
 </head>
 <body>
@@ -1870,21 +1813,98 @@ function makeAv(type, size, extraClass) {
 ═══════════════════════════════════════════════ -->
 <script>
 var DATA = {
-  me: { id:'', name:'', animal:'bear', location:'', trait:'Family member',
-    stats:{ attended:0, hosted:0, ideas:0 },
+  me: { id:'mom', name:'Mom', animal:'bunny', location:'Nashville, TN', trait:'The energizer',
+    stats:{ attended:7, hosted:2, ideas:5 },
     prefs:{ Travel:'Flexible', 'Fav activity':'Anything together', Notifications:'All on' },
-    badges:[]
+    badges:[
+      {icon:'?',label:'The energizer',earned:true},
+      {icon:'?',label:'Party starter',earned:true},
+      {icon:'?',label:'Head planner',earned:true},
+      {icon:'?',label:'Host legend',earned:false},
+      {icon:'??',label:'Trailblazer',earned:false},
+      {icon:'?',label:'Idea machine',earned:false},
+      {icon:'?',label:'Never missed',earned:false},
+      {icon:'?',label:'All-star',earned:false},
+    ]
   },
-  members:[],
-  gatherings:[],
-  ideas:[],
+  members:[
+    {id:'sara',  name:'Sara',   animal:'fox',      location:'Nashville, TN', online:true,  mode:'in-person', pct:100, stats:{attended:7,hosted:1,ideas:3}, prefs:{Travel:'Flexible','Fav activity':'Games + trivia',Notifications:'All on'}},
+    {id:'marcus',name:'Marcus', animal:'bear',     location:'Atlanta, GA',   online:true,  mode:'local',     pct:100, stats:{attended:7,hosted:2,ideas:5}, prefs:{Travel:'Flexible','Fav activity':'Outdoors + nature',Notifications:'All on'}},
+    {id:'jen',   name:'Jen',    animal:'owl',      location:'Chicago, IL',   online:false, mode:'in-person', pct:60,  stats:{attended:6,hosted:1,ideas:4}, prefs:{Travel:'Somewhat limited','Fav activity':'Food + cooking',Notifications:'Gatherings only'}},
+    {id:'david', name:'David',  animal:'penguin',  location:'Denver, CO',    online:true,  mode:'virtual',   pct:100, stats:{attended:5,hosted:0,ideas:2}, prefs:{Travel:'Hard to travel','Fav activity':'Movies + TV',Notifications:'All on'}},
+    {id:'amy',   name:'Amy',    animal:'cat',      location:'Portland, OR',  online:false, mode:'in-person', pct:30,  stats:{attended:5,hosted:1,ideas:8}, prefs:{Travel:'Flexible','Fav activity':'Arts + crafts',Notifications:'Ideas only'}},
+    {id:'tom',   name:'Tom',    animal:'deer',     location:'Seattle, WA',   online:true,  mode:'in-person', pct:75,  stats:{attended:6,hosted:1,ideas:3}, prefs:{Travel:'Flexible','Fav activity':'Outdoors + nature',Notifications:'Gatherings only'}},
+    {id:'lily',  name:'Lily',   animal:'frog',     location:'Boston, MA',    online:false, mode:'in-person', pct:100, stats:{attended:7,hosted:1,ideas:6}, prefs:{Travel:'Flexible','Fav activity':'Music + dancing',Notifications:'All on'}},
+    {id:'grace', name:'Grace',  animal:'hedgehog', location:'Austin, TX',    online:true,  mode:'pending',   pct:10,  stats:{attended:3,hosted:0,ideas:1}, prefs:{Travel:'Somewhat limited','Fav activity':'Food + cooking',Notifications:'Off'}},
+  ],
+  gatherings:[
+    {id:'cookout',name:'Summer Cookout',month:'Jul',day:19,location:'Atlanta, GA',host:'marcus',
+     type:'planned',status:'next',theme:'BBQ + games',themePill:'pill-amber',hybrid:true,progress:72,
+     attending:['sara','marcus','jen','david','tom','lily'],
+     tasks:[
+       {id:'t1',title:'Pick & reserve the location',owner:'marcus',note:'Piedmont Park · Shelter B',done:true},
+       {id:'t2',title:'Organize grill & equipment',owner:'tom',note:'Charcoal, tools, cooler',done:true},
+       {id:'t3',title:'Set up video call for David',owner:'sara',note:'Tablet + good wifi spot',done:true},
+       {id:'t4',title:'Mail remote kit to David',owner:'lily',note:'Snacks, game card, photo',done:true},
+       {id:'t5',title:'Plan the group activity',owner:'jen',note:'Trivia night — in progress',done:false},
+       {id:'t6',title:'Collect food sign-up list',owner:'grace',note:'Waiting on RSVP first',done:false},
+       {id:'t7',title:'Create shared photo album',owner:'amy',note:'Shared after the event',done:false},
+       {id:'t8',title:'Send directions + parking info',owner:'marcus',note:'1 week before + day-of',done:false},
+     ]},
+    {id:'beach',name:'Summer Beach Week',month:'Jul',day:19,location:'TBD — voting in progress',
+     host:'mom',type:'bonus',status:'planning',theme:'Beach rental',themePill:'pill-blue',
+     progress:15,beachMode:true,attending:[],
+     windows:[
+       {dates:'Jul 12?19',label:'Blocked for 3',status:'blocked'},
+       {dates:'Jul 19?26',label:'Best window',status:'best'},
+       {dates:'Jul 26?Aug 2',label:'Lauren partial',status:'partial'},
+     ],
+     responses:[
+       {id:'sara',status:'responded'},{id:'marcus',status:'responded'},{id:'jen',status:'responded'},
+       {id:'david',status:'pending'},{id:'amy',status:'pending'},{id:'tom',status:'pending'},
+       {id:'lily',status:'pending'},{id:'grace',status:'pending'},
+     ]},
+    {id:'fall',name:'Fall Harvest',month:'Oct',day:5,location:'TBD — your turn!',host:'mom',
+     type:'planned',status:'upcoming',theme:'Planning opens Aug 1',themePill:'pill-amber',attending:[],progress:0},
+    {id:'winter',name:'Winter Celebration',month:'Dec',day:21,location:'TBD',host:'jen',
+     type:'planned',status:'upcoming',theme:'Coming soon',themePill:'pill-gray',attending:[],progress:0},
+  ],
+  ideas:[
+    {id:'i1',icon:'?',title:'Family trivia night',sub:'Teams, custom questions ? works hybrid!',votes:7,pct:85,voted:false},
+    {id:'i2',icon:'?',title:'Cook-off competition',sub:'Each sibling makes a dish, everyone rates blind',votes:6,pct:72,voted:false},
+    {id:'i3',icon:'?',title:'Escape room challenge',sub:'Book same-time rooms in different cities',votes:5,pct:60,voted:false},
+    {id:'i4',icon:'?',title:'Paint + sip night',sub:'Everyone paints the same image ? compare!',votes:4,pct:48,voted:false},
+    {id:'i5',icon:'?',title:'Camping weekend',sub:'National park, cabins for those who prefer',votes:3,pct:36,voted:false},
+  ],
   fairness:{
-    gathering:'',
-    members:[],
-    poolPerPerson:0,poolTotal:0,
-    yearMiles:[]
+    gathering:'Summer Cookout · Atlanta, GA',
+    members:[
+      {id:'sara',  cost:0,   pct:4,  label:'Local',   color:'#3B8A4A'},
+      {id:'marcus',cost:0,   pct:4,  label:'Host',    color:'#3B8A4A'},
+      {id:'jen',   cost:260, pct:38, label:'Medium',  color:'#2A6DB5'},
+      {id:'david', cost:380, pct:56, label:'High',    color:'#C87820'},
+      {id:'amy',   cost:550, pct:80, label:'Highest', color:'#D85A30'},
+      {id:'tom',   cost:580, pct:85, label:'Highest', color:'#D85A30'},
+      {id:'lily',  cost:320, pct:47, label:'Medium',  color:'#2A6DB5'},
+      {id:'grace', cost:180, pct:26, label:'Low',     color:'#3B8A4A'},
+    ],
+    poolPerPerson:125,poolTotal:1000,
+    yearMiles:[
+      {id:'amy',miles:2840,pct:90,color:'#D85A30'},
+      {id:'tom',miles:2650,pct:84,color:'#D85A30'},
+      {id:'david',miles:1720,pct:55,color:'#C87820'},
+      {id:'lily',miles:1340,pct:42,color:'#2A6DB5'},
+      {id:'jen',miles:1100,pct:35,color:'#2A6DB5'},
+      {id:'grace',miles:820,pct:26,color:'#3B8A4A'},
+    ]
   },
-  activity:[]
+  activity:[
+    {member:'amy',  text:'added "Escape room challenge" to the idea bank',         time:'2h ago'},
+    {member:'david',text:"RSVP'd to Summer Cookout — joining virtually",           time:'5h ago'},
+    {member:'sara', text:'voted on 3 ideas — "Trivia night" is leading!',          time:'Yesterday'},
+    {member:'tom',  text:'booked flights ? arriving Jul 18',                       time:'2 days ago'},
+    {member:'marcus',text:'confirmed Piedmont Park Shelter B ? reserved all day',  time:'3 days ago'},
+  ]
 };
 
 function getMember(id) {
@@ -2057,42 +2077,7 @@ function buildFlockActivity() {
 
   // Shuffle for variety, cap at 10
   events.sort(function(){ return Math.random()-0.5; });
-
-  // Prepend manually-logged activity (most recent first)
-  var manual = (DATA.activity||[]).slice(0, 8).map(function(a){
-    return { member: a.member, text: a.text, time: a.time, sort: 0, icon: a.icon };
-  });
-  // Put manual events first, then derived events
-  var combined = manual.concat(events);
-  return combined.slice(0, 12);
-}
-
-// ── Activity logging ──
-function logActivity(memberId, text, icon) {
-  if (!DATA.activity) DATA.activity = [];
-  var now = new Date();
-  var timeStr = 'Just now';
-  DATA.activity.unshift({
-    member: memberId,
-    text: text,
-    time: timeStr,
-    icon: icon || '✨',
-    ts: now.getTime()
-  });
-  // Age existing entries
-  DATA.activity.forEach(function(a, i){
-    if (i === 0) return;
-    if (!a.ts) return;
-    var diff = now.getTime() - a.ts;
-    var mins = Math.floor(diff / 60000);
-    if (mins < 1)       a.time = 'Just now';
-    else if (mins < 60) a.time = mins + 'm ago';
-    else if (mins < 1440) a.time = Math.floor(mins/60) + 'h ago';
-    else a.time = Math.floor(mins/1440) + 'd ago';
-  });
-  // Cap at 20
-  if (DATA.activity.length > 20) DATA.activity.length = 20;
-  saveFlockState();
+  return events.slice(0, 10);
 }
 
 function updateAlertCard() {
@@ -2137,9 +2122,6 @@ function renderHome() {
   // Flock row
   var row = document.getElementById('flock-row');
   row.innerHTML = '';
-  if (DATA.members.length === 0) {
-    row.innerHTML = '<div style="padding:12px 4px;font-size:13px;color:var(--text3);font-weight:600">Invite family to your flock to see them here!</div>';
-  }
   DATA.members.forEach(function(m){
     var chip = document.createElement('div');
     chip.className = 'flock-chip';
@@ -2160,7 +2142,8 @@ function renderHome() {
   var events = buildFlockActivity();
   if (events.length === 0) {
     feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet — start planning!</div>';
-  } else {
+    return;
+  }
   events.forEach(function(a){
     var m = a.member !== 'group' ? getMember(a.member) : null;
     var item = document.createElement('div');
@@ -2173,7 +2156,6 @@ function renderHome() {
       '</div>';
     feed.appendChild(item);
   });
-  } // end else (has events)
 
   // Update the dynamic alert card based on current flock state
   updateAlertCard();
@@ -2300,10 +2282,6 @@ function renderDetail(g) {
   var tabDefs = [
     {id:'overview', label:'Overview'},
     {id:'tasks',    label:'Tasks'},
-    {id:'notes',    label:'Notes'},
-    {id:'polls',    label:'Polls'},
-    {id:'bring',    label:'Bring'},
-    {id:'budget',   label:'Budget'},
     {id:'chat',     label:'Chat'},
     {id:'photos',   label:'Photos'},
     {id:'recap',    label:'Recap'},
@@ -2325,14 +2303,6 @@ function renderDetail(g) {
     } else if (tabId === 'tasks') {
       contentArea.innerHTML = buildTasksTab(g);
       wireTaskButtons(g);
-    } else if (tabId === 'notes') {
-      contentArea.appendChild(renderPinboard(g));
-    } else if (tabId === 'polls') {
-      contentArea.appendChild(renderPolls(g));
-    } else if (tabId === 'bring') {
-      contentArea.appendChild(renderBringList(g));
-    } else if (tabId === 'budget') {
-      contentArea.appendChild(renderBudget(g));
     } else if (tabId === 'chat') {
       contentArea.appendChild(renderGatheringChat(g.id));
     } else if (tabId === 'photos') {
@@ -2728,7 +2698,6 @@ function renderTasksTabContent(g, wrap) {
       addTitle.value=''; addNote.value=''; addOwner.value='';
       renderTasksTabContent(g, wrap);
       toast('Task added \u2713');
-      logActivity(DATA.me.id, 'added task <strong>' + escapeHtml(title) + '</strong> to ' + escapeHtml(g.name), '📝');
     }
     if (addBtn) addBtn.addEventListener('click', doAdd);
     if (addTitle) addTitle.addEventListener('keydown', function(e){ if(e.key==='Enter') doAdd(); });
@@ -3134,78 +3103,34 @@ function buildStandardDetail(g) {
         '<div class="rsvp-cta-sub">Let the flock know so everyone can plan.</div>' +
       '</div>';
 
-  // Status-aware eyebrow
-  var eyebrow = g.status === 'completed' ? '✅ Completed' :
-                g.status === 'next' ? '⭐ Next up' :
-                g.status === 'planning' ? '🗓️ Collecting dates' :
-                g.type === 'planned' ? 'Planned gathering' : '✨ Bonus gathering';
-
-  // Quick-glance stats based on what matters NOW
-  var statsHtml = '';
-  if (g.status === 'planning') {
-    var responded = allFlock.filter(function(m){ return rsvpData[g.id] && rsvpData[g.id][m.id] && rsvpData[g.id][m.id].availSubmitted; }).length;
-    statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + responded + '/' + allFlock.length + '</div><div class="detail-stat-l">shared dates</div></div>';
-  } else if (g.status === 'completed') {
-    statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attended</div></div>' +
-      (tasksTotal ? '<div class="detail-stat"><div class="detail-stat-n">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
-      '<div class="detail-stat"><div class="detail-stat-n">' + (g.photos||[]).length + '</div><div class="detail-stat-l">photos</div></div>';
-  } else {
-    statsHtml =
+  return '<div class="detail-hero">' +
+    '<div class="detail-eyebrow">' + (g.type==='planned' ? 'Planned gathering' : '\u2728 Bonus gathering') + '</div>' +
+    '<div class="detail-title">' + g.name + '</div>' +
+    '<div class="detail-sub">' + g.month + ' ' + g.day + ' \u00b7 ' + g.location + '</div>' +
+    '<div class="detail-stats">' +
       '<div class="detail-stat"><div class="detail-stat-n">' + (confirmed.length+notComing.length) + '/' + allFlock.length + '</div><div class="detail-stat-l">replied</div></div>' +
       '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attending</div></div>' +
-      (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '');
-  }
-
-  // Summary cards for notes/polls/bring
-  var notesCount  = (g.notes||[]).length;
-  var pollsCount  = (g.polls||[]).length;
-  var bringCount  = (g.bringList||[]).length;
-  var bringClaimed = (g.bringList||[]).filter(function(b){return b.claimedBy;}).length;
-  var expenseCount = (g.expenses||[]).length;
-
-  var quickLinks = '';
-  if (notesCount || pollsCount || bringCount || expenseCount) {
-    quickLinks = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">';
-    if (notesCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'notes\')t.click()})"><div style="font-size:16px;margin-bottom:2px">📌</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + notesCount + ' note' + (notesCount!==1?'s':'') + '</div></div>';
-    if (pollsCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'polls\')t.click()})"><div style="font-size:16px;margin-bottom:2px">🗳️</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + pollsCount + ' poll' + (pollsCount!==1?'s':'') + '</div></div>';
-    if (bringCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'bring\')t.click()})"><div style="font-size:16px;margin-bottom:2px">🎒</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + bringClaimed + '/' + bringCount + ' claimed</div></div>';
-    if (expenseCount) quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'budget\')t.click()})"><div style="font-size:16px;margin-bottom:2px">💰</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + expenseCount + ' expense' + (expenseCount!==1?'s':'') + '</div></div>';
-    quickLinks += '</div>';
-  }
-
-  return '<div class="detail-hero">' +
-    '<div class="detail-eyebrow">' + eyebrow + '</div>' +
-    '<div class="detail-title">' + g.name + '</div>' +
-    '<div class="detail-sub">' + (g.month||'TBD') + ' ' + (g.day||'') + ' \u00b7 ' + (g.location||'TBD') + '</div>' +
-    '<div class="detail-stats">' + statsHtml + '</div>' +
+      (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
+    '</div>' +
   '</div>' +
 
-  // Status-specific CTA
-  (g.status === 'completed' ? '' : rsvpBannerHtml) +
+  rsvpBannerHtml +
 
-  (g.status === 'completed' ? '' :
-    '<button class="rsvp-big-btn" id="rsvp-btn">' +
-      (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
-    '</button>') +
+  '<button class="rsvp-big-btn" id="rsvp-btn">' +
+    (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
+  '</button>' +
 
   (g.status === 'planning' ?
     '<div class="section-title" style="margin-top:16px">Best date window</div>' +
     '<div id="date-window-panel-'+g.id+'"></div>'
   : '') +
 
-  // Quick links to tabs with content
-  quickLinks +
-
-  '<div class="section-title" style="margin-top:4px">Who\'s coming</div>' +
+  '<div class="section-title" style="margin-top:16px">Who\'s coming</div>' +
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
 
-  (noReply.length > 0 && g.status !== 'completed' ?
-    '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>'
-  : '') +
+  '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>' +
 
-  (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '');
+  (tasksTotal ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '');
 }
 
 function buildBeachDetail(g) {
@@ -3226,17 +3151,19 @@ function buildBeachDetail(g) {
   }).join('');
 
   return '<div class="detail-hero beach">'+
-    '<div class="detail-eyebrow">✨ Collecting availability</div>'+
+    '<div class="detail-eyebrow">? Bonus ? Collecting availability</div>'+
     '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">'+(g.month||'TBD')+' '+(g.day||'')+' · '+(g.theme||'Trip')+' · '+(g.location||'Location TBD')+'</div>'+
+    '<div class="detail-sub">July 2025 ? beach rental ? all ages ? relaxed week</div>'+
     '<div class="detail-stats">'+
       '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">responded</div></div>'+
+      '<div class="detail-stat"><div class="detail-stat-n">7</div><div class="detail-stat-l">nights</div></div>'+
+      '<div class="detail-stat"><div class="detail-stat-n">Jun 28</div><div class="detail-stat-l">deadline</div></div>'+
     '</div>'+
-    (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
+    '<div class="window-grid">'+windowsHTML+'</div>'+
   '</div>'+
   '<div class="collab-box">'+
     '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
-    '<div><div class="collab-title">Share your availability</div><div class="collab-sub">Updates live as more responses come in.</div></div>'+
+    '<div><div class="collab-title">Jul 19?26 is the leading window</div><div class="collab-sub">Updates live as more responses come in.</div></div>'+
   '</div>'+
   '<div class="section-title">Mark your availability</div>'+
   '<button class="btn-primary" id="open-avail-btn" style="margin-bottom:12px">'+
@@ -3252,32 +3179,13 @@ function buildBeachDetail(g) {
 function renderIdeas() {
   var list = document.getElementById('ideas-list');
   list.innerHTML = '';
-
-  if (!DATA.ideas || DATA.ideas.length === 0) {
-    list.innerHTML =
-      '<div style="text-align:center;padding:40px 20px">'+
-        '<div style="font-size:48px;margin-bottom:12px">💡</div>'+
-        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">No ideas yet</div>'+
-        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">Add your first idea and let the flock vote on what to do next!</div>'+
-        '<button class="btn-primary" style="max-width:240px;margin:0 auto" id="first-idea-btn">+ Add an idea</button>'+
-      '</div>';
-    var fi = document.getElementById('first-idea-btn');
-    if (fi) fi.addEventListener('click', function(){ if(typeof openAddIdeaSheet==='function') openAddIdeaSheet(); });
-    return;
-  }
-
   DATA.ideas.forEach(function(idea){
     var card = document.createElement('div');
     card.className = 'idea-card';
-    card.style.position = 'relative';
-    var isOwner = !idea.addedBy || idea.addedBy === DATA.me.id;
     card.innerHTML =
       '<div class="idea-icon">'+idea.icon+'</div>'+
       '<div class="idea-body">'+
-        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">'+
-          '<div class="idea-title">'+idea.title+'</div>'+
-          (isOwner ? '<button class="idea-menu-btn" data-idea-id="'+idea.id+'" style="width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;flex-shrink:0;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s" title="More options">&middot;&middot;&middot;</button>' : '')+
-        '</div>'+
+        '<div class="idea-title">'+idea.title+'</div>'+
         '<div class="idea-sub">'+idea.sub+'</div>'+
         '<div class="vote-row">'+
           '<div class="vote-bar-bg"><div class="vote-bar-fill" style="width:'+idea.pct+'%" id="vbar-'+idea.id+'"></div></div>'+
@@ -3286,108 +3194,7 @@ function renderIdeas() {
             (idea.voted?'Voted':'Vote')+
           '</button>'+
         '</div>'+
-        // Action panel (hidden by default)
-        '<div class="idea-actions" id="idea-actions-'+idea.id+'" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'+
-          '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-            '<button class="idea-act-edit" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Edit</button>'+
-            '<button class="idea-act-convert" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Make it a gathering</button>'+
-            '<button class="idea-act-delete" style="padding:8px 10px;border-radius:8px;border:1.5px solid var(--red);background:transparent;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Delete</button>'+
-          '</div>'+
-          '<div class="idea-del-confirm" style="display:none;margin-top:8px;background:var(--red-bg);border-radius:10px;padding:10px 12px">'+
-            '<div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">Delete this idea?</div>'+
-            '<div style="display:flex;gap:6px">'+
-              '<button class="idea-del-yes" style="flex:1;padding:7px;border-radius:8px;background:var(--red);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete</button>'+
-              '<button class="idea-del-no" style="flex:1;padding:7px;border-radius:8px;background:var(--surface);color:var(--text2);font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>'+
-            '</div>'+
-          '</div>'+
-          '<div class="idea-edit-form" style="display:none;margin-top:8px">'+
-            '<input class="gc-input idea-edit-title" style="font-size:14px;margin-bottom:6px" value="'+idea.title.replace(/"/g,'&quot;')+'" maxlength="60">'+
-            '<input class="gc-input idea-edit-desc" style="font-size:13px;margin-bottom:8px" value="'+(idea.sub||'').replace(/"/g,'&quot;')+'" maxlength="80" placeholder="Description...">'+
-            '<div style="display:flex;gap:6px">'+
-              '<button class="idea-edit-save" style="flex:1;padding:8px;border-radius:8px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Save</button>'+
-              '<button class="idea-edit-cancel" style="padding:8px 12px;border-radius:8px;background:var(--surface2);color:var(--text2);font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>'+
-            '</div>'+
-          '</div>'+
-        '</div>'+
       '</div>';
-
-    // Wire menu toggle
-    var menuBtn = card.querySelector('.idea-menu-btn');
-    if (menuBtn) {
-      menuBtn.addEventListener('click', function(e){
-        e.stopPropagation();
-        var panel = card.querySelector('#idea-actions-'+idea.id);
-        panel.style.display = panel.style.display === 'none' ? '' : 'none';
-      });
-    }
-
-    // Wire edit
-    var editBtn = card.querySelector('.idea-act-edit');
-    if (editBtn) {
-      editBtn.addEventListener('click', function(){
-        card.querySelector('.idea-edit-form').style.display = '';
-        editBtn.parentElement.style.display = 'none';
-      });
-    }
-    var editSave = card.querySelector('.idea-edit-save');
-    if (editSave) {
-      editSave.addEventListener('click', function(){
-        var newTitle = card.querySelector('.idea-edit-title').value.trim();
-        var newDesc = card.querySelector('.idea-edit-desc').value.trim();
-        if (!newTitle) return;
-        idea.title = newTitle;
-        idea.sub = newDesc || idea.sub;
-        saveFlockState();
-        renderIdeas();
-        toast('Idea updated \u2713');
-      });
-    }
-    var editCancel = card.querySelector('.idea-edit-cancel');
-    if (editCancel) {
-      editCancel.addEventListener('click', function(){
-        card.querySelector('.idea-edit-form').style.display = 'none';
-        editBtn.parentElement.style.display = '';
-      });
-    }
-
-    // Wire delete
-    var delBtn = card.querySelector('.idea-act-delete');
-    if (delBtn) {
-      delBtn.addEventListener('click', function(){
-        card.querySelector('.idea-del-confirm').style.display = '';
-      });
-    }
-    var delYes = card.querySelector('.idea-del-yes');
-    if (delYes) {
-      delYes.addEventListener('click', function(){
-        var idx = DATA.ideas.findIndex(function(i){ return i.id === idea.id; });
-        if (idx >= 0) DATA.ideas.splice(idx, 1);
-        saveFlockState();
-        renderIdeas();
-        toast('Idea removed');
-      });
-    }
-    var delNo = card.querySelector('.idea-del-no');
-    if (delNo) {
-      delNo.addEventListener('click', function(){
-        card.querySelector('.idea-del-confirm').style.display = 'none';
-      });
-    }
-
-    // Wire convert to gathering
-    var convertBtn = card.querySelector('.idea-act-convert');
-    if (convertBtn) {
-      convertBtn.addEventListener('click', function(){
-        // Open the gather creator overlay and pre-fill with idea details
-        var nameInp = document.getElementById('gc-name');
-        var themeInp = document.getElementById('gc-theme');
-        if (nameInp) nameInp.value = idea.title;
-        if (themeInp) themeInp.value = idea.sub || '';
-        document.getElementById('gather-overlay').classList.remove('hidden');
-        if (nameInp) setTimeout(function(){ nameInp.focus(); }, 300);
-        toast('Pre-filled from your idea — finish the details!');
-      });
-    }
 
     // Wire vote button with debounce
     var vbtn = card.querySelector('.vote-btn');
@@ -3403,10 +3210,9 @@ function renderIdeas() {
       var vcnt = document.getElementById('vcnt-'+idea.id);
       if (vbar) vbar.style.width = idea.pct+'%';
       if (vcnt) vcnt.textContent = idea.votes+' vote'+(idea.votes!==1?'s':'');
-      vbtn.textContent = idea.voted ? '✓ Voted' : 'Vote';
+      vbtn.textContent = idea.voted ? '? Voted' : 'Vote';
       vbtn.classList.toggle('voted', idea.voted);
       saveFlockState();
-      if (idea.voted) logActivity(DATA.me.id, 'voted for <strong>' + escapeHtml(idea.title) + '</strong>', '👍');
       setTimeout(function(){ voting = false; vbtn.style.opacity = ''; }, 800);
     });
 
@@ -3417,27 +3223,6 @@ function renderIdeas() {
 // -- FAIRNESS ------------------------------------
 function renderFairness() {
   var f = DATA.fairness;
-
-  // Empty state — no gatherings or no fairness data
-  if (!f || !f.members || f.members.length === 0) {
-    document.getElementById('fairness-content').innerHTML =
-      '<div style="text-align:center;padding:40px 20px">'+
-        '<div style="font-size:48px;margin-bottom:12px">⚖️</div>'+
-        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">Fairness tracking</div>'+
-        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:8px">Once your flock has gatherings with locations, Kinverly will track travel costs and help you find fair meeting spots.</div>'+
-        '<div style="background:#ede8ff;border-radius:12px;padding:14px 16px;text-align:left;margin-top:16px">'+
-          '<div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px">How fairness works</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.7">'+
-            '• Each member\'s travel cost is estimated based on their location<br>'+
-            '• A fairness pool can be set up to subsidize high travelers<br>'+
-            '• Year-to-date miles help rotate where you gather<br>'+
-            '• The app suggests locations that minimize the overall burden'+
-          '</div>'+
-        '</div>'+
-      '</div>';
-    return;
-  }
-
   var html = '<div class="card">'+
     '<div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:12px">'+f.gathering+'</div>';
 
@@ -3520,9 +3305,9 @@ function renderProfile() {
 
     '<div class="section-title">Badges</div>'+
     '<div class="badge-grid">'+
-      (me.badges && me.badges.length > 0 ? me.badges.map(function(b){
+      me.badges.map(function(b){
         return '<div class="badge'+(b.earned?' earned':'')+'"><div class="badge-icon">'+b.icon+'</div>'+b.label+'</div>';
-      }).join('') : '<div style="grid-column:1/-1;text-align:center;padding:12px;font-size:12px;color:var(--text3)">Attend gatherings, host, and share ideas to earn badges!</div>')+
+      }).join('')+
     '</div>'+
 
     '<div class="section-title">Preferences</div>'+
@@ -3542,11 +3327,8 @@ function renderProfile() {
   document.getElementById('edit-profile-btn').addEventListener('click', openEditProfile);
   document.getElementById('change-animal-btn').addEventListener('click', openAnimalPicker);
   document.getElementById('switch-member-btn').addEventListener('click', function(){
-    if (confirm('Switch to a different family member?')) {
-      // Save current state before switching
-      saveFlockState();
-      persistMyProfile();
-      // Clear the active user but keep all flock/profile data
+    if (confirm('Switch to a different family member? Your current session will end.')) {
+      // Clear saved session so login screen shows fresh
       localStorage.removeItem('kinverly_user_id');
       showLoginScreen();
     }
@@ -3744,12 +3526,12 @@ function openEditProfile() {
     if (notifSel) me.prefs.Notifications = notifSel.dataset.val;
 
     // Save per-member profile so each person keeps their own edits
-    persistMyProfile();
+    localStorage.setItem('kinverly_profile_' + me.id, JSON.stringify({
+      name:me.name, nickname:me.nickname, location:me.location, animal:me.animal, prefs:me.prefs
+    }));
     // Also sync back to members array
     var mIdx = DATA.members.findIndex(function(m){ return m.id === me.id; });
     if (mIdx >= 0) Object.assign(DATA.members[mIdx], {name:me.name, animal:me.animal, location:me.location, prefs:me.prefs});
-    // Persist flock state so other members see updates
-    saveFlockState();
 
     document.getElementById('edit-overlay').classList.add('hidden');
     // Re-render profile AND update topbar avatar immediately
@@ -3948,8 +3730,9 @@ function confirmAnimal() {
   if (!pendingAnimal) return;
   DATA.me.animal = pendingAnimal;
   DATA.me.trait = ANIMALS[pendingAnimal].trait;
-  persistMyProfile();
-  saveFlockState();
+  var saved = JSON.parse(localStorage.getItem('kinverly_profile')||'{}');
+  saved.animal = pendingAnimal;
+  localStorage.setItem('kinverly_profile', JSON.stringify(saved));
   document.getElementById('animal-overlay').classList.add('hidden');
   renderProfile();
   renderHome();
@@ -4126,9 +3909,7 @@ function selectMember(id) {
     }
   } catch(e) {}
 
-  // Persist profile and session
-  persistMyProfile();
-  saveFlockState();
+  localStorage.setItem('kinverly_user_id', id);
 
   var ls = document.getElementById('login-screen'); if(ls) ls.style.display = 'none';
   renderHome();
@@ -4218,20 +3999,6 @@ function renderJoinForm() {
     newMember.prefs = {Travel:'Flexible','Fav activity':'Anything together',Notifications:'All on'};
     DATA.members.push(newMember);
 
-    // Immediately persist this new member into the flock + profile
-    DATA.me.id = id;
-    DATA.me.name = name;
-    DATA.me.animal = pickedAnimal;
-    DATA.me.location = city;
-    DATA.me.stats = newMember.stats;
-    DATA.me.prefs = newMember.prefs;
-    DATA.me.trait = ANIMALS[pickedAnimal] ? ANIMALS[pickedAnimal].trait : 'Family member';
-    DATA.me.badges = buildBadges(DATA.me.stats, pickedAnimal);
-
-    persistMyProfile();
-    saveFlockState();
-
-    // Now do the standard login flow
     selectMember(id);
   });
 
@@ -4268,21 +4035,6 @@ function updateCountdown() {
   var next = getNextGathering();
   var heroTitle = document.querySelector('.hero-title');
   var heroSub = document.querySelector('.hero-sub');
-  var hero = document.getElementById('hero');
-
-  if (!next) {
-    // No gatherings — show welcome state
-    if (heroTitle) heroTitle.textContent = 'Plan your first gathering';
-    if (heroSub) heroSub.textContent = 'Tap the Gatherings tab to get started';
-    // Hide countdown numbers
-    var cd = document.querySelector('.countdown');
-    if (cd) cd.style.display = 'none';
-    return;
-  }
-
-  // Show countdown
-  var cd = document.querySelector('.countdown');
-  if (cd) cd.style.display = '';
 
   if (next && heroTitle) {
     heroTitle.textContent = next.name;
@@ -4290,13 +4042,13 @@ function updateCountdown() {
   }
 
   var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  var target = (function(){
+  var target = next ? (function(){
     var now = new Date();
     var yr = now.getFullYear();
     var d = new Date(yr, months[next.month]||6, next.day, 13, 0, 0);
     if (d < now) d = new Date(yr+1, months[next.month]||6, next.day, 13, 0, 0);
     return d;
-  })();
+  })() : new Date('2025-07-19T13:00:00');
 
   var diff = target - new Date();
   if (diff <= 0) return;
@@ -4312,63 +4064,32 @@ function updateCountdown() {
 function restoreSession() {
   try {
     var userId = localStorage.getItem('kinverly_user_id');
-    if (!userId) return false;
+    if (userId) {
+      var member = DATA.members.find(function(m){ return m.id === userId; });
+      if (member) {
+        DATA.me.id = member.id;
+        DATA.me.name = member.name;
+        DATA.me.animal = member.animal;
+        DATA.me.location = member.location;
+        DATA.me.trait = ANIMALS[member.animal] ? ANIMALS[member.animal].trait : DATA.me.trait;
+      }
+    }
 
-    // First try to restore from per-member saved profile (always available)
+    // Load per-member saved profile
     var savedProfile = localStorage.getItem('kinverly_profile_' + userId);
     if (savedProfile) {
       var p = JSON.parse(savedProfile);
-      DATA.me.id       = userId;
       if (p.name)     DATA.me.name     = p.name;
-      if (p.animal)   { DATA.me.animal = p.animal; DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : 'Family member'; }
+      if (p.animal)   { DATA.me.animal = p.animal; DATA.me.trait = ANIMALS[p.animal] ? ANIMALS[p.animal].trait : DATA.me.trait; }
       if (p.location) DATA.me.location = p.location;
       if (p.nickname) DATA.me.nickname = p.nickname;
       if (p.prefs)    DATA.me.prefs    = Object.assign({}, DATA.me.prefs, p.prefs);
-      if (p.stats)    DATA.me.stats    = Object.assign({}, DATA.me.stats, p.stats);
-      DATA.me.badges = buildBadges(DATA.me.stats, DATA.me.animal);
-      return true;
     }
 
-    // Fallback: try to find in DATA.members (from loaded flock)
-    var member = DATA.members.find(function(m){ return m.id === userId; });
-    if (member) {
-      DATA.me.id       = member.id;
-      DATA.me.name     = member.name;
-      DATA.me.animal   = member.animal;
-      DATA.me.location = member.location;
-      DATA.me.trait    = ANIMALS[member.animal] ? ANIMALS[member.animal].trait : 'Family member';
-      if (member.stats) DATA.me.stats = Object.assign({}, member.stats);
-      if (member.prefs) DATA.me.prefs = Object.assign({}, DATA.me.prefs, member.prefs);
-      DATA.me.badges = buildBadges(DATA.me.stats, DATA.me.animal);
-
-      // Save the profile so next restore is instant
-      persistMyProfile();
-      return true;
-    }
-
-    // userId exists but can't find member data yet — still count as logged in
-    // (flock data may load later from switchToFlock)
-    DATA.me.id = userId;
-    return true;
+    return !!userId;
   } catch(e) {
     return false;
   }
-}
-
-// Centralized profile persistence — call this after any profile change
-function persistMyProfile() {
-  if (!DATA.me.id) return;
-  try {
-    localStorage.setItem('kinverly_profile_' + DATA.me.id, JSON.stringify({
-      name: DATA.me.name,
-      nickname: DATA.me.nickname || '',
-      location: DATA.me.location,
-      animal: DATA.me.animal,
-      prefs: DATA.me.prefs,
-      stats: DATA.me.stats
-    }));
-    localStorage.setItem('kinverly_user_id', DATA.me.id);
-  } catch(e) {}
 }
 
 
@@ -4479,9 +4200,7 @@ function createFlock(name, emoji) {
   flock.members[DATA.me.id] = creator;
   flock.memberIds = [DATA.me.id];
   FLOCKS[id] = flock;
-  currentFlockId = id;
   saveFlockState();
-  persistMyProfile();
   saveFlockToFirebase(flock, creator);
   return flock;
 }
@@ -4526,7 +4245,6 @@ function addMeToFlock(flockId) {
   if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
 
   saveFlockState();
-  persistMyProfile();
   if (window.__saveMemberToFlock) window.__saveMemberToFlock(flockId, me);
 }
 
@@ -4802,72 +4520,6 @@ function showFlockSheet() {
         if (!isActive) switchToFlock(flock.id);
       });
       body.appendChild(item);
-
-      // Show delete button for flock creator
-      var myRole = flock.members && flock.members[DATA.me.id] ? flock.members[DATA.me.id].role : 'member';
-      if (myRole === 'creator' || flock.createdBy === DATA.me.id) {
-        var delRow = document.createElement('div');
-        delRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin:-4px 0 8px 54px';
-        var delBtn = document.createElement('button');
-        delBtn.style.cssText = 'font-size:11px;font-weight:700;padding:4px 12px;border-radius:8px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;transition:all .15s';
-        delBtn.textContent = 'Delete flock';
-        delBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          delBtn.style.display = 'none';
-          confirmBox.style.display = '';
-        });
-        delRow.appendChild(delBtn);
-
-        var confirmBox = document.createElement('div');
-        confirmBox.style.cssText = 'display:none;background:var(--red-bg);border:1.5px solid var(--red);border-radius:12px;padding:12px 14px;flex:1';
-        confirmBox.innerHTML =
-          '<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
-          '<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">This will permanently delete <strong>' + flock.name.replace(/</g,'&lt;') + '</strong> and all its gatherings, ideas, and data for everyone. This can\'t be undone.</div>' +
-          '<div style="display:flex;gap:8px">' +
-            '<button class="flock-del-yes" style="flex:1;padding:9px;border-radius:8px;background:var(--red);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
-            '<button class="flock-del-no" style="flex:1;padding:9px;border-radius:8px;background:var(--surface2);color:var(--text2);font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
-          '</div>';
-        confirmBox.querySelector('.flock-del-no').addEventListener('click', function(ev) {
-          ev.stopPropagation();
-          confirmBox.style.display = 'none';
-          delBtn.style.display = '';
-        });
-        (function(flockRef) {
-          confirmBox.querySelector('.flock-del-yes').addEventListener('click', function(ev) {
-            ev.stopPropagation();
-            // Delete the flock
-            delete FLOCKS[flockRef.id];
-            // If this was the active flock, switch away
-            if (currentFlockId === flockRef.id) {
-              var remaining = Object.keys(FLOCKS);
-              if (remaining.length > 0) {
-                switchToFlock(remaining[0]);
-              } else {
-                currentFlockId = null;
-                DATA.members = [];
-                DATA.gatherings = [];
-                DATA.ideas = [];
-                DATA.activity = [];
-                DATA.fairness = { gathering:'', members:[], poolPerPerson:0, poolTotal:0, yearMiles:[] };
-              }
-            }
-            saveFlockState();
-            // Close sheet and refresh
-            document.getElementById('flock-sheet-overlay').classList.add('hidden');
-            renderHome();
-            renderGatherings();
-            renderIdeas();
-            renderFairness();
-            renderProfile();
-            if (Object.keys(FLOCKS).length === 0) {
-              showFlockOnboarding();
-            }
-            toast('Flock deleted');
-          });
-        })(flock);
-        delRow.appendChild(confirmBox);
-        body.appendChild(delRow);
-      }
     });
   }
 
@@ -4953,7 +4605,7 @@ function openCreateGathering() {
   var memberOpts = DATA.members.map(function(m){
     return '<option value="'+m.id+'">'+m.name+'</option>';
   }).join('');
-  hl.innerHTML = '<div class="field-label-sm">Host</div><select class="input-field" id="cg-host"><option value="'+DATA.me.id+'">' + (DATA.me.name || 'Me') + ' (me)</option><option value="rotating">Rotating — decide later</option>' + memberOpts + '</select>';
+  hl.innerHTML = '<div class="field-label-sm">Host</div><select class="input-field" id="cg-host"><option value="">Select host...</option>' + memberOpts + '</select>';
   body.appendChild(hl);
 
   // Save button
@@ -5010,6 +4662,21 @@ document.getElementById('create-gathering-overlay').addEventListener('click', fu
 // ════════════════════════════════════════════════
 
 var rsvpData = {}; // gId -> { memberId -> {status, blockedDates, availSubmitted, ...} }
+
+// ── Seed realistic availability for the beach planning gathering ──
+// Each member has marked certain dates as blocked
+(function seedAvailability() {
+  rsvpData['beach'] = {
+    'sara':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14'] },
+    'marcus': { status:'yes', availSubmitted:true, blockedDates:[] },
+    'jen':    { status:'yes', availSubmitted:true, blockedDates:['Jul-26','Jul-27','Jul-28','Jul-29','Jul-30','Jul-31','Aug-1','Aug-2'] },
+    'david':  { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15','Jul-16','Jul-17','Jul-18'] },
+    'amy':    { status:'yes', availSubmitted:true, blockedDates:['Jul-25','Jul-26','Jul-27','Jul-28','Jul-29','Jul-30','Jul-31'] },
+    'tom':    { status:'yes', availSubmitted:false, blockedDates:[] },
+    'lily':   { status:'yes', availSubmitted:true, blockedDates:['Jul-12','Jul-13','Jul-14','Jul-15'] },
+    'grace':  { status:'yes', availSubmitted:false, blockedDates:[] },
+  };
+})();
 
 function openRSVP(gatheringId) {
   var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
@@ -5156,11 +4823,6 @@ function openRSVP(gatheringId) {
               selectedStatus === 'virtual' ? 'RSVP saved! Joining virtually &#128187;' :
               'RSVP saved. You will be missed &#128148;';
     toast(msg);
-    var gName = (DATA.gatherings.find(function(x){ return x.id === gatheringId; })||{}).name || 'a gathering';
-    var rsvpText = selectedStatus === 'yes' ? 'RSVP\'d to <strong>' + escapeHtml(gName) + '</strong> — going!' :
-                   selectedStatus === 'virtual' ? 'RSVP\'d to <strong>' + escapeHtml(gName) + '</strong> — joining virtually' :
-                   'RSVP\'d to <strong>' + escapeHtml(gName) + '</strong> — can\'t make it';
-    logActivity(DATA.me.id, rsvpText, selectedStatus === 'yes' ? '🎉' : selectedStatus === 'virtual' ? '💻' : '💔');
   });
   body.appendChild(saveBtn);
 
@@ -5476,7 +5138,6 @@ function openTaskDetail(gatheringId, taskId) {
         overlay.classList.add('hidden');
         renderDetail(g);
         toast('Task claimed! &#128203;');
-        logActivity(DATA.me.id, 'claimed task <strong>' + escapeHtml(task.title) + '</strong>', '📋');
       });
       body.appendChild(claimBtn);
     }
@@ -5491,7 +5152,6 @@ function openTaskDetail(gatheringId, taskId) {
         overlay.classList.add('hidden');
         renderDetail(g);
         toast('Task complete! &#127881;');
-        logActivity(DATA.me.id, 'completed task <strong>' + escapeHtml(task.title) + '</strong>', '✅');
       });
       body.appendChild(doneBtn);
 
@@ -5545,555 +5205,6 @@ function saveTask(gatheringId, tasks) {
 
 
 // ════════════════════════════════════════════════
-//  FEATURE 8: PINBOARD / NOTES
-// ════════════════════════════════════════════════
-
-function renderPinboard(g) {
-  if (!g.notes) g.notes = [];
-  var wrap = document.createElement('div');
-
-  // Pinned notes first, then unpinned
-  function rebuild() {
-    wrap.innerHTML = '';
-
-    // Add form at top
-    var addRow = document.createElement('div');
-    addRow.className = 'pin-add-row';
-    addRow.style.marginBottom = '14px';
-    var addInp = document.createElement('input');
-    addInp.className = 'pin-add-input';
-    addInp.placeholder = 'Add a note for the group\u2026';
-    addInp.maxLength = 200;
-    var addBtn = document.createElement('button');
-    addBtn.className = 'pin-add-btn';
-    addBtn.textContent = 'Post';
-    addBtn.addEventListener('click', function(){
-      var text = addInp.value.trim();
-      if (!text) return;
-      g.notes.unshift({
-        id:'note_'+Date.now().toString(36),
-        text:text,
-        author:DATA.me.id,
-        authorName:DATA.me.name,
-        pinned:false,
-        ts:Date.now()
-      });
-      saveFlockState();
-      logActivity(DATA.me.id, 'added a note to <strong>'+escapeHtml(g.name)+'</strong>', '📌');
-      rebuild();
-    });
-    addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBtn.click(); });
-    addRow.appendChild(addInp);
-    addRow.appendChild(addBtn);
-    wrap.appendChild(addRow);
-
-    if (g.notes.length === 0) {
-      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">📌</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No notes yet</div><div style="font-size:12px;margin-top:4px">Add details everyone needs to know — dietary needs, parking info, what to expect.</div></div>';
-      return;
-    }
-
-    var list = document.createElement('div');
-    list.className = 'pin-list';
-    // Sort: pinned first, then by time
-    var sorted = g.notes.slice().sort(function(a,b){ return (b.pinned?1:0) - (a.pinned?1:0) || b.ts - a.ts; });
-    sorted.forEach(function(note){
-      var card = document.createElement('div');
-      card.className = 'pin-card' + (note.pinned ? ' pinned' : '');
-      var isOwner = note.author === DATA.me.id;
-      card.innerHTML =
-        '<div class="pin-author">' +
-          (note.pinned ? '📌 ' : '') +
-          '<span>' + escapeHtml(note.authorName || 'Someone') + '</span>' +
-          '<span style="color:var(--text3);font-weight:500">&middot; ' + formatTime(note.ts) + '</span>' +
-        '</div>' +
-        '<div class="pin-text">' + escapeHtml(note.text) + '</div>';
-
-      if (isOwner) {
-        var actions = document.createElement('div');
-        actions.className = 'pin-actions';
-        var pinBtn = document.createElement('button');
-        pinBtn.className = 'pin-action-btn';
-        pinBtn.innerHTML = note.pinned ? '📌' : '&#128204;';
-        pinBtn.title = note.pinned ? 'Unpin' : 'Pin to top';
-        pinBtn.addEventListener('click', function(){
-          note.pinned = !note.pinned;
-          saveFlockState();
-          rebuild();
-        });
-        actions.appendChild(pinBtn);
-        var delBtn = document.createElement('button');
-        delBtn.className = 'pin-action-btn';
-        delBtn.innerHTML = '&times;';
-        delBtn.title = 'Delete';
-        delBtn.addEventListener('click', function(){
-          var idx = g.notes.findIndex(function(n){ return n.id === note.id; });
-          if (idx >= 0) g.notes.splice(idx, 1);
-          saveFlockState();
-          rebuild();
-          toast('Note removed');
-        });
-        actions.appendChild(delBtn);
-        card.appendChild(actions);
-      }
-      list.appendChild(card);
-    });
-    wrap.appendChild(list);
-  }
-  rebuild();
-  return wrap;
-}
-
-
-// ════════════════════════════════════════════════
-//  FEATURE 9: QUICK POLLS
-// ════════════════════════════════════════════════
-
-function renderPolls(g) {
-  if (!g.polls) g.polls = [];
-  var wrap = document.createElement('div');
-
-  function rebuild() {
-    wrap.innerHTML = '';
-
-    // Create poll button
-    var createBtn = document.createElement('button');
-    createBtn.className = 'btn-primary';
-    createBtn.style.marginBottom = '14px';
-    createBtn.textContent = '+ Create a poll';
-    createBtn.addEventListener('click', function(){ showPollCreator(wrap, g); });
-    wrap.appendChild(createBtn);
-
-    if (g.polls.length === 0) {
-      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🗳️</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No polls yet</div><div style="font-size:12px;margin-top:4px">Create a quick poll to settle decisions — dinner plans, activities, dates.</div></div>';
-      return;
-    }
-
-    g.polls.forEach(function(poll){
-      var totalVotes = 0;
-      poll.options.forEach(function(o){ totalVotes += (o.voters||[]).length; });
-      var myVote = null;
-      poll.options.forEach(function(o,i){ if((o.voters||[]).indexOf(DATA.me.id)>=0) myVote=i; });
-
-      var card = document.createElement('div');
-      card.className = 'poll-card';
-
-      var q = document.createElement('div');
-      q.className = 'poll-q';
-      q.textContent = poll.question;
-      card.appendChild(q);
-
-      var opts = document.createElement('div');
-      opts.className = 'poll-opts';
-
-      poll.options.forEach(function(opt, oi){
-        var optEl = document.createElement('div');
-        optEl.className = 'poll-opt' + (myVote === oi ? ' voted' : '');
-        var pct = totalVotes > 0 ? Math.round(((opt.voters||[]).length / totalVotes) * 100) : 0;
-        optEl.innerHTML =
-          '<div class="poll-opt-fill" style="width:'+pct+'%"></div>' +
-          '<div class="poll-opt-label">' + escapeHtml(opt.label) + '</div>' +
-          '<div class="poll-opt-count">' + (opt.voters||[]).length + '</div>';
-
-        optEl.addEventListener('click', function(){
-          // Remove previous vote
-          if (myVote !== null) {
-            var prev = poll.options[myVote].voters;
-            var idx = prev.indexOf(DATA.me.id);
-            if (idx >= 0) prev.splice(idx, 1);
-          }
-          // Toggle vote
-          if (myVote === oi) {
-            myVote = null;
-          } else {
-            if (!opt.voters) opt.voters = [];
-            opt.voters.push(DATA.me.id);
-            myVote = oi;
-          }
-          saveFlockState();
-          rebuild();
-        });
-        opts.appendChild(optEl);
-      });
-      card.appendChild(opts);
-
-      var meta = document.createElement('div');
-      meta.className = 'poll-meta';
-      meta.innerHTML = '<span>' + totalVotes + ' vote' + (totalVotes!==1?'s':'') + '</span>' +
-        '<span>by ' + escapeHtml(poll.creatorName||'Someone') + '</span>';
-      card.appendChild(meta);
-
-      // Delete button for creator
-      if (poll.createdBy === DATA.me.id) {
-        var delBtn = document.createElement('button');
-        delBtn.style.cssText = 'margin-top:8px;font-size:11px;font-weight:700;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;font-family:inherit;padding:0';
-        delBtn.textContent = 'Delete poll';
-        delBtn.addEventListener('click', function(){
-          var idx = g.polls.findIndex(function(p){ return p.id === poll.id; });
-          if (idx >= 0) g.polls.splice(idx, 1);
-          saveFlockState();
-          rebuild();
-          toast('Poll removed');
-        });
-        card.appendChild(delBtn);
-      }
-
-      wrap.appendChild(card);
-    });
-  }
-
-  rebuild();
-  return wrap;
-}
-
-function showPollCreator(parentWrap, g) {
-  // Build inline creator
-  var creator = document.createElement('div');
-  creator.className = 'poll-add-row';
-  creator.style.cssText = 'background:var(--surface);border:1.5px solid var(--brand);border-radius:14px;padding:14px;margin-bottom:14px';
-
-  var qLabel = document.createElement('div');
-  qLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
-  qLabel.textContent = 'Question';
-  creator.appendChild(qLabel);
-
-  var qInp = document.createElement('input');
-  qInp.className = 'gc-input';
-  qInp.style.marginBottom = '10px';
-  qInp.placeholder = 'e.g. Friday dinner — cook in or go out?';
-  qInp.maxLength = 100;
-  creator.appendChild(qInp);
-
-  var oLabel = document.createElement('div');
-  oLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
-  oLabel.textContent = 'Options';
-  creator.appendChild(oLabel);
-
-  var optInputs = [];
-  for (var i = 0; i < 4; i++) {
-    var oi = document.createElement('input');
-    oi.className = 'gc-input';
-    oi.style.cssText = 'margin-bottom:6px;font-size:13px';
-    oi.placeholder = i < 2 ? 'Option ' + (i+1) : 'Option ' + (i+1) + ' (optional)';
-    oi.maxLength = 60;
-    creator.appendChild(oi);
-    optInputs.push(oi);
-  }
-
-  var btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:8px;margin-top:8px';
-  var saveBtn = document.createElement('button');
-  saveBtn.className = 'gc-save-btn';
-  saveBtn.style.cssText = 'flex:1;margin-top:0;padding:12px;font-size:14px';
-  saveBtn.textContent = 'Post poll';
-  saveBtn.addEventListener('click', function(){
-    var question = qInp.value.trim();
-    if (!question) { qInp.focus(); toast('Enter a question'); return; }
-    var opts = optInputs.map(function(inp){ return inp.value.trim(); }).filter(Boolean);
-    if (opts.length < 2) { optInputs[0].focus(); toast('Add at least 2 options'); return; }
-    g.polls.unshift({
-      id:'poll_'+Date.now().toString(36),
-      question: question,
-      options: opts.map(function(label){ return {label:label, voters:[]}; }),
-      createdBy: DATA.me.id,
-      creatorName: DATA.me.name,
-      ts: Date.now()
-    });
-    saveFlockState();
-    logActivity(DATA.me.id, 'created poll: <strong>' + escapeHtml(question) + '</strong>', '🗳️');
-    // Re-render polls
-    parentWrap.innerHTML = '';
-    parentWrap.appendChild(renderPolls(g).firstChild ? renderPolls(g) : document.createElement('div'));
-    // Hack: re-trigger the render
-    var detail = document.getElementById('gtab-content');
-    if (detail) { detail.innerHTML = ''; detail.appendChild(renderPolls(g)); }
-    toast('Poll created!');
-  });
-  btnRow.appendChild(saveBtn);
-  var cancelBtn = document.createElement('button');
-  cancelBtn.style.cssText = 'padding:12px 16px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit';
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.addEventListener('click', function(){ creator.remove(); });
-  btnRow.appendChild(cancelBtn);
-  creator.appendChild(btnRow);
-
-  // Insert after the create button
-  parentWrap.insertBefore(creator, parentWrap.children[1] || null);
-  setTimeout(function(){ qInp.focus(); }, 200);
-}
-
-
-// ════════════════════════════════════════════════
-//  FEATURE 10: BRING LIST
-// ════════════════════════════════════════════════
-
-function renderBringList(g) {
-  if (!g.bringList) g.bringList = [];
-  var wrap = document.createElement('div');
-
-  var ITEM_EMOJIS = ['🍕','🥗','🎮','🏖️','🧊','🪑','🎵','🍺','🧸','🎒','🔌','🎂','🧴','🏕️','🛏️'];
-
-  function rebuild() {
-    wrap.innerHTML = '';
-
-    // Add form
-    var addRow = document.createElement('div');
-    addRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px';
-    var addInp = document.createElement('input');
-    addInp.className = 'pin-add-input';
-    addInp.placeholder = 'Add something to bring\u2026';
-    addInp.maxLength = 60;
-    var addBtn = document.createElement('button');
-    addBtn.className = 'pin-add-btn';
-    addBtn.textContent = 'Add';
-    addBtn.addEventListener('click', function(){
-      var text = addInp.value.trim();
-      if (!text) return;
-      g.bringList.push({
-        id:'bring_'+Date.now().toString(36),
-        name:text,
-        emoji: ITEM_EMOJIS[Math.floor(Math.random()*ITEM_EMOJIS.length)],
-        claimedBy:null,
-        claimedName:null,
-        addedBy:DATA.me.id
-      });
-      saveFlockState();
-      addInp.value = '';
-      rebuild();
-    });
-    addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBtn.click(); });
-    addRow.appendChild(addInp);
-    addRow.appendChild(addBtn);
-    wrap.appendChild(addRow);
-
-    if (g.bringList.length === 0) {
-      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🎒</div><div style="font-size:14px;font-weight:700;color:var(--text2)">Nothing on the list yet</div><div style="font-size:12px;margin-top:4px">Add items the group needs — grill, games, high chair, snacks — and claim what you\'ll bring.</div></div>';
-      return;
-    }
-
-    // Stats
-    var claimed = g.bringList.filter(function(b){ return b.claimedBy; }).length;
-    var statsEl = document.createElement('div');
-    statsEl.style.cssText = 'font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px';
-    statsEl.textContent = claimed + ' of ' + g.bringList.length + ' items claimed';
-    wrap.appendChild(statsEl);
-
-    g.bringList.forEach(function(item){
-      var row = document.createElement('div');
-      row.className = 'bring-item' + (item.claimedBy ? ' claimed' : '');
-      var isMyClaim = item.claimedBy === DATA.me.id;
-
-      row.innerHTML =
-        '<div class="bring-icon">' + (item.emoji||'📦') + '</div>' +
-        '<div class="bring-info">' +
-          '<div class="bring-name">' + escapeHtml(item.name) + '</div>' +
-          (item.claimedBy
-            ? '<div class="bring-owner">' + (isMyClaim ? 'You\'re bringing this' : escapeHtml(item.claimedName||'Someone') + ' is bringing this') + '</div>'
-            : '<div class="bring-owner" style="color:var(--text3);font-style:italic">Unclaimed</div>') +
-        '</div>';
-
-      var btn = document.createElement('button');
-      btn.className = 'bring-claim-btn' + (isMyClaim ? ' mine' : '');
-      if (!item.claimedBy) {
-        btn.textContent = 'I\'ll bring it';
-        btn.addEventListener('click', function(){
-          item.claimedBy = DATA.me.id;
-          item.claimedName = DATA.me.name;
-          saveFlockState();
-          logActivity(DATA.me.id, 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
-          rebuild();
-        });
-      } else if (isMyClaim) {
-        btn.textContent = 'Unclaim';
-        btn.style.cssText += ';font-size:10px';
-        btn.addEventListener('click', function(){
-          item.claimedBy = null;
-          item.claimedName = null;
-          saveFlockState();
-          rebuild();
-        });
-      } else {
-        btn.textContent = '✓ Taken';
-        btn.disabled = true;
-        btn.style.opacity = '.5';
-      }
-      row.appendChild(btn);
-
-      // Delete button for item adder
-      if (item.addedBy === DATA.me.id) {
-        var del = document.createElement('button');
-        del.style.cssText = 'width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
-        del.innerHTML = '&times;';
-        del.addEventListener('click', function(){
-          var idx = g.bringList.findIndex(function(b){ return b.id === item.id; });
-          if (idx >= 0) g.bringList.splice(idx, 1);
-          saveFlockState();
-          rebuild();
-        });
-        row.appendChild(del);
-      }
-
-      wrap.appendChild(row);
-    });
-  }
-  rebuild();
-  return wrap;
-}
-
-
-// ════════════════════════════════════════════════
-//  FEATURE 11: BUDGET / EXPENSE TRACKER
-// ════════════════════════════════════════════════
-
-function renderBudget(g) {
-  if (!g.expenses) g.expenses = [];
-  var wrap = document.createElement('div');
-  var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
-
-  function rebuild() {
-    wrap.innerHTML = '';
-
-    // Summary card
-    var total = 0;
-    g.expenses.forEach(function(e){ total += (parseFloat(e.amount)||0); });
-    var perPerson = allFlock.length > 0 ? (total / allFlock.length) : 0;
-
-    var summary = document.createElement('div');
-    summary.className = 'expense-summary';
-    summary.innerHTML =
-      '<div><div class="expense-total-label">Total spent</div>' +
-        '<div class="expense-total-sub">' + g.expenses.length + ' expense' + (g.expenses.length!==1?'s':'') +
-        ' &middot; ' + allFlock.length + ' splitting</div></div>' +
-      '<div class="expense-total-amt">$' + total.toFixed(2) + '</div>';
-    wrap.appendChild(summary);
-
-    // Per-person split
-    if (total > 0) {
-      // Calculate who paid what vs fair share
-      var paidBy = {};
-      allFlock.forEach(function(m){ paidBy[m.id] = 0; });
-      g.expenses.forEach(function(e){
-        if (paidBy[e.paidBy] !== undefined) paidBy[e.paidBy] += (parseFloat(e.amount)||0);
-      });
-
-      var splitWrap = document.createElement('div');
-      splitWrap.className = 'expense-split';
-      allFlock.forEach(function(m){
-        var paid = paidBy[m.id] || 0;
-        var diff = paid - perPerson;
-        var chip = document.createElement('div');
-        chip.className = 'expense-split-chip';
-        if (diff > 0.5) chip.style.background = 'var(--green-bg)';
-        else if (diff < -0.5) chip.style.background = 'var(--red-bg)';
-        chip.innerHTML =
-          '<div class="expense-split-name">' + (m.id === DATA.me.id ? 'You' : m.name) + '</div>' +
-          '<div class="expense-split-amt">$' + paid.toFixed(0) + '</div>' +
-          '<div style="font-size:10px;font-weight:700;color:' + (diff > 0.5 ? 'var(--green)' : diff < -0.5 ? 'var(--red)' : 'var(--text3)') + ';margin-top:2px">' +
-            (diff > 0.5 ? 'Overpaid $' + diff.toFixed(0) : diff < -0.5 ? 'Owes $' + Math.abs(diff).toFixed(0) : 'Even') +
-          '</div>';
-        splitWrap.appendChild(chip);
-      });
-      wrap.appendChild(splitWrap);
-    }
-
-    // Add expense form
-    var addBtn = document.createElement('button');
-    addBtn.className = 'btn-primary';
-    addBtn.style.marginBottom = '14px';
-    addBtn.textContent = '+ Add an expense';
-    addBtn.addEventListener('click', function(){ showExpenseForm(wrap, g, allFlock, rebuild); });
-    wrap.appendChild(addBtn);
-
-    // Expense list
-    if (g.expenses.length > 0) {
-      var listCard = document.createElement('div');
-      listCard.className = 'card';
-      g.expenses.forEach(function(exp){
-        var payer = getMember(exp.paidBy) || DATA.me;
-        var item = document.createElement('div');
-        item.className = 'expense-item';
-        item.innerHTML =
-          makeAv(payer.animal||'bear', 30) +
-          '<div class="expense-desc">' +
-            '<div class="expense-title">' + escapeHtml(exp.description) + '</div>' +
-            '<div class="expense-who">Paid by ' + (exp.paidBy === DATA.me.id ? 'you' : escapeHtml(payer.name||'someone')) + ' &middot; ' + formatTime(exp.ts) + '</div>' +
-          '</div>' +
-          '<div class="expense-amt">$' + parseFloat(exp.amount).toFixed(2) + '</div>';
-
-        // Delete button for the person who added it
-        if (exp.addedBy === DATA.me.id) {
-          var del = document.createElement('button');
-          del.style.cssText = 'width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-left:4px';
-          del.innerHTML = '&times;';
-          del.addEventListener('click', function(){
-            var idx = g.expenses.findIndex(function(e){ return e.id === exp.id; });
-            if (idx >= 0) g.expenses.splice(idx, 1);
-            saveFlockState();
-            rebuild();
-            toast('Expense removed');
-          });
-          item.appendChild(del);
-        }
-        listCard.appendChild(item);
-      });
-      wrap.appendChild(listCard);
-    } else {
-      wrap.innerHTML += '<div style="text-align:center;padding:20px 16px;color:var(--text3)"><div style="font-size:13px;font-weight:600">No expenses recorded yet.</div><div style="font-size:12px;margin-top:4px">Add costs as they come up — Kinverly calculates who owes what.</div></div>';
-    }
-  }
-  rebuild();
-  return wrap;
-}
-
-function showExpenseForm(parentWrap, g, allFlock, onDone) {
-  var form = document.createElement('div');
-  form.style.cssText = 'background:var(--surface);border:1.5px solid var(--brand);border-radius:14px;padding:14px;margin-bottom:14px';
-
-  var memberOpts = '<option value="'+DATA.me.id+'">Me (' + escapeHtml(DATA.me.name) + ')</option>' +
-    (DATA.members||[]).map(function(m){ return '<option value="'+m.id+'">' + escapeHtml(m.name) + '</option>'; }).join('');
-
-  form.innerHTML =
-    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">What was it for?</div>' +
-    '<input class="gc-input" id="exp-desc" placeholder="e.g. Airbnb, groceries, activity tickets\u2026" maxlength="60" style="margin-bottom:10px">' +
-    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Amount</div>' +
-        '<input class="gc-input" id="exp-amount" type="number" placeholder="0.00" min="0" step="0.01" style="font-size:18px;font-weight:300"></div>' +
-      '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Who paid?</div>' +
-        '<select class="gc-input" id="exp-payer">' + memberOpts + '</select></div>' +
-    '</div>' +
-    '<div style="display:flex;gap:8px">' +
-      '<button class="gc-save-btn" id="exp-save" style="flex:1;margin-top:0;padding:12px;font-size:14px">Add expense</button>' +
-      '<button id="exp-cancel" style="padding:12px 16px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
-    '</div>';
-
-  form.querySelector('#exp-cancel').addEventListener('click', function(){ form.remove(); });
-  form.querySelector('#exp-save').addEventListener('click', function(){
-    var desc = form.querySelector('#exp-desc').value.trim();
-    var amount = form.querySelector('#exp-amount').value;
-    var payer = form.querySelector('#exp-payer').value;
-    if (!desc) { form.querySelector('#exp-desc').focus(); toast('What was it for?'); return; }
-    if (!amount || parseFloat(amount) <= 0) { form.querySelector('#exp-amount').focus(); toast('Enter an amount'); return; }
-    g.expenses.push({
-      id:'exp_'+Date.now().toString(36),
-      description:desc,
-      amount:parseFloat(amount),
-      paidBy:payer,
-      addedBy:DATA.me.id,
-      ts:Date.now()
-    });
-    saveFlockState();
-    logActivity(DATA.me.id, 'logged $' + parseFloat(amount).toFixed(0) + ' for <strong>' + escapeHtml(desc) + '</strong>', '💰');
-    form.remove();
-    onDone();
-    toast('Expense added');
-  });
-
-  // Insert after summary
-  parentWrap.insertBefore(form, parentWrap.children[2] || null);
-  setTimeout(function(){ form.querySelector('#exp-desc').focus(); }, 200);
-}
-
-
-// ════════════════════════════════════════════════
 //  FEATURE 6: GATHERING CHAT
 // ════════════════════════════════════════════════
 
@@ -6127,15 +5238,7 @@ function renderGatheringChat(gatheringId) {
       sentAt: Date.now()
     };
     // Optimistic local add
-    // Remove empty state if present
-    var empty = msgList.querySelector('.chat-empty');
-    if (empty) msgList.innerHTML = '';
     appendChatMessage(msgList, msg);
-
-    // Save locally
-    var localMsgs = getChatLocal(gatheringId);
-    localMsgs.push(msg);
-    saveChatLocal(gatheringId, localMsgs);
 
     // Save to Firestore
     if (window.__db && window.__firestoreHelpers) {
@@ -6170,73 +5273,18 @@ function appendChatMessage(container, msg) {
   var isMe = msg.memberId === DATA.me.id;
   var el = document.createElement('div');
   el.className = 'chat-msg' + (isMe ? ' mine' : '');
-  el.dataset.msgId = msg.id;
   el.innerHTML =
     (!isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '') +
     '<div>' +
       '<div class="chat-bubble">' + escapeHtml(msg.text) + '</div>' +
-      '<div class="chat-meta">' + (isMe ? 'You' : msg.memberName) + ' &middot; ' + formatTime(msg.sentAt) +
-        (isMe ? ' &middot; <button class="chat-del-btn" data-msg-id="'+msg.id+'" style="background:none;border:none;color:var(--text3);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:underline;padding:0">delete</button>' : '') +
-      '</div>' +
+      '<div class="chat-meta">' + (isMe ? 'You' : msg.memberName) + ' &middot; ' + formatTime(msg.sentAt) + '</div>' +
     '</div>' +
     (isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '');
-
-  // Wire delete button
-  var delBtn = el.querySelector('.chat-del-btn');
-  if (delBtn) {
-    delBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      // Remove from local storage
-      var gId = container.id.replace('chat-messages-', '');
-      var stored = getChatLocal(gId);
-      stored = stored.filter(function(m){ return m.id !== msg.id; });
-      saveChatLocal(gId, stored);
-      // Remove from DOM
-      el.parentNode && el.parentNode.removeChild(el);
-      // Remove from Firestore
-      if (window.__db && window.__firestoreHelpers) {
-        var h = window.__firestoreHelpers;
-        try {
-          h.setDoc(
-            h.doc(h.collection(window.__db, 'gatherings', gId, 'messages'), msg.id),
-            { _deleted: true, text: '', memberId: msg.memberId }
-          );
-        } catch(e2){}
-      }
-      toast('Message deleted');
-    });
-  }
   container.appendChild(el);
 }
 
-// Local chat persistence
-function getChatLocal(gatheringId) {
-  try {
-    var s = localStorage.getItem('kinverly_chat_' + gatheringId);
-    return s ? JSON.parse(s) : [];
-  } catch(e){ return []; }
-}
-function saveChatLocal(gatheringId, messages) {
-  try {
-    // Keep last 100 messages
-    if (messages.length > 100) messages = messages.slice(-100);
-    localStorage.setItem('kinverly_chat_' + gatheringId, JSON.stringify(messages));
-  } catch(e){}
-}
-
 function loadChatMessages(gatheringId, container) {
-  container.innerHTML = '';
-
-  // Load from local storage first
-  var localMsgs = getChatLocal(gatheringId);
-  if (localMsgs.length > 0) {
-    localMsgs.forEach(function(msg){
-      if (msg._deleted) return;
-      appendChatMessage(container, msg);
-    });
-  } else {
-    container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
-  }
+  container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
 
   if (!window.__db) return;
 
@@ -6249,18 +5297,11 @@ function loadChatMessages(gatheringId, container) {
     chatListeners[gatheringId] = h.onSnapshot(
       h.query(msgsRef, h.orderBy ? h.orderBy('sentAt') : msgsRef),
       function(snap) {
-        if (snap.empty && localMsgs.length === 0) return;
+        if (snap.empty) return;
         container.innerHTML = '';
-        var msgs = [];
         snap.forEach(function(doc) {
-          var d = doc.data();
-          if (!d._deleted) {
-            appendChatMessage(container, d);
-            msgs.push(d);
-          }
+          appendChatMessage(container, doc.data());
         });
-        // Sync to local
-        if (msgs.length > 0) saveChatLocal(gatheringId, msgs);
       }
     );
   } catch(e) {
@@ -6673,7 +5714,7 @@ function renderFlockSchedule() {
 
 // -- BOOT -----------------------------------------
 (function init() {
-  // Load flock state first — this populates FLOCKS and currentFlockId
+  // Load flock state first
   loadFlockState();
 
   // Load rsvp/notif data persisted separately
@@ -6683,31 +5724,25 @@ function renderFlockSchedule() {
   var urlParams = new URLSearchParams(window.location.search);
   var joinCode = urlParams.get('join');
   if (joinCode) {
+    // Store it to use after login
     window._pendingJoinCode = joinCode.toUpperCase();
+    // Clean URL without reload
     history.replaceState({}, '', '/');
   }
 
-  // Load flock members into DATA BEFORE restoring session
-  // so restoreSession can find the user in DATA.members
+  var isLoggedIn = restoreSession();
+
+  // Restore current flock fully on refresh
   var flock = getCurrentFlock();
   if (flock) {
     var nameEl = document.getElementById('topbar-flock-name');
     if (nameEl) nameEl.textContent = flock.name;
     if (flock.members && Object.keys(flock.members).length > 0) {
-      // Load ALL members first (we'll filter out self after restoreSession sets DATA.me.id)
-      DATA.members = Object.values(flock.members).filter(Boolean);
+      DATA.members = Object.values(flock.members).filter(function(m){ return m && m.id !== DATA.me.id; });
     }
     if (flock.gatherings && flock.gatherings.length > 0) DATA.gatherings = flock.gatherings;
     if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
     if (flock.activity   && flock.activity.length   > 0) DATA.activity   = flock.activity;
-  }
-
-  // Now restore the user session — DATA.members is populated so lookup works
-  var isLoggedIn = restoreSession();
-
-  // Now that DATA.me.id is set, filter self out of DATA.members
-  if (DATA.me.id) {
-    DATA.members = DATA.members.filter(function(m){ return m && m.id !== DATA.me.id; });
   }
 
   // Render everything
@@ -6722,28 +5757,15 @@ function renderFlockSchedule() {
   // Decide what to show on startup
   setTimeout(function() {
     if (!isLoggedIn) {
+      // Brand new user ? show login first, then flock onboarding after they set up profile
       showLoginScreen();
     } else if (Object.keys(FLOCKS).length === 0) {
+      // Logged in but no flocks yet ? show flock onboarding
       showFlockOnboarding();
     } else {
       var ls = document.getElementById('login-screen'); if(ls) ls.style.display = 'none';
     }
   }, 400);
-
-  // Auto-save on page unload — never lose data
-  window.addEventListener('beforeunload', function() {
-    if (DATA.me.id) {
-      persistMyProfile();
-      saveFlockState();
-    }
-  });
-
-  // Also auto-save periodically (every 30 seconds)
-  setInterval(function() {
-    if (DATA.me.id && currentFlockId) {
-      saveFlockState();
-    }
-  }, 30000);
 })();
 </script>
 
@@ -6769,7 +5791,17 @@ try {
   var db = getFirestore(app);
   window.__db = db;
 
-  // No seed data — users create everything from scratch
+  // Seed default data if Firestore is empty
+  async function seedIfEmpty() {
+    for (var g of DATA.gatherings) {
+      var snap = await getDoc(doc(db,'gatherings',g.id));
+      if (!snap.exists()) await setDoc(doc(db,'gatherings',g.id), Object.assign({},g,{_seeded:serverTimestamp()}));
+    }
+    for (var idea of DATA.ideas) {
+      var snap2 = await getDoc(doc(db,'ideas',idea.id));
+      if (!snap2.exists()) await setDoc(doc(db,'ideas',idea.id), Object.assign({},idea,{_seeded:serverTimestamp()}));
+    }
+  }
 
   // Live listeners
   onSnapshot(collection(db,'gatherings'), function(snap){
@@ -6795,13 +5827,12 @@ try {
   window.__saveVote = async function(ideaId, voted, votes) {
     try { await updateDoc(doc(db,'ideas',ideaId), {voted:voted,votes:votes}); } catch(e){}
   };
-  window.__saveAvailability = async function(gatheringId, memberId, blocked) {
+  window.__saveAvailability = async function(memberId, blocked) {
     try {
-      if (!gatheringId) return;
       var field = 'availability.'+memberId;
       var update = {};
       update[field] = {blocked:blocked, submittedAt:serverTimestamp()};
-      await updateDoc(doc(db,'gatherings',gatheringId), update);
+      await updateDoc(doc(db,'gatherings','beach'), update);
     } catch(e){}
   };
 
@@ -6846,7 +5877,7 @@ try {
     } catch(e) { console.warn('[Kinverly] Member save offline'); }
   };
 
-  // seedIfEmpty removed — users create from scratch
+  seedIfEmpty();
   console.log('[Kinverly] Firebase connected');
 } catch(e) {
   console.warn('[Kinverly] Firebase offline:', e.message);
@@ -6999,7 +6030,6 @@ try {
     }
 
     toast('Gathering added! Fill in the details anytime. 🎉');
-    logActivity(DATA.me.id, 'created <strong>' + escapeHtml(newG.name) + '</strong>', '🎉');
   });
 })();
 
@@ -7061,7 +6091,6 @@ try {
     document.getElementById('idea-overlay').classList.add('hidden');
     renderIdeas();
     toast('Idea added! 💡 You automatically voted for it.');
-    logActivity(DATA.me.id, 'added idea <strong>' + escapeHtml(title) + '</strong> to the idea bank', '💡');
   });
 })();
 
@@ -7127,48 +6156,8 @@ try {
       '<label class="gc-field-label">Theme or vibe</label>' +
       '<input class="gc-input" id="ge-theme" type="text" maxlength="40" placeholder="e.g. BBQ + games, beach week\u2026" value="'+(g.theme||'').replace(/"/g,'&quot;')+'"><br>' +
 
-      // ── Host ──
-      '<label class="gc-field-label">Host</label>' +
-      '<select class="gc-input" id="ge-host">' +
-        '<option value="'+DATA.me.id+'"'+(g.host===DATA.me.id?' selected':'')+'>'+(DATA.me.name||'Me')+' (me)</option>' +
-        '<option value="rotating"'+(g.host==='rotating'?' selected':'')+'>Rotating \u2014 decide later</option>' +
-        (DATA.members||[]).map(function(m){
-          return '<option value="'+m.id+'"'+(g.host===m.id?' selected':'')+'>'+m.name+'</option>';
-        }).join('') +
-      '</select>' +
-
-      // ── Status ──
-      '<label class="gc-field-label">Status</label>' +
-      '<div id="ge-status-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-        [
-          {id:'upcoming',label:'Upcoming',   icon:'📅',desc:'On the calendar'},
-          {id:'next',    label:'Next up',    icon:'⭐',desc:'Featured gathering'},
-          {id:'planning',label:'Planning',   icon:'🗓️',desc:'Collecting dates'},
-          {id:'completed',label:'Completed', icon:'✅',desc:'Already happened'},
-        ].map(function(s){
-          return '<button class="gc-type-btn ge-status-btn'+(g.status===s.id?' selected':'')+'" data-status="'+s.id+'" style="padding:10px 8px;text-align:center">' +
-            '<span style="font-size:18px;display:block;margin-bottom:3px">'+s.icon+'</span>' +
-            '<span class="gc-type-lbl" style="font-size:11px">'+s.label+'</span>' +
-            '<span style="font-size:9px;color:var(--text3);display:block;margin-top:2px">'+s.desc+'</span>' +
-          '</button>';
-        }).join('') +
-      '</div>' +
-
       // ── Save ──
-      '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>' +
-
-      // ── Delete ──
-      '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">' +
-        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Delete this gathering</button>' +
-      '</div>' +
-      '<div id="ge-delete-confirm" style="display:none;margin-top:10px;background:var(--red-bg);border:1.5px solid var(--red);border-radius:14px;padding:16px">' +
-        '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
-        '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px">This will permanently remove <strong>' + g.name.replace(/</g,'&lt;') + '</strong> and all its tasks, RSVPs, and photos. This can\'t be undone.</div>' +
-        '<div style="display:flex;gap:8px">' +
-          '<button id="ge-delete-yes" style="flex:1;padding:11px;border-radius:10px;background:var(--red);color:#fff;font-size:13px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
-          '<button id="ge-delete-no" style="flex:1;padding:11px;border-radius:10px;background:var(--surface2);color:var(--text2);font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
-        '</div>' +
-      '</div>';
+      '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>';
 
     // Wire type buttons
     var selType = curType;
@@ -7190,38 +6179,6 @@ try {
       });
     });
 
-    // Wire status buttons
-    var selStatus = g.status || 'upcoming';
-    document.querySelectorAll('#ge-status-row .ge-status-btn').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        selStatus = btn.dataset.status;
-        document.querySelectorAll('#ge-status-row .ge-status-btn').forEach(function(b){
-          b.classList.toggle('selected', b.dataset.status === selStatus);
-        });
-      });
-    });
-
-    // Wire delete gathering
-    document.getElementById('ge-delete-btn').addEventListener('click', function(){
-      document.getElementById('ge-delete-confirm').style.display = 'block';
-      this.style.display = 'none';
-    });
-    document.getElementById('ge-delete-no').addEventListener('click', function(){
-      document.getElementById('ge-delete-confirm').style.display = 'none';
-      document.getElementById('ge-delete-btn').style.display = '';
-    });
-    document.getElementById('ge-delete-yes').addEventListener('click', function(){
-      var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
-      if (idx >= 0) DATA.gatherings.splice(idx, 1);
-      if (rsvpData[g.id]) delete rsvpData[g.id];
-      saveFlockState();
-      document.getElementById('gather-edit-overlay').classList.add('hidden');
-      showPage('gatherings');
-      renderGatherings();
-      renderHome();
-      toast('Gathering deleted');
-    });
-
     // Wire save
     document.getElementById('ge-save-btn').addEventListener('click', function(){
       var name    = document.getElementById('ge-name').value.trim();
@@ -7229,7 +6186,6 @@ try {
       var monthI  = parseInt(document.getElementById('ge-month').value);
       var dayV    = parseInt(document.getElementById('ge-day').value) || 0;
       var theme   = document.getElementById('ge-theme').value.trim();
-      var host    = document.getElementById('ge-host').value;
 
       if (!name) { document.getElementById('ge-name').focus(); toast('Please enter a gathering name'); return; }
 
@@ -7241,23 +6197,6 @@ try {
       g.theme    = theme || g.theme;
       g.hybrid   = selType === 'hybrid';
       g.virtual  = selType === 'virtual';
-      g.host     = host || g.host;
-      g.status   = selStatus;
-
-      // Update theme pill based on status
-      if (selStatus === 'completed') g.themePill = 'pill-gray';
-      else if (selStatus === 'planning') g.themePill = 'pill-blue';
-      else g.themePill = g.themePill || 'pill-amber';
-
-      // If setting as 'next', demote any other 'next' gathering
-      if (selStatus === 'next') {
-        DATA.gatherings.forEach(function(other){
-          if (other.id !== g.id && other.status === 'next') other.status = 'upcoming';
-        });
-      }
-
-      // Log activity
-      logActivity(DATA.me.id, 'updated <strong>' + escapeHtml(name) + '</strong>');
 
       saveFlockState();
 
