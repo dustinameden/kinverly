@@ -2000,7 +2000,42 @@ function buildFlockActivity() {
 
   // Shuffle for variety, cap at 10
   events.sort(function(){ return Math.random()-0.5; });
-  return events.slice(0, 10);
+
+  // Prepend manually-logged activity (most recent first)
+  var manual = (DATA.activity||[]).slice(0, 8).map(function(a){
+    return { member: a.member, text: a.text, time: a.time, sort: 0, icon: a.icon };
+  });
+  // Put manual events first, then derived events
+  var combined = manual.concat(events);
+  return combined.slice(0, 12);
+}
+
+// ── Activity logging ──
+function logActivity(memberId, text, icon) {
+  if (!DATA.activity) DATA.activity = [];
+  var now = new Date();
+  var timeStr = 'Just now';
+  DATA.activity.unshift({
+    member: memberId,
+    text: text,
+    time: timeStr,
+    icon: icon || '✨',
+    ts: now.getTime()
+  });
+  // Age existing entries
+  DATA.activity.forEach(function(a, i){
+    if (i === 0) return;
+    if (!a.ts) return;
+    var diff = now.getTime() - a.ts;
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1)       a.time = 'Just now';
+    else if (mins < 60) a.time = mins + 'm ago';
+    else if (mins < 1440) a.time = Math.floor(mins/60) + 'h ago';
+    else a.time = Math.floor(mins/1440) + 'd ago';
+  });
+  // Cap at 20
+  if (DATA.activity.length > 20) DATA.activity.length = 20;
+  saveFlockState();
 }
 
 function updateAlertCard() {
@@ -2624,6 +2659,7 @@ function renderTasksTabContent(g, wrap) {
       addTitle.value=''; addNote.value=''; addOwner.value='';
       renderTasksTabContent(g, wrap);
       toast('Task added \u2713');
+      logActivity(DATA.me.id, 'added task <strong>' + escapeHtml(title) + '</strong> to ' + escapeHtml(g.name), '📝');
     }
     if (addBtn) addBtn.addEventListener('click', doAdd);
     if (addTitle) addTitle.addEventListener('keydown', function(e){ if(e.key==='Enter') doAdd(); });
@@ -3120,10 +3156,15 @@ function renderIdeas() {
   DATA.ideas.forEach(function(idea){
     var card = document.createElement('div');
     card.className = 'idea-card';
+    card.style.position = 'relative';
+    var isOwner = !idea.addedBy || idea.addedBy === DATA.me.id;
     card.innerHTML =
       '<div class="idea-icon">'+idea.icon+'</div>'+
       '<div class="idea-body">'+
-        '<div class="idea-title">'+idea.title+'</div>'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">'+
+          '<div class="idea-title">'+idea.title+'</div>'+
+          (isOwner ? '<button class="idea-menu-btn" data-idea-id="'+idea.id+'" style="width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;flex-shrink:0;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s" title="More options">&middot;&middot;&middot;</button>' : '')+
+        '</div>'+
         '<div class="idea-sub">'+idea.sub+'</div>'+
         '<div class="vote-row">'+
           '<div class="vote-bar-bg"><div class="vote-bar-fill" style="width:'+idea.pct+'%" id="vbar-'+idea.id+'"></div></div>'+
@@ -3132,7 +3173,108 @@ function renderIdeas() {
             (idea.voted?'Voted':'Vote')+
           '</button>'+
         '</div>'+
+        // Action panel (hidden by default)
+        '<div class="idea-actions" id="idea-actions-'+idea.id+'" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+            '<button class="idea-act-edit" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Edit</button>'+
+            '<button class="idea-act-convert" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Make it a gathering</button>'+
+            '<button class="idea-act-delete" style="padding:8px 10px;border-radius:8px;border:1.5px solid var(--red);background:transparent;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Delete</button>'+
+          '</div>'+
+          '<div class="idea-del-confirm" style="display:none;margin-top:8px;background:var(--red-bg);border-radius:10px;padding:10px 12px">'+
+            '<div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">Delete this idea?</div>'+
+            '<div style="display:flex;gap:6px">'+
+              '<button class="idea-del-yes" style="flex:1;padding:7px;border-radius:8px;background:var(--red);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete</button>'+
+              '<button class="idea-del-no" style="flex:1;padding:7px;border-radius:8px;background:var(--surface);color:var(--text2);font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>'+
+            '</div>'+
+          '</div>'+
+          '<div class="idea-edit-form" style="display:none;margin-top:8px">'+
+            '<input class="gc-input idea-edit-title" style="font-size:14px;margin-bottom:6px" value="'+idea.title.replace(/"/g,'&quot;')+'" maxlength="60">'+
+            '<input class="gc-input idea-edit-desc" style="font-size:13px;margin-bottom:8px" value="'+(idea.sub||'').replace(/"/g,'&quot;')+'" maxlength="80" placeholder="Description...">'+
+            '<div style="display:flex;gap:6px">'+
+              '<button class="idea-edit-save" style="flex:1;padding:8px;border-radius:8px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Save</button>'+
+              '<button class="idea-edit-cancel" style="padding:8px 12px;border-radius:8px;background:var(--surface2);color:var(--text2);font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
       '</div>';
+
+    // Wire menu toggle
+    var menuBtn = card.querySelector('.idea-menu-btn');
+    if (menuBtn) {
+      menuBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var panel = card.querySelector('#idea-actions-'+idea.id);
+        panel.style.display = panel.style.display === 'none' ? '' : 'none';
+      });
+    }
+
+    // Wire edit
+    var editBtn = card.querySelector('.idea-act-edit');
+    if (editBtn) {
+      editBtn.addEventListener('click', function(){
+        card.querySelector('.idea-edit-form').style.display = '';
+        editBtn.parentElement.style.display = 'none';
+      });
+    }
+    var editSave = card.querySelector('.idea-edit-save');
+    if (editSave) {
+      editSave.addEventListener('click', function(){
+        var newTitle = card.querySelector('.idea-edit-title').value.trim();
+        var newDesc = card.querySelector('.idea-edit-desc').value.trim();
+        if (!newTitle) return;
+        idea.title = newTitle;
+        idea.sub = newDesc || idea.sub;
+        saveFlockState();
+        renderIdeas();
+        toast('Idea updated \u2713');
+      });
+    }
+    var editCancel = card.querySelector('.idea-edit-cancel');
+    if (editCancel) {
+      editCancel.addEventListener('click', function(){
+        card.querySelector('.idea-edit-form').style.display = 'none';
+        editBtn.parentElement.style.display = '';
+      });
+    }
+
+    // Wire delete
+    var delBtn = card.querySelector('.idea-act-delete');
+    if (delBtn) {
+      delBtn.addEventListener('click', function(){
+        card.querySelector('.idea-del-confirm').style.display = '';
+      });
+    }
+    var delYes = card.querySelector('.idea-del-yes');
+    if (delYes) {
+      delYes.addEventListener('click', function(){
+        var idx = DATA.ideas.findIndex(function(i){ return i.id === idea.id; });
+        if (idx >= 0) DATA.ideas.splice(idx, 1);
+        saveFlockState();
+        renderIdeas();
+        toast('Idea removed');
+      });
+    }
+    var delNo = card.querySelector('.idea-del-no');
+    if (delNo) {
+      delNo.addEventListener('click', function(){
+        card.querySelector('.idea-del-confirm').style.display = 'none';
+      });
+    }
+
+    // Wire convert to gathering
+    var convertBtn = card.querySelector('.idea-act-convert');
+    if (convertBtn) {
+      convertBtn.addEventListener('click', function(){
+        // Open the gather creator overlay and pre-fill with idea details
+        var nameInp = document.getElementById('gc-name');
+        var themeInp = document.getElementById('gc-theme');
+        if (nameInp) nameInp.value = idea.title;
+        if (themeInp) themeInp.value = idea.sub || '';
+        document.getElementById('gather-overlay').classList.remove('hidden');
+        if (nameInp) setTimeout(function(){ nameInp.focus(); }, 300);
+        toast('Pre-filled from your idea — finish the details!');
+      });
+    }
 
     // Wire vote button with debounce
     var vbtn = card.querySelector('.vote-btn');
@@ -3148,9 +3290,10 @@ function renderIdeas() {
       var vcnt = document.getElementById('vcnt-'+idea.id);
       if (vbar) vbar.style.width = idea.pct+'%';
       if (vcnt) vcnt.textContent = idea.votes+' vote'+(idea.votes!==1?'s':'');
-      vbtn.textContent = idea.voted ? '? Voted' : 'Vote';
+      vbtn.textContent = idea.voted ? '✓ Voted' : 'Vote';
       vbtn.classList.toggle('voted', idea.voted);
       saveFlockState();
+      if (idea.voted) logActivity(DATA.me.id, 'voted for <strong>' + escapeHtml(idea.title) + '</strong>', '👍');
       setTimeout(function(){ voting = false; vbtn.style.opacity = ''; }, 800);
     });
 
@@ -4645,7 +4788,7 @@ function openCreateGathering() {
   var memberOpts = DATA.members.map(function(m){
     return '<option value="'+m.id+'">'+m.name+'</option>';
   }).join('');
-  hl.innerHTML = '<div class="field-label-sm">Host</div><select class="input-field" id="cg-host"><option value="">Select host...</option>' + memberOpts + '</select>';
+  hl.innerHTML = '<div class="field-label-sm">Host</div><select class="input-field" id="cg-host"><option value="'+DATA.me.id+'">' + (DATA.me.name || 'Me') + ' (me)</option><option value="rotating">Rotating — decide later</option>' + memberOpts + '</select>';
   body.appendChild(hl);
 
   // Save button
@@ -4848,6 +4991,11 @@ function openRSVP(gatheringId) {
               selectedStatus === 'virtual' ? 'RSVP saved! Joining virtually &#128187;' :
               'RSVP saved. You will be missed &#128148;';
     toast(msg);
+    var gName = (DATA.gatherings.find(function(x){ return x.id === gatheringId; })||{}).name || 'a gathering';
+    var rsvpText = selectedStatus === 'yes' ? 'RSVP\'d to <strong>' + escapeHtml(gName) + '</strong> — going!' :
+                   selectedStatus === 'virtual' ? 'RSVP\'d to <strong>' + escapeHtml(gName) + '</strong> — joining virtually' :
+                   'RSVP\'d to <strong>' + escapeHtml(gName) + '</strong> — can\'t make it';
+    logActivity(DATA.me.id, rsvpText, selectedStatus === 'yes' ? '🎉' : selectedStatus === 'virtual' ? '💻' : '💔');
   });
   body.appendChild(saveBtn);
 
@@ -5163,6 +5311,7 @@ function openTaskDetail(gatheringId, taskId) {
         overlay.classList.add('hidden');
         renderDetail(g);
         toast('Task claimed! &#128203;');
+        logActivity(DATA.me.id, 'claimed task <strong>' + escapeHtml(task.title) + '</strong>', '📋');
       });
       body.appendChild(claimBtn);
     }
@@ -5177,6 +5326,7 @@ function openTaskDetail(gatheringId, taskId) {
         overlay.classList.add('hidden');
         renderDetail(g);
         toast('Task complete! &#127881;');
+        logActivity(DATA.me.id, 'completed task <strong>' + escapeHtml(task.title) + '</strong>', '✅');
       });
       body.appendChild(doneBtn);
 
@@ -5263,7 +5413,15 @@ function renderGatheringChat(gatheringId) {
       sentAt: Date.now()
     };
     // Optimistic local add
+    // Remove empty state if present
+    var empty = msgList.querySelector('.chat-empty');
+    if (empty) msgList.innerHTML = '';
     appendChatMessage(msgList, msg);
+
+    // Save locally
+    var localMsgs = getChatLocal(gatheringId);
+    localMsgs.push(msg);
+    saveChatLocal(gatheringId, localMsgs);
 
     // Save to Firestore
     if (window.__db && window.__firestoreHelpers) {
@@ -5298,18 +5456,73 @@ function appendChatMessage(container, msg) {
   var isMe = msg.memberId === DATA.me.id;
   var el = document.createElement('div');
   el.className = 'chat-msg' + (isMe ? ' mine' : '');
+  el.dataset.msgId = msg.id;
   el.innerHTML =
     (!isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '') +
     '<div>' +
       '<div class="chat-bubble">' + escapeHtml(msg.text) + '</div>' +
-      '<div class="chat-meta">' + (isMe ? 'You' : msg.memberName) + ' &middot; ' + formatTime(msg.sentAt) + '</div>' +
+      '<div class="chat-meta">' + (isMe ? 'You' : msg.memberName) + ' &middot; ' + formatTime(msg.sentAt) +
+        (isMe ? ' &middot; <button class="chat-del-btn" data-msg-id="'+msg.id+'" style="background:none;border:none;color:var(--text3);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:underline;padding:0">delete</button>' : '') +
+      '</div>' +
     '</div>' +
     (isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '');
+
+  // Wire delete button
+  var delBtn = el.querySelector('.chat-del-btn');
+  if (delBtn) {
+    delBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // Remove from local storage
+      var gId = container.id.replace('chat-messages-', '');
+      var stored = getChatLocal(gId);
+      stored = stored.filter(function(m){ return m.id !== msg.id; });
+      saveChatLocal(gId, stored);
+      // Remove from DOM
+      el.parentNode && el.parentNode.removeChild(el);
+      // Remove from Firestore
+      if (window.__db && window.__firestoreHelpers) {
+        var h = window.__firestoreHelpers;
+        try {
+          h.setDoc(
+            h.doc(h.collection(window.__db, 'gatherings', gId, 'messages'), msg.id),
+            { _deleted: true, text: '', memberId: msg.memberId }
+          );
+        } catch(e2){}
+      }
+      toast('Message deleted');
+    });
+  }
   container.appendChild(el);
 }
 
+// Local chat persistence
+function getChatLocal(gatheringId) {
+  try {
+    var s = localStorage.getItem('kinverly_chat_' + gatheringId);
+    return s ? JSON.parse(s) : [];
+  } catch(e){ return []; }
+}
+function saveChatLocal(gatheringId, messages) {
+  try {
+    // Keep last 100 messages
+    if (messages.length > 100) messages = messages.slice(-100);
+    localStorage.setItem('kinverly_chat_' + gatheringId, JSON.stringify(messages));
+  } catch(e){}
+}
+
 function loadChatMessages(gatheringId, container) {
-  container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
+  container.innerHTML = '';
+
+  // Load from local storage first
+  var localMsgs = getChatLocal(gatheringId);
+  if (localMsgs.length > 0) {
+    localMsgs.forEach(function(msg){
+      if (msg._deleted) return;
+      appendChatMessage(container, msg);
+    });
+  } else {
+    container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
+  }
 
   if (!window.__db) return;
 
@@ -5322,11 +5535,18 @@ function loadChatMessages(gatheringId, container) {
     chatListeners[gatheringId] = h.onSnapshot(
       h.query(msgsRef, h.orderBy ? h.orderBy('sentAt') : msgsRef),
       function(snap) {
-        if (snap.empty) return;
+        if (snap.empty && localMsgs.length === 0) return;
         container.innerHTML = '';
+        var msgs = [];
         snap.forEach(function(doc) {
-          appendChatMessage(container, doc.data());
+          var d = doc.data();
+          if (!d._deleted) {
+            appendChatMessage(container, d);
+            msgs.push(d);
+          }
         });
+        // Sync to local
+        if (msgs.length > 0) saveChatLocal(gatheringId, msgs);
       }
     );
   } catch(e) {
@@ -6046,6 +6266,7 @@ try {
     }
 
     toast('Gathering added! Fill in the details anytime. 🎉');
+    logActivity(DATA.me.id, 'created <strong>' + escapeHtml(newG.name) + '</strong>', '🎉');
   });
 })();
 
@@ -6107,6 +6328,7 @@ try {
     document.getElementById('idea-overlay').classList.add('hidden');
     renderIdeas();
     toast('Idea added! 💡 You automatically voted for it.');
+    logActivity(DATA.me.id, 'added idea <strong>' + escapeHtml(title) + '</strong> to the idea bank', '💡');
   });
 })();
 
@@ -6172,6 +6394,33 @@ try {
       '<label class="gc-field-label">Theme or vibe</label>' +
       '<input class="gc-input" id="ge-theme" type="text" maxlength="40" placeholder="e.g. BBQ + games, beach week\u2026" value="'+(g.theme||'').replace(/"/g,'&quot;')+'"><br>' +
 
+      // ── Host ──
+      '<label class="gc-field-label">Host</label>' +
+      '<select class="gc-input" id="ge-host">' +
+        '<option value="'+DATA.me.id+'"'+(g.host===DATA.me.id?' selected':'')+'>'+(DATA.me.name||'Me')+' (me)</option>' +
+        '<option value="rotating"'+(g.host==='rotating'?' selected':'')+'>Rotating \u2014 decide later</option>' +
+        (DATA.members||[]).map(function(m){
+          return '<option value="'+m.id+'"'+(g.host===m.id?' selected':'')+'>'+m.name+'</option>';
+        }).join('') +
+      '</select>' +
+
+      // ── Status ──
+      '<label class="gc-field-label">Status</label>' +
+      '<div id="ge-status-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+        [
+          {id:'upcoming',label:'Upcoming',   icon:'📅',desc:'On the calendar'},
+          {id:'next',    label:'Next up',    icon:'⭐',desc:'Featured gathering'},
+          {id:'planning',label:'Planning',   icon:'🗓️',desc:'Collecting dates'},
+          {id:'completed',label:'Completed', icon:'✅',desc:'Already happened'},
+        ].map(function(s){
+          return '<button class="gc-type-btn ge-status-btn'+(g.status===s.id?' selected':'')+'" data-status="'+s.id+'" style="padding:10px 8px;text-align:center">' +
+            '<span style="font-size:18px;display:block;margin-bottom:3px">'+s.icon+'</span>' +
+            '<span class="gc-type-lbl" style="font-size:11px">'+s.label+'</span>' +
+            '<span style="font-size:9px;color:var(--text3);display:block;margin-top:2px">'+s.desc+'</span>' +
+          '</button>';
+        }).join('') +
+      '</div>' +
+
       // ── Save ──
       '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>' +
 
@@ -6208,6 +6457,17 @@ try {
       });
     });
 
+    // Wire status buttons
+    var selStatus = g.status || 'upcoming';
+    document.querySelectorAll('#ge-status-row .ge-status-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        selStatus = btn.dataset.status;
+        document.querySelectorAll('#ge-status-row .ge-status-btn').forEach(function(b){
+          b.classList.toggle('selected', b.dataset.status === selStatus);
+        });
+      });
+    });
+
     // Wire delete gathering
     document.getElementById('ge-delete-btn').addEventListener('click', function(){
       document.getElementById('ge-delete-confirm').style.display = 'block';
@@ -6218,15 +6478,11 @@ try {
       document.getElementById('ge-delete-btn').style.display = '';
     });
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
-      // Remove gathering from DATA
       var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
       if (idx >= 0) DATA.gatherings.splice(idx, 1);
-      // Clean up rsvpData
       if (rsvpData[g.id]) delete rsvpData[g.id];
       saveFlockState();
-      // Close sheet
       document.getElementById('gather-edit-overlay').classList.add('hidden');
-      // Navigate back to gatherings list
       showPage('gatherings');
       renderGatherings();
       renderHome();
@@ -6240,6 +6496,7 @@ try {
       var monthI  = parseInt(document.getElementById('ge-month').value);
       var dayV    = parseInt(document.getElementById('ge-day').value) || 0;
       var theme   = document.getElementById('ge-theme').value.trim();
+      var host    = document.getElementById('ge-host').value;
 
       if (!name) { document.getElementById('ge-name').focus(); toast('Please enter a gathering name'); return; }
 
@@ -6251,6 +6508,23 @@ try {
       g.theme    = theme || g.theme;
       g.hybrid   = selType === 'hybrid';
       g.virtual  = selType === 'virtual';
+      g.host     = host || g.host;
+      g.status   = selStatus;
+
+      // Update theme pill based on status
+      if (selStatus === 'completed') g.themePill = 'pill-gray';
+      else if (selStatus === 'planning') g.themePill = 'pill-blue';
+      else g.themePill = g.themePill || 'pill-amber';
+
+      // If setting as 'next', demote any other 'next' gathering
+      if (selStatus === 'next') {
+        DATA.gatherings.forEach(function(other){
+          if (other.id !== g.id && other.status === 'next') other.status = 'upcoming';
+        });
+      }
+
+      // Log activity
+      logActivity(DATA.me.id, 'updated <strong>' + escapeHtml(name) + '</strong>');
 
       saveFlockState();
 
