@@ -1019,8 +1019,9 @@ img,svg{display:block}
 .chat-empty-icon{font-size:36px;margin-bottom:10px}
 .chat-empty-text{font-size:13px;font-weight:700;color:var(--text2)}
 .chat-empty-sub{font-size:12px;margin-top:4px}
-.gathering-tabs{display:flex;border-bottom:1.5px solid var(--border);margin-bottom:14px;gap:0}
-.gtab{flex:1;padding:10px 4px;font-size:12px;font-weight:700;color:var(--text2);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s}
+.gathering-tabs{display:flex;border-bottom:1.5px solid var(--border);margin-bottom:14px;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.gathering-tabs::-webkit-scrollbar{display:none}
+.gtab{flex-shrink:0;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text2);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s;white-space:nowrap}
 .gtab.active{color:var(--brand);border-bottom-color:var(--brand)}
 
 /* ── PHOTO ALBUM ─────────────────────────────── */
@@ -1530,6 +1531,62 @@ img,svg{display:block}
 .sched-resp-pill.done{background:var(--green-bg);color:var(--green)}
 .sched-resp-pill.partial{background:var(--amber-bg);color:var(--amber)}
 .sched-blocked-pill{font-size:10px;font-weight:700;color:var(--text3);padding:1px 4px}
+/* ── PINBOARD / NOTES ──────────────────────────── */
+.pin-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.pin-card{background:var(--amber-bg);border:1px solid rgba(200,120,32,.2);border-radius:12px;padding:12px 14px;position:relative}
+.pin-card.pinned{border-left:3px solid var(--gold)}
+.pin-author{font-size:10px;font-weight:700;color:var(--amber);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.pin-text{font-size:13px;color:var(--text1);line-height:1.55;font-weight:600}
+.pin-actions{position:absolute;top:8px;right:8px;display:flex;gap:2px}
+.pin-action-btn{width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.pin-action-btn:hover{background:rgba(0,0,0,.06);color:var(--text1)}
+.pin-add-row{display:flex;gap:8px}
+.pin-add-input{flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:13px;font-weight:600;font-family:inherit;outline:none;transition:border-color .15s}
+.pin-add-input:focus{border-color:var(--brand2)}
+.pin-add-input::placeholder{color:var(--text3);font-weight:400}
+.pin-add-btn{padding:10px 16px;border-radius:10px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;flex-shrink:0;font-family:inherit}
+
+/* ── POLLS ────────────────────────────────────── */
+.poll-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.poll-q{font-size:14px;font-weight:800;color:var(--text1);margin-bottom:10px;line-height:1.35}
+.poll-opts{display:flex;flex-direction:column;gap:6px}
+.poll-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.poll-opt:hover{border-color:var(--brand2)}
+.poll-opt.voted{border-color:var(--brand);background:#ede8ff}
+.poll-opt-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(61,43,110,.06);border-radius:10px;transition:width .4s}
+.poll-opt.voted .poll-opt-fill{background:rgba(61,43,110,.1)}
+.poll-opt-label{flex:1;font-size:13px;font-weight:700;color:var(--text1);position:relative;z-index:1}
+.poll-opt-count{font-size:12px;font-weight:800;color:var(--text2);position:relative;z-index:1;min-width:20px;text-align:right}
+.poll-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px;color:var(--text3);font-weight:600}
+.poll-add-row{margin-bottom:10px}
+
+/* ── BRING LIST ───────────────────────────────── */
+.bring-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;transition:border-color .15s}
+.bring-item.claimed{border-color:var(--green);background:var(--green-bg)}
+.bring-icon{font-size:18px;flex-shrink:0;width:28px;text-align:center}
+.bring-info{flex:1;min-width:0}
+.bring-name{font-size:13px;font-weight:700;color:var(--text1)}
+.bring-owner{font-size:11px;color:var(--text2);margin-top:1px}
+.bring-claim-btn{padding:6px 14px;border-radius:8px;border:1.5px solid var(--brand);background:transparent;color:var(--brand);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;flex-shrink:0;transition:all .15s}
+.bring-claim-btn:hover{background:#ede8ff}
+.bring-claim-btn.mine{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+
+/* ── BUDGET / EXPENSES ────────────────────────── */
+.expense-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.expense-item:last-child{border-bottom:none}
+.expense-desc{flex:1;min-width:0}
+.expense-title{font-size:13px;font-weight:700;color:var(--text1)}
+.expense-who{font-size:11px;color:var(--text2);margin-top:1px}
+.expense-amt{font-size:15px;font-weight:800;color:var(--text1);flex-shrink:0}
+.expense-summary{background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.expense-total-label{font-size:13px;font-weight:800;color:var(--text1)}
+.expense-total-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.expense-total-amt{font-size:24px;font-weight:300;color:var(--brand)}
+.expense-split{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.expense-split-chip{background:#ede8ff;border-radius:10px;padding:8px 12px;text-align:center;flex:1;min-width:80px}
+.expense-split-name{font-size:11px;font-weight:700;color:var(--brand)}
+.expense-split-amt{font-size:16px;font-weight:300;color:var(--text1);margin-top:2px}
+
 </style>
 </head>
 <body>
@@ -2243,6 +2300,10 @@ function renderDetail(g) {
   var tabDefs = [
     {id:'overview', label:'Overview'},
     {id:'tasks',    label:'Tasks'},
+    {id:'notes',    label:'Notes'},
+    {id:'polls',    label:'Polls'},
+    {id:'bring',    label:'Bring'},
+    {id:'budget',   label:'Budget'},
     {id:'chat',     label:'Chat'},
     {id:'photos',   label:'Photos'},
     {id:'recap',    label:'Recap'},
@@ -2264,6 +2325,14 @@ function renderDetail(g) {
     } else if (tabId === 'tasks') {
       contentArea.innerHTML = buildTasksTab(g);
       wireTaskButtons(g);
+    } else if (tabId === 'notes') {
+      contentArea.appendChild(renderPinboard(g));
+    } else if (tabId === 'polls') {
+      contentArea.appendChild(renderPolls(g));
+    } else if (tabId === 'bring') {
+      contentArea.appendChild(renderBringList(g));
+    } else if (tabId === 'budget') {
+      contentArea.appendChild(renderBudget(g));
     } else if (tabId === 'chat') {
       contentArea.appendChild(renderGatheringChat(g.id));
     } else if (tabId === 'photos') {
@@ -3065,34 +3134,78 @@ function buildStandardDetail(g) {
         '<div class="rsvp-cta-sub">Let the flock know so everyone can plan.</div>' +
       '</div>';
 
-  return '<div class="detail-hero">' +
-    '<div class="detail-eyebrow">' + (g.type==='planned' ? 'Planned gathering' : '\u2728 Bonus gathering') + '</div>' +
-    '<div class="detail-title">' + g.name + '</div>' +
-    '<div class="detail-sub">' + g.month + ' ' + g.day + ' \u00b7 ' + g.location + '</div>' +
-    '<div class="detail-stats">' +
+  // Status-aware eyebrow
+  var eyebrow = g.status === 'completed' ? '✅ Completed' :
+                g.status === 'next' ? '⭐ Next up' :
+                g.status === 'planning' ? '🗓️ Collecting dates' :
+                g.type === 'planned' ? 'Planned gathering' : '✨ Bonus gathering';
+
+  // Quick-glance stats based on what matters NOW
+  var statsHtml = '';
+  if (g.status === 'planning') {
+    var responded = allFlock.filter(function(m){ return rsvpData[g.id] && rsvpData[g.id][m.id] && rsvpData[g.id][m.id].availSubmitted; }).length;
+    statsHtml =
+      '<div class="detail-stat"><div class="detail-stat-n">' + responded + '/' + allFlock.length + '</div><div class="detail-stat-l">shared dates</div></div>';
+  } else if (g.status === 'completed') {
+    statsHtml =
+      '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attended</div></div>' +
+      (tasksTotal ? '<div class="detail-stat"><div class="detail-stat-n">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
+      '<div class="detail-stat"><div class="detail-stat-n">' + (g.photos||[]).length + '</div><div class="detail-stat-l">photos</div></div>';
+  } else {
+    statsHtml =
       '<div class="detail-stat"><div class="detail-stat-n">' + (confirmed.length+notComing.length) + '/' + allFlock.length + '</div><div class="detail-stat-l">replied</div></div>' +
       '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attending</div></div>' +
-      (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
-    '</div>' +
+      (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '');
+  }
+
+  // Summary cards for notes/polls/bring
+  var notesCount  = (g.notes||[]).length;
+  var pollsCount  = (g.polls||[]).length;
+  var bringCount  = (g.bringList||[]).length;
+  var bringClaimed = (g.bringList||[]).filter(function(b){return b.claimedBy;}).length;
+  var expenseCount = (g.expenses||[]).length;
+
+  var quickLinks = '';
+  if (notesCount || pollsCount || bringCount || expenseCount) {
+    quickLinks = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">';
+    if (notesCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'notes\')t.click()})"><div style="font-size:16px;margin-bottom:2px">📌</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + notesCount + ' note' + (notesCount!==1?'s':'') + '</div></div>';
+    if (pollsCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'polls\')t.click()})"><div style="font-size:16px;margin-bottom:2px">🗳️</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + pollsCount + ' poll' + (pollsCount!==1?'s':'') + '</div></div>';
+    if (bringCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'bring\')t.click()})"><div style="font-size:16px;margin-bottom:2px">🎒</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + bringClaimed + '/' + bringCount + ' claimed</div></div>';
+    if (expenseCount) quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'budget\')t.click()})"><div style="font-size:16px;margin-bottom:2px">💰</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + expenseCount + ' expense' + (expenseCount!==1?'s':'') + '</div></div>';
+    quickLinks += '</div>';
+  }
+
+  return '<div class="detail-hero">' +
+    '<div class="detail-eyebrow">' + eyebrow + '</div>' +
+    '<div class="detail-title">' + g.name + '</div>' +
+    '<div class="detail-sub">' + (g.month||'TBD') + ' ' + (g.day||'') + ' \u00b7 ' + (g.location||'TBD') + '</div>' +
+    '<div class="detail-stats">' + statsHtml + '</div>' +
   '</div>' +
 
-  rsvpBannerHtml +
+  // Status-specific CTA
+  (g.status === 'completed' ? '' : rsvpBannerHtml) +
 
-  '<button class="rsvp-big-btn" id="rsvp-btn">' +
-    (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
-  '</button>' +
+  (g.status === 'completed' ? '' :
+    '<button class="rsvp-big-btn" id="rsvp-btn">' +
+      (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
+    '</button>') +
 
   (g.status === 'planning' ?
     '<div class="section-title" style="margin-top:16px">Best date window</div>' +
     '<div id="date-window-panel-'+g.id+'"></div>'
   : '') +
 
-  '<div class="section-title" style="margin-top:16px">Who\'s coming</div>' +
+  // Quick links to tabs with content
+  quickLinks +
+
+  '<div class="section-title" style="margin-top:4px">Who\'s coming</div>' +
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
 
-  '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>' +
+  (noReply.length > 0 && g.status !== 'completed' ?
+    '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>'
+  : '') +
 
-  (tasksTotal ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '');
+  (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '');
 }
 
 function buildBeachDetail(g) {
@@ -5428,6 +5541,555 @@ function saveTask(gatheringId, tasks) {
   if (gIdx >= 0) DATA.gatherings[gIdx].tasks = tasks;
   saveFlockState();
   if (window.__saveTask) window.__saveTask(gatheringId, tasks);
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 8: PINBOARD / NOTES
+// ════════════════════════════════════════════════
+
+function renderPinboard(g) {
+  if (!g.notes) g.notes = [];
+  var wrap = document.createElement('div');
+
+  // Pinned notes first, then unpinned
+  function rebuild() {
+    wrap.innerHTML = '';
+
+    // Add form at top
+    var addRow = document.createElement('div');
+    addRow.className = 'pin-add-row';
+    addRow.style.marginBottom = '14px';
+    var addInp = document.createElement('input');
+    addInp.className = 'pin-add-input';
+    addInp.placeholder = 'Add a note for the group\u2026';
+    addInp.maxLength = 200;
+    var addBtn = document.createElement('button');
+    addBtn.className = 'pin-add-btn';
+    addBtn.textContent = 'Post';
+    addBtn.addEventListener('click', function(){
+      var text = addInp.value.trim();
+      if (!text) return;
+      g.notes.unshift({
+        id:'note_'+Date.now().toString(36),
+        text:text,
+        author:DATA.me.id,
+        authorName:DATA.me.name,
+        pinned:false,
+        ts:Date.now()
+      });
+      saveFlockState();
+      logActivity(DATA.me.id, 'added a note to <strong>'+escapeHtml(g.name)+'</strong>', '📌');
+      rebuild();
+    });
+    addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBtn.click(); });
+    addRow.appendChild(addInp);
+    addRow.appendChild(addBtn);
+    wrap.appendChild(addRow);
+
+    if (g.notes.length === 0) {
+      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">📌</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No notes yet</div><div style="font-size:12px;margin-top:4px">Add details everyone needs to know — dietary needs, parking info, what to expect.</div></div>';
+      return;
+    }
+
+    var list = document.createElement('div');
+    list.className = 'pin-list';
+    // Sort: pinned first, then by time
+    var sorted = g.notes.slice().sort(function(a,b){ return (b.pinned?1:0) - (a.pinned?1:0) || b.ts - a.ts; });
+    sorted.forEach(function(note){
+      var card = document.createElement('div');
+      card.className = 'pin-card' + (note.pinned ? ' pinned' : '');
+      var isOwner = note.author === DATA.me.id;
+      card.innerHTML =
+        '<div class="pin-author">' +
+          (note.pinned ? '📌 ' : '') +
+          '<span>' + escapeHtml(note.authorName || 'Someone') + '</span>' +
+          '<span style="color:var(--text3);font-weight:500">&middot; ' + formatTime(note.ts) + '</span>' +
+        '</div>' +
+        '<div class="pin-text">' + escapeHtml(note.text) + '</div>';
+
+      if (isOwner) {
+        var actions = document.createElement('div');
+        actions.className = 'pin-actions';
+        var pinBtn = document.createElement('button');
+        pinBtn.className = 'pin-action-btn';
+        pinBtn.innerHTML = note.pinned ? '📌' : '&#128204;';
+        pinBtn.title = note.pinned ? 'Unpin' : 'Pin to top';
+        pinBtn.addEventListener('click', function(){
+          note.pinned = !note.pinned;
+          saveFlockState();
+          rebuild();
+        });
+        actions.appendChild(pinBtn);
+        var delBtn = document.createElement('button');
+        delBtn.className = 'pin-action-btn';
+        delBtn.innerHTML = '&times;';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', function(){
+          var idx = g.notes.findIndex(function(n){ return n.id === note.id; });
+          if (idx >= 0) g.notes.splice(idx, 1);
+          saveFlockState();
+          rebuild();
+          toast('Note removed');
+        });
+        actions.appendChild(delBtn);
+        card.appendChild(actions);
+      }
+      list.appendChild(card);
+    });
+    wrap.appendChild(list);
+  }
+  rebuild();
+  return wrap;
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 9: QUICK POLLS
+// ════════════════════════════════════════════════
+
+function renderPolls(g) {
+  if (!g.polls) g.polls = [];
+  var wrap = document.createElement('div');
+
+  function rebuild() {
+    wrap.innerHTML = '';
+
+    // Create poll button
+    var createBtn = document.createElement('button');
+    createBtn.className = 'btn-primary';
+    createBtn.style.marginBottom = '14px';
+    createBtn.textContent = '+ Create a poll';
+    createBtn.addEventListener('click', function(){ showPollCreator(wrap, g); });
+    wrap.appendChild(createBtn);
+
+    if (g.polls.length === 0) {
+      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🗳️</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No polls yet</div><div style="font-size:12px;margin-top:4px">Create a quick poll to settle decisions — dinner plans, activities, dates.</div></div>';
+      return;
+    }
+
+    g.polls.forEach(function(poll){
+      var totalVotes = 0;
+      poll.options.forEach(function(o){ totalVotes += (o.voters||[]).length; });
+      var myVote = null;
+      poll.options.forEach(function(o,i){ if((o.voters||[]).indexOf(DATA.me.id)>=0) myVote=i; });
+
+      var card = document.createElement('div');
+      card.className = 'poll-card';
+
+      var q = document.createElement('div');
+      q.className = 'poll-q';
+      q.textContent = poll.question;
+      card.appendChild(q);
+
+      var opts = document.createElement('div');
+      opts.className = 'poll-opts';
+
+      poll.options.forEach(function(opt, oi){
+        var optEl = document.createElement('div');
+        optEl.className = 'poll-opt' + (myVote === oi ? ' voted' : '');
+        var pct = totalVotes > 0 ? Math.round(((opt.voters||[]).length / totalVotes) * 100) : 0;
+        optEl.innerHTML =
+          '<div class="poll-opt-fill" style="width:'+pct+'%"></div>' +
+          '<div class="poll-opt-label">' + escapeHtml(opt.label) + '</div>' +
+          '<div class="poll-opt-count">' + (opt.voters||[]).length + '</div>';
+
+        optEl.addEventListener('click', function(){
+          // Remove previous vote
+          if (myVote !== null) {
+            var prev = poll.options[myVote].voters;
+            var idx = prev.indexOf(DATA.me.id);
+            if (idx >= 0) prev.splice(idx, 1);
+          }
+          // Toggle vote
+          if (myVote === oi) {
+            myVote = null;
+          } else {
+            if (!opt.voters) opt.voters = [];
+            opt.voters.push(DATA.me.id);
+            myVote = oi;
+          }
+          saveFlockState();
+          rebuild();
+        });
+        opts.appendChild(optEl);
+      });
+      card.appendChild(opts);
+
+      var meta = document.createElement('div');
+      meta.className = 'poll-meta';
+      meta.innerHTML = '<span>' + totalVotes + ' vote' + (totalVotes!==1?'s':'') + '</span>' +
+        '<span>by ' + escapeHtml(poll.creatorName||'Someone') + '</span>';
+      card.appendChild(meta);
+
+      // Delete button for creator
+      if (poll.createdBy === DATA.me.id) {
+        var delBtn = document.createElement('button');
+        delBtn.style.cssText = 'margin-top:8px;font-size:11px;font-weight:700;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;font-family:inherit;padding:0';
+        delBtn.textContent = 'Delete poll';
+        delBtn.addEventListener('click', function(){
+          var idx = g.polls.findIndex(function(p){ return p.id === poll.id; });
+          if (idx >= 0) g.polls.splice(idx, 1);
+          saveFlockState();
+          rebuild();
+          toast('Poll removed');
+        });
+        card.appendChild(delBtn);
+      }
+
+      wrap.appendChild(card);
+    });
+  }
+
+  rebuild();
+  return wrap;
+}
+
+function showPollCreator(parentWrap, g) {
+  // Build inline creator
+  var creator = document.createElement('div');
+  creator.className = 'poll-add-row';
+  creator.style.cssText = 'background:var(--surface);border:1.5px solid var(--brand);border-radius:14px;padding:14px;margin-bottom:14px';
+
+  var qLabel = document.createElement('div');
+  qLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+  qLabel.textContent = 'Question';
+  creator.appendChild(qLabel);
+
+  var qInp = document.createElement('input');
+  qInp.className = 'gc-input';
+  qInp.style.marginBottom = '10px';
+  qInp.placeholder = 'e.g. Friday dinner — cook in or go out?';
+  qInp.maxLength = 100;
+  creator.appendChild(qInp);
+
+  var oLabel = document.createElement('div');
+  oLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+  oLabel.textContent = 'Options';
+  creator.appendChild(oLabel);
+
+  var optInputs = [];
+  for (var i = 0; i < 4; i++) {
+    var oi = document.createElement('input');
+    oi.className = 'gc-input';
+    oi.style.cssText = 'margin-bottom:6px;font-size:13px';
+    oi.placeholder = i < 2 ? 'Option ' + (i+1) : 'Option ' + (i+1) + ' (optional)';
+    oi.maxLength = 60;
+    creator.appendChild(oi);
+    optInputs.push(oi);
+  }
+
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;margin-top:8px';
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'gc-save-btn';
+  saveBtn.style.cssText = 'flex:1;margin-top:0;padding:12px;font-size:14px';
+  saveBtn.textContent = 'Post poll';
+  saveBtn.addEventListener('click', function(){
+    var question = qInp.value.trim();
+    if (!question) { qInp.focus(); toast('Enter a question'); return; }
+    var opts = optInputs.map(function(inp){ return inp.value.trim(); }).filter(Boolean);
+    if (opts.length < 2) { optInputs[0].focus(); toast('Add at least 2 options'); return; }
+    g.polls.unshift({
+      id:'poll_'+Date.now().toString(36),
+      question: question,
+      options: opts.map(function(label){ return {label:label, voters:[]}; }),
+      createdBy: DATA.me.id,
+      creatorName: DATA.me.name,
+      ts: Date.now()
+    });
+    saveFlockState();
+    logActivity(DATA.me.id, 'created poll: <strong>' + escapeHtml(question) + '</strong>', '🗳️');
+    // Re-render polls
+    parentWrap.innerHTML = '';
+    parentWrap.appendChild(renderPolls(g).firstChild ? renderPolls(g) : document.createElement('div'));
+    // Hack: re-trigger the render
+    var detail = document.getElementById('gtab-content');
+    if (detail) { detail.innerHTML = ''; detail.appendChild(renderPolls(g)); }
+    toast('Poll created!');
+  });
+  btnRow.appendChild(saveBtn);
+  var cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'padding:12px 16px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', function(){ creator.remove(); });
+  btnRow.appendChild(cancelBtn);
+  creator.appendChild(btnRow);
+
+  // Insert after the create button
+  parentWrap.insertBefore(creator, parentWrap.children[1] || null);
+  setTimeout(function(){ qInp.focus(); }, 200);
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 10: BRING LIST
+// ════════════════════════════════════════════════
+
+function renderBringList(g) {
+  if (!g.bringList) g.bringList = [];
+  var wrap = document.createElement('div');
+
+  var ITEM_EMOJIS = ['🍕','🥗','🎮','🏖️','🧊','🪑','🎵','🍺','🧸','🎒','🔌','🎂','🧴','🏕️','🛏️'];
+
+  function rebuild() {
+    wrap.innerHTML = '';
+
+    // Add form
+    var addRow = document.createElement('div');
+    addRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px';
+    var addInp = document.createElement('input');
+    addInp.className = 'pin-add-input';
+    addInp.placeholder = 'Add something to bring\u2026';
+    addInp.maxLength = 60;
+    var addBtn = document.createElement('button');
+    addBtn.className = 'pin-add-btn';
+    addBtn.textContent = 'Add';
+    addBtn.addEventListener('click', function(){
+      var text = addInp.value.trim();
+      if (!text) return;
+      g.bringList.push({
+        id:'bring_'+Date.now().toString(36),
+        name:text,
+        emoji: ITEM_EMOJIS[Math.floor(Math.random()*ITEM_EMOJIS.length)],
+        claimedBy:null,
+        claimedName:null,
+        addedBy:DATA.me.id
+      });
+      saveFlockState();
+      addInp.value = '';
+      rebuild();
+    });
+    addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBtn.click(); });
+    addRow.appendChild(addInp);
+    addRow.appendChild(addBtn);
+    wrap.appendChild(addRow);
+
+    if (g.bringList.length === 0) {
+      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🎒</div><div style="font-size:14px;font-weight:700;color:var(--text2)">Nothing on the list yet</div><div style="font-size:12px;margin-top:4px">Add items the group needs — grill, games, high chair, snacks — and claim what you\'ll bring.</div></div>';
+      return;
+    }
+
+    // Stats
+    var claimed = g.bringList.filter(function(b){ return b.claimedBy; }).length;
+    var statsEl = document.createElement('div');
+    statsEl.style.cssText = 'font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px';
+    statsEl.textContent = claimed + ' of ' + g.bringList.length + ' items claimed';
+    wrap.appendChild(statsEl);
+
+    g.bringList.forEach(function(item){
+      var row = document.createElement('div');
+      row.className = 'bring-item' + (item.claimedBy ? ' claimed' : '');
+      var isMyClaim = item.claimedBy === DATA.me.id;
+
+      row.innerHTML =
+        '<div class="bring-icon">' + (item.emoji||'📦') + '</div>' +
+        '<div class="bring-info">' +
+          '<div class="bring-name">' + escapeHtml(item.name) + '</div>' +
+          (item.claimedBy
+            ? '<div class="bring-owner">' + (isMyClaim ? 'You\'re bringing this' : escapeHtml(item.claimedName||'Someone') + ' is bringing this') + '</div>'
+            : '<div class="bring-owner" style="color:var(--text3);font-style:italic">Unclaimed</div>') +
+        '</div>';
+
+      var btn = document.createElement('button');
+      btn.className = 'bring-claim-btn' + (isMyClaim ? ' mine' : '');
+      if (!item.claimedBy) {
+        btn.textContent = 'I\'ll bring it';
+        btn.addEventListener('click', function(){
+          item.claimedBy = DATA.me.id;
+          item.claimedName = DATA.me.name;
+          saveFlockState();
+          logActivity(DATA.me.id, 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
+          rebuild();
+        });
+      } else if (isMyClaim) {
+        btn.textContent = 'Unclaim';
+        btn.style.cssText += ';font-size:10px';
+        btn.addEventListener('click', function(){
+          item.claimedBy = null;
+          item.claimedName = null;
+          saveFlockState();
+          rebuild();
+        });
+      } else {
+        btn.textContent = '✓ Taken';
+        btn.disabled = true;
+        btn.style.opacity = '.5';
+      }
+      row.appendChild(btn);
+
+      // Delete button for item adder
+      if (item.addedBy === DATA.me.id) {
+        var del = document.createElement('button');
+        del.style.cssText = 'width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
+        del.innerHTML = '&times;';
+        del.addEventListener('click', function(){
+          var idx = g.bringList.findIndex(function(b){ return b.id === item.id; });
+          if (idx >= 0) g.bringList.splice(idx, 1);
+          saveFlockState();
+          rebuild();
+        });
+        row.appendChild(del);
+      }
+
+      wrap.appendChild(row);
+    });
+  }
+  rebuild();
+  return wrap;
+}
+
+
+// ════════════════════════════════════════════════
+//  FEATURE 11: BUDGET / EXPENSE TRACKER
+// ════════════════════════════════════════════════
+
+function renderBudget(g) {
+  if (!g.expenses) g.expenses = [];
+  var wrap = document.createElement('div');
+  var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+
+  function rebuild() {
+    wrap.innerHTML = '';
+
+    // Summary card
+    var total = 0;
+    g.expenses.forEach(function(e){ total += (parseFloat(e.amount)||0); });
+    var perPerson = allFlock.length > 0 ? (total / allFlock.length) : 0;
+
+    var summary = document.createElement('div');
+    summary.className = 'expense-summary';
+    summary.innerHTML =
+      '<div><div class="expense-total-label">Total spent</div>' +
+        '<div class="expense-total-sub">' + g.expenses.length + ' expense' + (g.expenses.length!==1?'s':'') +
+        ' &middot; ' + allFlock.length + ' splitting</div></div>' +
+      '<div class="expense-total-amt">$' + total.toFixed(2) + '</div>';
+    wrap.appendChild(summary);
+
+    // Per-person split
+    if (total > 0) {
+      // Calculate who paid what vs fair share
+      var paidBy = {};
+      allFlock.forEach(function(m){ paidBy[m.id] = 0; });
+      g.expenses.forEach(function(e){
+        if (paidBy[e.paidBy] !== undefined) paidBy[e.paidBy] += (parseFloat(e.amount)||0);
+      });
+
+      var splitWrap = document.createElement('div');
+      splitWrap.className = 'expense-split';
+      allFlock.forEach(function(m){
+        var paid = paidBy[m.id] || 0;
+        var diff = paid - perPerson;
+        var chip = document.createElement('div');
+        chip.className = 'expense-split-chip';
+        if (diff > 0.5) chip.style.background = 'var(--green-bg)';
+        else if (diff < -0.5) chip.style.background = 'var(--red-bg)';
+        chip.innerHTML =
+          '<div class="expense-split-name">' + (m.id === DATA.me.id ? 'You' : m.name) + '</div>' +
+          '<div class="expense-split-amt">$' + paid.toFixed(0) + '</div>' +
+          '<div style="font-size:10px;font-weight:700;color:' + (diff > 0.5 ? 'var(--green)' : diff < -0.5 ? 'var(--red)' : 'var(--text3)') + ';margin-top:2px">' +
+            (diff > 0.5 ? 'Overpaid $' + diff.toFixed(0) : diff < -0.5 ? 'Owes $' + Math.abs(diff).toFixed(0) : 'Even') +
+          '</div>';
+        splitWrap.appendChild(chip);
+      });
+      wrap.appendChild(splitWrap);
+    }
+
+    // Add expense form
+    var addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary';
+    addBtn.style.marginBottom = '14px';
+    addBtn.textContent = '+ Add an expense';
+    addBtn.addEventListener('click', function(){ showExpenseForm(wrap, g, allFlock, rebuild); });
+    wrap.appendChild(addBtn);
+
+    // Expense list
+    if (g.expenses.length > 0) {
+      var listCard = document.createElement('div');
+      listCard.className = 'card';
+      g.expenses.forEach(function(exp){
+        var payer = getMember(exp.paidBy) || DATA.me;
+        var item = document.createElement('div');
+        item.className = 'expense-item';
+        item.innerHTML =
+          makeAv(payer.animal||'bear', 30) +
+          '<div class="expense-desc">' +
+            '<div class="expense-title">' + escapeHtml(exp.description) + '</div>' +
+            '<div class="expense-who">Paid by ' + (exp.paidBy === DATA.me.id ? 'you' : escapeHtml(payer.name||'someone')) + ' &middot; ' + formatTime(exp.ts) + '</div>' +
+          '</div>' +
+          '<div class="expense-amt">$' + parseFloat(exp.amount).toFixed(2) + '</div>';
+
+        // Delete button for the person who added it
+        if (exp.addedBy === DATA.me.id) {
+          var del = document.createElement('button');
+          del.style.cssText = 'width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-left:4px';
+          del.innerHTML = '&times;';
+          del.addEventListener('click', function(){
+            var idx = g.expenses.findIndex(function(e){ return e.id === exp.id; });
+            if (idx >= 0) g.expenses.splice(idx, 1);
+            saveFlockState();
+            rebuild();
+            toast('Expense removed');
+          });
+          item.appendChild(del);
+        }
+        listCard.appendChild(item);
+      });
+      wrap.appendChild(listCard);
+    } else {
+      wrap.innerHTML += '<div style="text-align:center;padding:20px 16px;color:var(--text3)"><div style="font-size:13px;font-weight:600">No expenses recorded yet.</div><div style="font-size:12px;margin-top:4px">Add costs as they come up — Kinverly calculates who owes what.</div></div>';
+    }
+  }
+  rebuild();
+  return wrap;
+}
+
+function showExpenseForm(parentWrap, g, allFlock, onDone) {
+  var form = document.createElement('div');
+  form.style.cssText = 'background:var(--surface);border:1.5px solid var(--brand);border-radius:14px;padding:14px;margin-bottom:14px';
+
+  var memberOpts = '<option value="'+DATA.me.id+'">Me (' + escapeHtml(DATA.me.name) + ')</option>' +
+    (DATA.members||[]).map(function(m){ return '<option value="'+m.id+'">' + escapeHtml(m.name) + '</option>'; }).join('');
+
+  form.innerHTML =
+    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">What was it for?</div>' +
+    '<input class="gc-input" id="exp-desc" placeholder="e.g. Airbnb, groceries, activity tickets\u2026" maxlength="60" style="margin-bottom:10px">' +
+    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Amount</div>' +
+        '<input class="gc-input" id="exp-amount" type="number" placeholder="0.00" min="0" step="0.01" style="font-size:18px;font-weight:300"></div>' +
+      '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Who paid?</div>' +
+        '<select class="gc-input" id="exp-payer">' + memberOpts + '</select></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button class="gc-save-btn" id="exp-save" style="flex:1;margin-top:0;padding:12px;font-size:14px">Add expense</button>' +
+      '<button id="exp-cancel" style="padding:12px 16px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
+    '</div>';
+
+  form.querySelector('#exp-cancel').addEventListener('click', function(){ form.remove(); });
+  form.querySelector('#exp-save').addEventListener('click', function(){
+    var desc = form.querySelector('#exp-desc').value.trim();
+    var amount = form.querySelector('#exp-amount').value;
+    var payer = form.querySelector('#exp-payer').value;
+    if (!desc) { form.querySelector('#exp-desc').focus(); toast('What was it for?'); return; }
+    if (!amount || parseFloat(amount) <= 0) { form.querySelector('#exp-amount').focus(); toast('Enter an amount'); return; }
+    g.expenses.push({
+      id:'exp_'+Date.now().toString(36),
+      description:desc,
+      amount:parseFloat(amount),
+      paidBy:payer,
+      addedBy:DATA.me.id,
+      ts:Date.now()
+    });
+    saveFlockState();
+    logActivity(DATA.me.id, 'logged $' + parseFloat(amount).toFixed(0) + ' for <strong>' + escapeHtml(desc) + '</strong>', '💰');
+    form.remove();
+    onDone();
+    toast('Expense added');
+  });
+
+  // Insert after summary
+  parentWrap.insertBefore(form, parentWrap.children[2] || null);
+  setTimeout(function(){ form.querySelector('#exp-desc').focus(); }, 200);
 }
 
 
