@@ -4494,6 +4494,72 @@ function showFlockSheet() {
         if (!isActive) switchToFlock(flock.id);
       });
       body.appendChild(item);
+
+      // Show delete button for flock creator
+      var myRole = flock.members && flock.members[DATA.me.id] ? flock.members[DATA.me.id].role : 'member';
+      if (myRole === 'creator' || flock.createdBy === DATA.me.id) {
+        var delRow = document.createElement('div');
+        delRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin:-4px 0 8px 54px';
+        var delBtn = document.createElement('button');
+        delBtn.style.cssText = 'font-size:11px;font-weight:700;padding:4px 12px;border-radius:8px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;transition:all .15s';
+        delBtn.textContent = 'Delete flock';
+        delBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          delBtn.style.display = 'none';
+          confirmBox.style.display = '';
+        });
+        delRow.appendChild(delBtn);
+
+        var confirmBox = document.createElement('div');
+        confirmBox.style.cssText = 'display:none;background:var(--red-bg);border:1.5px solid var(--red);border-radius:12px;padding:12px 14px;flex:1';
+        confirmBox.innerHTML =
+          '<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
+          '<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">This will permanently delete <strong>' + flock.name.replace(/</g,'&lt;') + '</strong> and all its gatherings, ideas, and data for everyone. This can\'t be undone.</div>' +
+          '<div style="display:flex;gap:8px">' +
+            '<button class="flock-del-yes" style="flex:1;padding:9px;border-radius:8px;background:var(--red);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
+            '<button class="flock-del-no" style="flex:1;padding:9px;border-radius:8px;background:var(--surface2);color:var(--text2);font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
+          '</div>';
+        confirmBox.querySelector('.flock-del-no').addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          confirmBox.style.display = 'none';
+          delBtn.style.display = '';
+        });
+        (function(flockRef) {
+          confirmBox.querySelector('.flock-del-yes').addEventListener('click', function(ev) {
+            ev.stopPropagation();
+            // Delete the flock
+            delete FLOCKS[flockRef.id];
+            // If this was the active flock, switch away
+            if (currentFlockId === flockRef.id) {
+              var remaining = Object.keys(FLOCKS);
+              if (remaining.length > 0) {
+                switchToFlock(remaining[0]);
+              } else {
+                currentFlockId = null;
+                DATA.members = [];
+                DATA.gatherings = [];
+                DATA.ideas = [];
+                DATA.activity = [];
+                DATA.fairness = { gathering:'', members:[], poolPerPerson:0, poolTotal:0, yearMiles:[] };
+              }
+            }
+            saveFlockState();
+            // Close sheet and refresh
+            document.getElementById('flock-sheet-overlay').classList.add('hidden');
+            renderHome();
+            renderGatherings();
+            renderIdeas();
+            renderFairness();
+            renderProfile();
+            if (Object.keys(FLOCKS).length === 0) {
+              showFlockOnboarding();
+            }
+            toast('Flock deleted');
+          });
+        })(flock);
+        delRow.appendChild(confirmBox);
+        body.appendChild(delRow);
+      }
     });
   }
 
@@ -6107,7 +6173,20 @@ try {
       '<input class="gc-input" id="ge-theme" type="text" maxlength="40" placeholder="e.g. BBQ + games, beach week\u2026" value="'+(g.theme||'').replace(/"/g,'&quot;')+'"><br>' +
 
       // ── Save ──
-      '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>';
+      '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>' +
+
+      // ── Delete ──
+      '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">' +
+        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Delete this gathering</button>' +
+      '</div>' +
+      '<div id="ge-delete-confirm" style="display:none;margin-top:10px;background:var(--red-bg);border:1.5px solid var(--red);border-radius:14px;padding:16px">' +
+        '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
+        '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px">This will permanently remove <strong>' + g.name.replace(/</g,'&lt;') + '</strong> and all its tasks, RSVPs, and photos. This can\'t be undone.</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="ge-delete-yes" style="flex:1;padding:11px;border-radius:10px;background:var(--red);color:#fff;font-size:13px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
+          '<button id="ge-delete-no" style="flex:1;padding:11px;border-radius:10px;background:var(--surface2);color:var(--text2);font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
+        '</div>' +
+      '</div>';
 
     // Wire type buttons
     var selType = curType;
@@ -6127,6 +6206,31 @@ try {
           if (locInp) locInp.placeholder = 'City, address, or neighbourhood\u2026';
         }
       });
+    });
+
+    // Wire delete gathering
+    document.getElementById('ge-delete-btn').addEventListener('click', function(){
+      document.getElementById('ge-delete-confirm').style.display = 'block';
+      this.style.display = 'none';
+    });
+    document.getElementById('ge-delete-no').addEventListener('click', function(){
+      document.getElementById('ge-delete-confirm').style.display = 'none';
+      document.getElementById('ge-delete-btn').style.display = '';
+    });
+    document.getElementById('ge-delete-yes').addEventListener('click', function(){
+      // Remove gathering from DATA
+      var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
+      if (idx >= 0) DATA.gatherings.splice(idx, 1);
+      // Clean up rsvpData
+      if (rsvpData[g.id]) delete rsvpData[g.id];
+      saveFlockState();
+      // Close sheet
+      document.getElementById('gather-edit-overlay').classList.add('hidden');
+      // Navigate back to gatherings list
+      showPage('gatherings');
+      renderGatherings();
+      renderHome();
+      toast('Gathering deleted');
     });
 
     // Wire save
