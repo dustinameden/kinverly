@@ -1647,6 +1647,9 @@ img,svg{display:block}
       <div class="section-title">The flock</div>
       <div class="flock-row" id="flock-row"></div>
 
+      <div class="section-title">Your to-do</div>
+      <div id="home-todos"></div>
+
       <div class="section-title">Recent activity</div>
       <div class="activity-feed" id="activity-feed"></div>
 
@@ -1656,13 +1659,18 @@ img,svg{display:block}
 
     <!-- GATHERINGS -->
     <div class="page" id="page-gatherings">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1)">Gatherings</div>
         <button id="new-gathering-btn" style="width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text1)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
-      <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:12px">2025 — 8 planned + 1 bonus</div>
+      <div id="gatherings-subtitle" style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:8px"></div>
+      <div class="mode-row" id="gatherings-filter">
+        <button class="mode-btn active" data-filter="active">Active</button>
+        <button class="mode-btn" data-filter="completed">Completed</button>
+        <button class="mode-btn" data-filter="all">All</button>
+      </div>
       <!-- Flock Schedule Summary -->
       <div id="flock-schedule-panel"></div>
       <div id="gatherings-list"></div>
@@ -2154,6 +2162,93 @@ function renderHome() {
     row.appendChild(chip);
   });
 
+  // ── Build smart to-do list ──
+  var todos = [];
+
+  // Check for un-RSVP'd gatherings
+  (DATA.gatherings||[]).forEach(function(g){
+    if (g.status === 'completed') return;
+    var myR = rsvpData[g.id] && rsvpData[g.id][DATA.me.id];
+    if (!myR || !myR.status) {
+      todos.push({icon:'🎉', text:'RSVP to <strong>'+escapeHtml(g.name)+'</strong>', action:'rsvp', gId:g.id, priority:1});
+    }
+  });
+
+  // Check for open polls I haven't voted on
+  (DATA.gatherings||[]).forEach(function(g){
+    if (g.status === 'completed') return;
+    (g.polls||[]).forEach(function(poll){
+      var voted = false;
+      poll.options.forEach(function(o){ if((o.voters||[]).indexOf(DATA.me.id)>=0) voted=true; });
+      if (!voted) {
+        todos.push({icon:'🗳️', text:'Vote on poll in <strong>'+escapeHtml(g.name)+'</strong>: '+escapeHtml(poll.question), action:'polls', gId:g.id, priority:2});
+      }
+    });
+  });
+
+  // Check for unclaimed bring items
+  (DATA.gatherings||[]).forEach(function(g){
+    if (g.status === 'completed') return;
+    var unclaimed = (g.bringList||[]).filter(function(b){ return !b.claimedBy; });
+    if (unclaimed.length > 0) {
+      todos.push({icon:'🎒', text:unclaimed.length+' unclaimed item'+(unclaimed.length>1?'s':'')+' for <strong>'+escapeHtml(g.name)+'</strong>', action:'bring', gId:g.id, priority:3});
+    }
+  });
+
+  // Check for my undone tasks
+  (DATA.gatherings||[]).forEach(function(g){
+    if (g.status === 'completed') return;
+    (g.tasks||[]).forEach(function(t){
+      if (!t.done && (t.owner === DATA.me.id || t.claimedBy === DATA.me.id)) {
+        todos.push({icon:'📋', text:'Complete task: <strong>'+escapeHtml(t.title)+'</strong> ('+escapeHtml(g.name)+')', action:'tasks', gId:g.id, priority:2});
+      }
+    });
+  });
+
+  // Check for availability not submitted on planning gatherings
+  (DATA.gatherings||[]).forEach(function(g){
+    if (g.status !== 'planning') return;
+    var myR = rsvpData[g.id] && rsvpData[g.id][DATA.me.id];
+    if (!myR || !myR.availSubmitted) {
+      todos.push({icon:'📅', text:'Share your dates for <strong>'+escapeHtml(g.name)+'</strong>', action:'detail', gId:g.id, priority:1});
+    }
+  });
+
+  // Sort by priority
+  todos.sort(function(a,b){ return a.priority - b.priority; });
+
+  // ── Render to-do section ──
+  var todoEl = document.getElementById('home-todos');
+  if (todoEl) {
+    if (todos.length === 0) {
+      todoEl.innerHTML = '<div style="background:var(--green-bg);border-radius:12px;padding:14px;text-align:center;margin-bottom:12px"><div style="font-size:13px;font-weight:700;color:var(--green)">✓ You\'re all caught up!</div></div>';
+    } else {
+      var todoHtml = '';
+      todos.slice(0, 5).forEach(function(t){
+        todoHtml += '<div class="todo-item" data-action="'+t.action+'" data-gid="'+(t.gId||'')+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:border-color .15s">' +
+          '<div style="font-size:18px;flex-shrink:0;width:28px;text-align:center">'+t.icon+'</div>' +
+          '<div style="flex:1;font-size:12px;font-weight:600;color:var(--text1);line-height:1.4">'+t.text+'</div>' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '</div>';
+      });
+      todoEl.innerHTML = todoHtml;
+      if (todos.length > 5) {
+        todoEl.innerHTML += '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px">+' + (todos.length - 5) + ' more</div>';
+      }
+      // Wire to-do clicks
+      todoEl.querySelectorAll('.todo-item').forEach(function(item){
+        item.addEventListener('click', function(){
+          var gId = item.dataset.gid;
+          var action = item.dataset.action;
+          if (action === 'rsvp' && gId) { openRSVP(gId); }
+          else if (gId) { showPage('gatherings'); showDetail(gId); }
+        });
+        item.addEventListener('mouseover', function(){ item.style.borderColor = 'var(--brand2)'; });
+        item.addEventListener('mouseout', function(){ item.style.borderColor = 'var(--border)'; });
+      });
+    }
+  }
+
   // Activity — derived from real flock data
   var feed = document.getElementById('activity-feed');
   feed.innerHTML = '';
@@ -2228,13 +2323,47 @@ function openMemberProfile(m) {
 }
 
 // -- GATHERINGS ----------------------------------
+var _gatheringsFilter = 'active';
+
 function renderGatherings() {
   // Render cross-gathering schedule panel first
   renderFlockSchedule();
 
+  // Dynamic subtitle
+  var total = DATA.gatherings.length;
+  var active = DATA.gatherings.filter(function(g){ return g.status !== 'completed'; }).length;
+  var completed = DATA.gatherings.filter(function(g){ return g.status === 'completed'; }).length;
+  var subEl = document.getElementById('gatherings-subtitle');
+  if (subEl) {
+    subEl.textContent = total + ' gathering' + (total!==1?'s':'') +
+      (active ? ' · ' + active + ' active' : '') +
+      (completed ? ' · ' + completed + ' completed' : '');
+  }
+
+  // Wire filter buttons
+  document.querySelectorAll('#gatherings-filter .mode-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.dataset.filter === _gatheringsFilter);
+    btn.onclick = function(){
+      _gatheringsFilter = btn.dataset.filter;
+      document.querySelectorAll('#gatherings-filter .mode-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.filter === _gatheringsFilter); });
+      renderGatheringsList();
+    };
+  });
+
+  renderGatheringsList();
+}
+
+function renderGatheringsList() {
   var list = document.getElementById('gatherings-list');
   list.innerHTML = '';
-  DATA.gatherings.forEach(function(g){
+
+  var filtered = DATA.gatherings.filter(function(g){
+    if (_gatheringsFilter === 'active') return g.status !== 'completed';
+    if (_gatheringsFilter === 'completed') return g.status === 'completed';
+    return true;
+  });
+
+  filtered.forEach(function(g){
     var card = document.createElement('div');
     var isFeatured = g.status === 'next';
     var isBonus = g.beachMode;
@@ -2273,13 +2402,16 @@ function renderGatherings() {
     list.appendChild(card);
   });
 
-  if (DATA.gatherings.length === 0) {
+  if (filtered.length === 0) {
+    var emptyMsg = _gatheringsFilter === 'completed'
+      ? { icon:'✅', title:'No completed gatherings', sub:'Once a gathering wraps up, it\'ll appear here with photos and memories.' }
+      : { icon:'📅', title:'No gatherings yet', sub:'Create your first gathering and start planning something your whole flock will love.' };
     list.innerHTML =
       '<div style="text-align:center;padding:40px 20px">'+
-        '<div style="font-size:48px;margin-bottom:12px">?</div>'+
-        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">No gatherings yet</div>'+
-        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">Create your first gathering and start planning something your whole flock will love.</div>'+
-        '<button class="btn-primary" style="max-width:240px;margin:0 auto" id="first-gathering-btn">+ Plan a gathering</button>'+
+        '<div style="font-size:48px;margin-bottom:12px">'+emptyMsg.icon+'</div>'+
+        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">'+emptyMsg.title+'</div>'+
+        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">'+emptyMsg.sub+'</div>'+
+        (_gatheringsFilter !== 'completed' ? '<button class="btn-primary" style="max-width:240px;margin:0 auto" id="first-gathering-btn">+ Plan a gathering</button>' : '')+
       '</div>';
     var fg = document.getElementById('first-gathering-btn');
     if (fg) fg.addEventListener('click', openCreateGathering);
@@ -3096,14 +3228,29 @@ function buildStandardDetail(g) {
 
   function memberRsvpRow(m, rsvp) {
     var isMe = m.id === DATA.me.id;
-    return '<div class="member-row rsvp-member-row' + (rsvp&&rsvp.status==='no' ? ' dimmed' : '') + '">' +
+    var hasDetails = rsvp && (rsvp.guests || rsvp.dietary || rsvp.travelFrom || rsvp.travelTo);
+    var detailHtml = '';
+    if (hasDetails) {
+      var details = [];
+      if (rsvp.guests) details.push('+' + rsvp.guests + ' guest' + (rsvp.guests>1?'s':''));
+      if (rsvp.dietary) details.push('Dietary: ' + escapeHtml(rsvp.dietary));
+      if (rsvp.travelFrom) details.push('From: ' + escapeHtml(rsvp.travelFrom));
+      if (rsvp.travelTo) details.push('Arriving: ' + escapeHtml(rsvp.travelTo));
+      if (rsvp.departTo) details.push('Leaving: ' + escapeHtml(rsvp.departTo));
+      detailHtml = '<div class="rsvp-expand-details" style="display:none;padding:8px 0 4px 44px;font-size:11px;color:var(--text2);line-height:1.7">' +
+        details.join('<br>') +
+      '</div>';
+    }
+    return '<div class="member-row rsvp-member-row' + (rsvp&&rsvp.status==='no' ? ' dimmed' : '') + '"' +
+      (hasDetails ? ' style="cursor:pointer" onclick="var d=this.nextElementSibling;if(d&&d.classList.contains(\'rsvp-expand-details\')){d.style.display=d.style.display===\'none\'?\'\':\'none\'}"' : '') + '>' +
       makeAv(m.animal, 34) +
       '<div class="member-info">' +
         '<div class="member-name">' + (isMe ? 'You (' + m.name + ')' : m.name) + '</div>' +
         (m.location ? '<div class="member-loc">' + m.location + '</div>' : '') +
       '</div>' +
       rsvpBadge(rsvp) +
-    '</div>';
+      (hasDetails ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-left:4px"><polyline points="6 9 12 15 18 9"/></svg>' : '') +
+    '</div>' + detailHtml;
   }
 
   var rsvpRows = '';
@@ -3152,9 +3299,12 @@ function buildStandardDetail(g) {
       (tasksTotal ? '<div class="detail-stat"><div class="detail-stat-n">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
       '<div class="detail-stat"><div class="detail-stat-n">' + (g.photos||[]).length + '</div><div class="detail-stat-l">photos</div></div>';
   } else {
+    var totalGuests = 0;
+    confirmed.forEach(function(x){ totalGuests += parseInt(x.rsvp.guests)||0; });
+    var headcount = confirmed.length + totalGuests;
     statsHtml =
       '<div class="detail-stat"><div class="detail-stat-n">' + (confirmed.length+notComing.length) + '/' + allFlock.length + '</div><div class="detail-stat-l">replied</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attending</div></div>' +
+      '<div class="detail-stat"><div class="detail-stat-n">' + headcount + '</div><div class="detail-stat-l">total' + (totalGuests ? ' (+' + totalGuests + ' guests)' : '') + '</div></div>' +
       (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '');
   }
 
@@ -7441,6 +7591,12 @@ try {
       // ── Save ──
       '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>' +
 
+      // ── Share & Duplicate ──
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button id="ge-share-btn" style="flex:1;padding:12px;border-radius:14px;background:var(--surface2);color:var(--brand);font-size:13px;font-weight:800;border:1.5px solid var(--border);cursor:pointer;font-family:inherit;transition:all .15s">📤 Share details</button>' +
+        '<button id="ge-duplicate-btn" style="flex:1;padding:12px;border-radius:14px;background:var(--surface2);color:var(--brand);font-size:13px;font-weight:800;border:1.5px solid var(--border);cursor:pointer;font-family:inherit;transition:all .15s">📋 Duplicate</button>' +
+      '</div>' +
+
       // ── Delete ──
       '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">' +
         '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Delete this gathering</button>' +
@@ -7483,6 +7639,72 @@ try {
           b.classList.toggle('selected', b.dataset.status === selStatus);
         });
       });
+    });
+
+    // Wire share button
+    document.getElementById('ge-share-btn').addEventListener('click', function(){
+      var allFlock = [DATA.me].concat(DATA.members||[]).filter(Boolean);
+      var attending = allFlock.filter(function(m){
+        var r = rsvpData[g.id] && rsvpData[g.id][m.id];
+        return r && (r.status === 'yes' || r.status === 'virtual');
+      });
+      var bringItems = (g.bringList||[]).filter(function(b){ return b.claimedBy; })
+        .map(function(b){ return '  • ' + b.name + ' — ' + (b.claimedName||'someone'); }).join('\n');
+
+      var summary = '📅 ' + g.name + '\n' +
+        '🗓 ' + (g.month||'TBD') + ' ' + (g.day||'') + '\n' +
+        '📍 ' + (g.location||'TBD') + '\n' +
+        (g.host ? '🏠 Host: ' + (getMember(g.host)?getMember(g.host).name:g.host) + '\n' : '') +
+        '👥 ' + attending.length + ' attending' + (attending.length ? ': ' + attending.map(function(m){return m.name;}).join(', ') : '') + '\n' +
+        (g.theme ? '🎨 ' + g.theme + '\n' : '') +
+        (bringItems ? '\n🎒 Bring list:\n' + bringItems + '\n' : '') +
+        '\n— Sent from Kinverly';
+
+      if (navigator.share) {
+        navigator.share({ title: g.name, text: summary }).catch(function(){});
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(summary);
+        toast('Summary copied to clipboard!');
+      }
+    });
+
+    // Wire duplicate button
+    document.getElementById('ge-duplicate-btn').addEventListener('click', function(){
+      var newId = 'g_' + Date.now().toString(36);
+      var dup = {
+        id: newId,
+        name: g.name + ' (copy)',
+        month: g.month || '',
+        day: 0,
+        location: g.location || 'TBD',
+        host: DATA.me.id,
+        type: g.type || 'planned',
+        beachMode: g.beachMode || false,
+        status: 'upcoming',
+        theme: g.theme || '',
+        themePill: 'pill-amber',
+        progress: 0,
+        hybrid: g.hybrid || false,
+        virtual: g.virtual || false,
+        attending: [],
+        tasks: (g.tasks||[]).map(function(t){
+          return { id: 'task_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), title: t.title, owner: '', note: t.note||'', status: 'todo', done: false };
+        }),
+        bringList: (g.bringList||[]).map(function(b){
+          return { id: 'bring_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name: b.name, emoji: b.emoji, claimedBy: null, claimedName: null, addedBy: DATA.me.id };
+        }),
+        notes: [],
+        polls: [],
+        expenses: [],
+        photos: []
+      };
+      DATA.gatherings.unshift(dup);
+      saveFlockState();
+      document.getElementById('gather-edit-overlay').classList.add('hidden');
+      renderGatherings();
+      renderHome();
+      showDetail(newId);
+      toast('Gathering duplicated! Edit the details.');
     });
 
     // Wire delete gathering
