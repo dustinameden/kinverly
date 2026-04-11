@@ -3534,23 +3534,27 @@ function renderProfile() {
 
     '<button class="btn-primary" id="edit-profile-btn" style="margin-top:4px">Edit my profile</button>'+
     '<button class="btn-secondary" id="change-animal-btn" style="margin-top:8px">Change my animal</button>'+
-    '<button class="btn-secondary" id="switch-member-btn" style="margin-top:8px">Switch family member</button>';
+    '<button class="btn-secondary" id="change-pw-btn" style="margin-top:8px">Change my password</button>'+
+    (isFlockAdmin() ? '<button class="btn-secondary" id="admin-panel-btn" style="margin-top:8px;border-color:var(--brand);color:var(--brand)">&#128737; Admin panel</button>' : '') +
+    '<button class="btn-secondary" id="logout-btn" style="margin-top:8px;border-color:var(--red);color:var(--red)">Log out</button>';
 
   document.getElementById('profile-content').innerHTML = html;
 
   // Wire buttons
   document.getElementById('edit-profile-btn').addEventListener('click', openEditProfile);
   document.getElementById('change-animal-btn').addEventListener('click', openAnimalPicker);
-  document.getElementById('switch-member-btn').addEventListener('click', function(){
-    if (confirm('Switch to a different family member?')) {
-      // Save current state before switching
+  document.getElementById('change-pw-btn').addEventListener('click', openChangePassword);
+  document.getElementById('logout-btn').addEventListener('click', function(){
+    if (confirm('Log out? You\'ll need your password to log back in.')) {
       saveFlockState();
       persistMyProfile();
-      // Clear the active user but keep all flock/profile data
       localStorage.removeItem('kinverly_user_id');
+      localStorage.removeItem('kinverly_auth_' + DATA.me.id);
       showLoginScreen();
     }
   });
+  var adminBtn = document.getElementById('admin-panel-btn');
+  if (adminBtn) adminBtn.addEventListener('click', openAdminPanel);
   document.getElementById('profile-av-wrap').addEventListener('click', openAnimalPicker);
 }
 
@@ -3965,7 +3969,174 @@ document.getElementById('animal-overlay').addEventListener('click', function(e){
   if (e.target === this) this.classList.add('hidden');
 });
 
+// -- ADMIN & PASSWORD MANAGEMENT ------------------
+function isFlockAdmin() {
+  if (!currentFlockId || !FLOCKS[currentFlockId]) return false;
+  var flock = FLOCKS[currentFlockId];
+  if (flock.createdBy === DATA.me.id) return true;
+  var myMember = flock.members && flock.members[DATA.me.id];
+  return myMember && (myMember.role === 'creator' || myMember.role === 'admin');
+}
+
+function openChangePassword() {
+  var body = document.getElementById('edit-body');
+  var overlay = document.getElementById('edit-overlay');
+  var titleEl = overlay.querySelector('.sheet-title');
+  if (titleEl) titleEl.textContent = 'Change password';
+
+  body.innerHTML =
+    '<div style="padding:8px 0">'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5">Your password keeps your profile secure. Other flock members can\'t access your account without it.</div>'+
+      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Current password</div>'+
+      '<input class="input-field" id="cp-current" type="password" placeholder="Enter current password" style="margin-bottom:12px">'+
+      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">New password</div>'+
+      '<input class="input-field" id="cp-new" type="password" placeholder="At least 4 characters" style="margin-bottom:12px">'+
+      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Confirm new password</div>'+
+      '<input class="input-field" id="cp-confirm" type="password" placeholder="Type it again" style="margin-bottom:4px">'+
+      '<div id="cp-error" style="display:none;font-size:12px;color:var(--red);font-weight:700;margin-top:6px"></div>'+
+      '<button class="btn-primary" id="cp-save" style="margin-top:16px">Update password</button>'+
+    '</div>';
+
+  document.getElementById('cp-save').addEventListener('click', function(){
+    var flock = FLOCKS[currentFlockId];
+    var myData = flock && flock.members && flock.members[DATA.me.id];
+    var currentPw = document.getElementById('cp-current').value;
+    var newPw = document.getElementById('cp-new').value;
+    var confirmPw = document.getElementById('cp-confirm').value;
+    var errEl = document.getElementById('cp-error');
+
+    // If user has no password yet, skip current password check
+    if (myData && myData.pw && simpleHash(currentPw) !== myData.pw) {
+      errEl.textContent = 'Current password is incorrect';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (newPw.length < 4) {
+      errEl.textContent = 'New password must be at least 4 characters';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (newPw !== confirmPw) {
+      errEl.textContent = 'Passwords don\'t match';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Save new password
+    if (flock && flock.members) {
+      if (!flock.members[DATA.me.id]) flock.members[DATA.me.id] = {};
+      flock.members[DATA.me.id].pw = simpleHash(newPw);
+    }
+    saveFlockState();
+    overlay.classList.add('hidden');
+    toast('Password updated \u2713');
+  });
+
+  overlay.classList.remove('hidden');
+}
+
+function openAdminPanel() {
+  var body = document.getElementById('edit-body');
+  var overlay = document.getElementById('edit-overlay');
+  var titleEl = overlay.querySelector('.sheet-title');
+  if (titleEl) titleEl.textContent = 'Admin panel';
+
+  var flock = FLOCKS[currentFlockId];
+  if (!flock) return;
+
+  var allMembers = flock.members ? Object.values(flock.members) : [];
+
+  var memberRows = allMembers.map(function(m){
+    var isMe = m.id === DATA.me.id;
+    var role = m.role || 'member';
+    var roleBadge = role === 'creator' ? '<span style="background:var(--gold);color:#1E1433;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Creator</span>'
+                  : role === 'admin' ? '<span style="background:#ede8ff;color:var(--brand);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Admin</span>'
+                  : '<span style="background:var(--surface2);color:var(--text3);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Member</span>';
+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)">' +
+      makeAv(m.animal||'bear', 36) +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text1)">' + escapeHtml(m.name) + (isMe ? ' (you)' : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--text2)">' + (m.location||'') + ' &middot; ' + (m.pw ? 'Password set' : 'No password') + '</div>' +
+      '</div>' +
+      roleBadge +
+      (!isMe ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0">' +
+        (role !== 'admin' && role !== 'creator' ? '<button class="admin-promote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make admin</button>' : '') +
+        (role === 'admin' ? '<button class="admin-demote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove admin</button>' : '') +
+        '<button class="admin-reset-pw" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-family:inherit">Reset pw</button>' +
+        (role !== 'creator' ? '<button class="admin-remove" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit">&times;</button>' : '') +
+      '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  body.innerHTML =
+    '<div style="padding:4px 0">'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5">Manage members, roles, and passwords for <strong>' + escapeHtml(flock.name) + '</strong>.</div>'+
+      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + allMembers.length + ')</div>'+
+      '<div>' + memberRows + '</div>'+
+    '</div>';
+
+  // Wire promote buttons
+  body.querySelectorAll('.admin-promote').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var mid = btn.dataset.mid;
+      if (flock.members[mid]) { flock.members[mid].role = 'admin'; saveFlockState(); openAdminPanel(); toast('Promoted to admin'); }
+    });
+  });
+
+  // Wire demote buttons
+  body.querySelectorAll('.admin-demote').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var mid = btn.dataset.mid;
+      if (flock.members[mid]) { flock.members[mid].role = 'member'; saveFlockState(); openAdminPanel(); toast('Removed admin role'); }
+    });
+  });
+
+  // Wire reset password buttons
+  body.querySelectorAll('.admin-reset-pw').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var mid = btn.dataset.mid;
+      if (confirm('Reset password for ' + (flock.members[mid]?flock.members[mid].name:'this member') + '? They\'ll be able to log in without a password and set a new one.')) {
+        if (flock.members[mid]) { flock.members[mid].pw = ''; saveFlockState(); openAdminPanel(); toast('Password reset'); }
+      }
+    });
+  });
+
+  // Wire remove buttons
+  body.querySelectorAll('.admin-remove').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var mid = btn.dataset.mid;
+      var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
+      if (confirm('Remove ' + memberName + ' from the flock? This can\'t be undone.')) {
+        delete flock.members[mid];
+        var idx = (flock.memberIds||[]).indexOf(mid);
+        if (idx >= 0) flock.memberIds.splice(idx, 1);
+        // Also remove from DATA.members
+        DATA.members = DATA.members.filter(function(m){ return m.id !== mid; });
+        saveFlockState();
+        openAdminPanel();
+        renderHome();
+        toast(memberName + ' removed from flock');
+      }
+    });
+  });
+
+  overlay.classList.remove('hidden');
+}
+
 // -- LOGIN / MEMBER SELECT ------------------------
+
+// Simple password hash (not crypto-grade, but good enough for family app localStorage)
+function simpleHash(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return 'kv_' + Math.abs(hash).toString(36);
+}
+
 function showLoginScreen() {
   var screen = document.getElementById('login-screen');
   if (!screen) return;
@@ -4062,18 +4233,80 @@ function renderMemberPicker(inner, members) {
       '<div class="login-logo">Kinverly<span style="color:rgba(255,255,255,0.4)">.</span></div>'+
       '<div class="login-tagline" style="margin-bottom:6px">YOUR PEOPLE. YOUR PLACE. YOUR TURN.</div>'+
       '<div style="font-size:13px;color:rgba(255,255,255,0.5);font-weight:700;margin-bottom:20px">'+flockName+'</div>'+
-      '<div class="login-prompt">Welcome back &#8212; who is here?</div>'+
+      '<div class="login-prompt">Who\'s logging in?</div>'+
       '<div class="login-members">'+memberHTML+'</div>'+
-      '<button class="login-new" id="login-new-btn">+ Not on the list? Join here</button>'+
+      '<div id="login-pw-area" style="display:none;width:100%;margin-top:8px">'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px" id="login-selected-member"></div>'+
+        '<input class="join-input" id="login-pw" type="password" placeholder="Enter your password" style="margin-bottom:4px">'+
+        '<div class="join-err" id="login-pw-err">Incorrect password</div>'+
+        '<button class="join-btn" id="login-pw-submit" style="margin-bottom:8px">Log in</button>'+
+        '<button class="join-back" id="login-pw-back">Back</button>'+
+      '</div>'+
+      '<button class="login-new" id="login-new-btn" style="margin-top:12px">+ Create a new profile</button>'+
     '</div>';
+
+  var selectedId = null;
 
   inner.querySelectorAll('.login-chip').forEach(function(chip){
     chip.addEventListener('click', function(){
-      selectMember(chip.dataset.memberId);
+      selectedId = chip.dataset.memberId;
+      var member = members.find(function(m){ return m.id === selectedId; });
+      if (!member) return;
+
+      // If member has no password, let them in directly (legacy accounts)
+      if (!member.pw) {
+        localStorage.setItem('kinverly_auth_' + selectedId, 'true');
+        selectMember(selectedId);
+        return;
+      }
+
+      // Check if already authenticated on this device
+      if (localStorage.getItem('kinverly_auth_' + selectedId) === 'true') {
+        selectMember(selectedId);
+        return;
+      }
+
+      // Show password field
+      document.querySelector('.login-members').style.display = 'none';
+      document.getElementById('login-new-btn').style.display = 'none';
+      document.querySelector('.login-prompt').textContent = 'Welcome back!';
+      var selArea = document.getElementById('login-selected-member');
+      selArea.innerHTML = makeAv(member.animal, 44, '') +
+        '<div><div style="font-size:16px;font-weight:800;color:#fff">' + escapeHtml(member.name) + '</div>' +
+        '<div style="font-size:12px;color:rgba(255,255,255,0.5)">' + (member.location||'') + '</div></div>';
+      document.getElementById('login-pw-area').style.display = '';
+      document.getElementById('login-pw-err').style.display = 'none';
+      setTimeout(function(){ document.getElementById('login-pw').focus(); }, 300);
     });
   });
 
-  document.getElementById('login-new-btn').addEventListener('click', renderJoinForm);
+  // Wire password submit
+  var pwSubmitHandler = function(){
+    var pw = document.getElementById('login-pw').value;
+    var member = members.find(function(m){ return m.id === selectedId; });
+    if (!member) return;
+    if (simpleHash(pw) === member.pw) {
+      // Auth success — remember on this device
+      localStorage.setItem('kinverly_auth_' + selectedId, 'true');
+      selectMember(selectedId);
+    } else {
+      document.getElementById('login-pw-err').style.display = 'block';
+      document.getElementById('login-pw').value = '';
+      document.getElementById('login-pw').focus();
+    }
+  };
+
+  // Defer wiring since elements are in innerHTML
+  setTimeout(function(){
+    var pwBtn = document.getElementById('login-pw-submit');
+    if (pwBtn) pwBtn.addEventListener('click', pwSubmitHandler);
+    var pwInp = document.getElementById('login-pw');
+    if (pwInp) pwInp.addEventListener('keydown', function(e){ if(e.key==='Enter') pwSubmitHandler(); });
+    var pwBack = document.getElementById('login-pw-back');
+    if (pwBack) pwBack.addEventListener('click', function(){ renderMemberPicker(inner, members); });
+    var newBtn = document.getElementById('login-new-btn');
+    if (newBtn) newBtn.addEventListener('click', renderJoinForm);
+  }, 50);
 }
 
 function buildBadges(stats, animal) {
@@ -4095,7 +4328,16 @@ function buildBadges(stats, animal) {
 }
 
 function selectMember(id) {
+  // Look in DATA.members first, then flock members
   var member = DATA.members.find(function(m){ return m.id === id; });
+  if (!member && currentFlockId && FLOCKS[currentFlockId] && FLOCKS[currentFlockId].members) {
+    member = FLOCKS[currentFlockId].members[id];
+  }
+  if (!member) {
+    // Last resort: check saved profile
+    var saved = localStorage.getItem('kinverly_profile_' + id);
+    if (saved) member = JSON.parse(saved);
+  }
   if (!member) return;
 
   // Sync all member data into DATA.me
@@ -4153,7 +4395,7 @@ function renderJoinForm() {
   inner.innerHTML =
     '<div class="join-box">'+
       '<div style="font-family:Fredoka One,cursive;font-size:32px;color:var(--gold);margin-bottom:4px;align-self:flex-start">Kinverly.</div>'+
-      '<div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.12em;text-transform:uppercase;margin-bottom:20px">JOIN THE FLOCK</div>'+
+      '<div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.12em;text-transform:uppercase;margin-bottom:20px">CREATE YOUR PROFILE</div>'+
 
       '<div class="join-field-label">Your name</div>'+
       '<input class="join-input" id="jf-name" type="text" placeholder="e.g. Sara or Aunt Sara">'+
@@ -4162,12 +4404,16 @@ function renderJoinForm() {
       '<div class="join-field-label">Your city</div>'+
       '<input class="join-input" id="jf-city" type="text" placeholder="e.g. Portland, OR">'+
 
+      '<div class="join-field-label">Create a password</div>'+
+      '<input class="join-input" id="jf-password" type="password" placeholder="At least 4 characters">'+
+      '<div class="join-err" id="jf-pw-err">Password must be at least 4 characters</div>'+
+
       '<div class="join-field-label">Pick your animal</div>'+
       '<div class="join-animal-grid" id="jf-animal-grid"></div>'+
       '<div class="join-err" id="jf-animal-err">Please pick an animal</div>'+
 
-      '<button class="join-btn" id="jf-submit">Join the flock!</button>'+
-      '<button class="join-back" id="jf-back">Back to member list</button>'+
+      '<button class="join-btn" id="jf-submit">Create my profile</button>'+
+      '<button class="join-back" id="jf-back">Back</button>'+
     '</div>';
 
   // Build animal cards as real DOM nodes
@@ -4195,10 +4441,15 @@ function renderJoinForm() {
   document.getElementById('jf-submit').addEventListener('click', function(){
     var name = document.getElementById('jf-name').value.trim();
     var city = document.getElementById('jf-city').value.trim() || 'Somewhere wonderful';
+    var pw   = document.getElementById('jf-password').value;
     var ok = true;
 
     if (!name) {
       document.getElementById('jf-name-err').style.display = 'block';
+      ok = false;
+    }
+    if (!pw || pw.length < 4) {
+      document.getElementById('jf-pw-err').style.display = 'block';
       ok = false;
     }
     if (!pickedAnimal) {
@@ -4210,7 +4461,8 @@ function renderJoinForm() {
     var id = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '_' + Date.now().toString(36);
     var newMember = {
       id:id, name:name, animal:pickedAnimal, location:city,
-      online:false, mode:'in-person', pct:0
+      online:false, mode:'in-person', pct:0,
+      pw: simpleHash(pw)
     };
 
     // Add default stats and prefs for new member
@@ -4229,7 +4481,18 @@ function renderJoinForm() {
     DATA.me.badges = buildBadges(DATA.me.stats, pickedAnimal);
 
     persistMyProfile();
+
+    // Store pw hash in flock member data
+    if (currentFlockId && FLOCKS[currentFlockId]) {
+      if (!FLOCKS[currentFlockId].members) FLOCKS[currentFlockId].members = {};
+      FLOCKS[currentFlockId].members[id] = newMember;
+      if (!FLOCKS[currentFlockId].memberIds) FLOCKS[currentFlockId].memberIds = [];
+      if (FLOCKS[currentFlockId].memberIds.indexOf(id) === -1) FLOCKS[currentFlockId].memberIds.push(id);
+    }
     saveFlockState();
+
+    // Mark as authenticated for this session
+    localStorage.setItem('kinverly_auth_' + id, 'true');
 
     // Now do the standard login flow
     selectMember(id);
@@ -4400,13 +4663,34 @@ function saveFlockState() {
       _f.ideas      = DATA.ideas;
       _f.activity   = DATA.activity;
       if (!_f.members) _f.members = {};
-      _f.members[DATA.me.id] = {
-        id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
-        location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
-        role:(_f.members[DATA.me.id]&&_f.members[DATA.me.id].role)||'member'
-      };
       if (!_f.memberIds) _f.memberIds = [];
-      if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
+
+      // Update ONLY the current user — never overwrite other members
+      if (DATA.me.id) {
+        _f.members[DATA.me.id] = {
+          id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
+          location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
+          role:(_f.members[DATA.me.id]&&_f.members[DATA.me.id].role)||'member',
+          pw:(_f.members[DATA.me.id]&&_f.members[DATA.me.id].pw)||''
+        };
+        if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
+      }
+
+      // Also merge DATA.members back (other users) — don't lose them
+      (DATA.members||[]).forEach(function(m){
+        if (!m || !m.id || m.id === DATA.me.id) return;
+        if (!_f.members[m.id]) {
+          _f.members[m.id] = m;
+        } else {
+          // Preserve existing role/pw, update rest
+          var existing = _f.members[m.id];
+          _f.members[m.id] = Object.assign({}, existing, m, {
+            role: existing.role || m.role || 'member',
+            pw: existing.pw || ''
+          });
+        }
+        if (_f.memberIds.indexOf(m.id)===-1) _f.memberIds.push(m.id);
+      });
     }
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
     localStorage.setItem('kinverly_current_flock', currentFlockId || '');
