@@ -3686,6 +3686,7 @@ function renderProfile() {
     '<button class="btn-secondary" id="change-animal-btn" style="margin-top:8px">Change my animal</button>'+
     '<button class="btn-secondary" id="change-pw-btn" style="margin-top:8px">Change my password</button>'+
     (isFlockAdmin() ? '<button class="btn-secondary" id="admin-panel-btn" style="margin-top:8px;border-color:var(--brand);color:var(--brand)">&#128737; Admin panel</button>' : '') +
+    '<button class="btn-secondary" id="leave-flock-btn" style="margin-top:8px;border-color:var(--amber);color:var(--amber)">Leave this flock</button>' +
     '<button class="btn-secondary" id="logout-btn" style="margin-top:8px;border-color:var(--red);color:var(--red)">Log out</button>';
 
   document.getElementById('profile-content').innerHTML = html;
@@ -3694,6 +3695,50 @@ function renderProfile() {
   document.getElementById('edit-profile-btn').addEventListener('click', openEditProfile);
   document.getElementById('change-animal-btn').addEventListener('click', openAnimalPicker);
   document.getElementById('change-pw-btn').addEventListener('click', openChangePassword);
+
+  document.getElementById('leave-flock-btn').addEventListener('click', function(){
+    var flock = FLOCKS[currentFlockId];
+    var flockName = flock ? flock.name : 'this flock';
+    if (!confirm('Leave ' + flockName + '?\n\nYour profile will be removed from this flock. Other members will no longer see you. This can\'t be undone.')) return;
+    if (flock && flock.members) {
+      delete flock.members[DATA.me.id];
+      var idx = (flock.memberIds||[]).indexOf(DATA.me.id);
+      if (idx >= 0) flock.memberIds.splice(idx, 1);
+      // Log activity
+      if (!flock.activity) flock.activity = [];
+      flock.activity.unshift({
+        member: 'group',
+        text: '<strong>' + escapeHtml(DATA.me.name) + '</strong> left the flock',
+        time: 'Just now',
+        icon: '👋',
+        ts: Date.now()
+      });
+    }
+    // Save the flock WITHOUT this member, then sync
+    saveFlockState();
+    if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+    // Switch to another flock or show onboarding
+    var remaining = Object.keys(FLOCKS).filter(function(k){ return k !== currentFlockId; });
+    delete FLOCKS[currentFlockId];
+    localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
+    if (remaining.length > 0) {
+      switchToFlock(remaining[0]);
+    } else {
+      currentFlockId = null;
+      DATA.members = [];
+      DATA.gatherings = [];
+      DATA.ideas = [];
+      DATA.activity = [];
+      renderHome();
+      renderGatherings();
+      renderIdeas();
+      renderFairness();
+      renderProfile();
+      showFlockOnboarding();
+    }
+    toast('You left ' + flockName);
+  });
+
   document.getElementById('logout-btn').addEventListener('click', function(){
     if (confirm('Log out? You\'ll need your password to log back in.')) {
       saveFlockState();
@@ -4352,6 +4397,14 @@ function renderWelcomeScreen(inner) {
     '</div>';
 
   document.getElementById('welcome-create-btn').addEventListener('click', function(){
+    // Must have a profile before creating a flock
+    if (!DATA.me.id || !DATA.me.name) {
+      window._afterProfileAction = 'create-flock';
+      var ls = document.getElementById('login-screen');
+      if (ls) ls.style.display = 'flex';
+      renderJoinForm();
+      return;
+    }
     var ls = document.getElementById('login-screen');
     if (ls) ls.style.display = 'none';
     showFlockOnboarding();
@@ -4359,6 +4412,14 @@ function renderWelcomeScreen(inner) {
   });
 
   document.getElementById('welcome-join-btn').addEventListener('click', function(){
+    // Must have a profile before joining a flock
+    if (!DATA.me.id || !DATA.me.name) {
+      window._afterProfileAction = 'join-flock';
+      var ls = document.getElementById('login-screen');
+      if (ls) ls.style.display = 'flex';
+      renderJoinForm();
+      return;
+    }
     var ls = document.getElementById('login-screen');
     if (ls) ls.style.display = 'none';
     showFlockOnboarding();
@@ -4526,11 +4587,23 @@ function selectMember(id) {
   renderHome();
   renderProfile();
 
+  // Check if we need to redirect to flock creation/joining after profile setup
+  if (window._afterProfileAction) {
+    var action = window._afterProfileAction;
+    window._afterProfileAction = null;
+    if (action === 'create-flock') {
+      setTimeout(function(){ showFlockOnboarding(); renderFlockCreate(); }, 300);
+    } else if (action === 'join-flock') {
+      setTimeout(function(){ showFlockOnboarding(); renderFlockJoin(); }, 300);
+    }
+    return;
+  }
+
   // If they have no flocks, show flock onboarding right after login
   if (Object.keys(FLOCKS).length === 0) {
     setTimeout(showFlockOnboarding, 300);
   } else {
-    toast('Welcome back, '+member.name+'! ?');
+    toast('Welcome back, '+DATA.me.name+'! ?');
   }
 }
 
@@ -4760,9 +4833,9 @@ function restoreSession() {
     }
 
     // userId exists but can't find member data yet — still count as logged in
-    // (flock data may load later from switchToFlock)
+    // ONLY if we have a name (profile was actually created)
     DATA.me.id = userId;
-    return true;
+    return !!DATA.me.name;
   } catch(e) {
     return false;
   }
@@ -4846,6 +4919,12 @@ function saveFlockState() {
     localStorage.setItem('kinverly_current_flock', currentFlockId || '');
     try { localStorage.setItem('kinverly_rsvp', JSON.stringify(rsvpData)); } catch(e2) {}
     try { localStorage.setItem('kinverly_notifs', JSON.stringify(NOTIFS)); } catch(e2) {}
+
+    // Sync to Firebase if available (debounced 500ms)
+    if (window._syncTimer) clearTimeout(window._syncTimer);
+    window._syncTimer = setTimeout(function(){
+      if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+    }, 500);
   } catch(e) {}
 }
 
@@ -4889,31 +4968,56 @@ function switchToFlock(flockId) {
     ? Object.values(flock.members).filter(function(m){ return m && m.id !== DATA.me.id; })
     : [];
 
-  // Load flock data or start fresh
-  DATA.gatherings = (flock.gatherings && flock.gatherings.length > 0) ? flock.gatherings : [];
-  DATA.ideas      = (flock.ideas      && flock.ideas.length      > 0) ? flock.ideas      : [];
+  // Load flock data
+  DATA.gatherings = flock.gatherings || [];
+  DATA.ideas      = flock.ideas || [];
   DATA.activity   = flock.activity || [];
 
-  // Save AFTER loading so DATA is flushed into FLOCKS correctly
-  saveFlockState();
+  // Save currentFlockId to localStorage so refresh remembers which flock
+  try {
+    localStorage.setItem('kinverly_current_flock', currentFlockId);
+  } catch(e){}
 
   renderHome();
   renderGatherings();
   renderIdeas();
   renderFairness();
   renderProfile();
-  toast((flock.emoji || '?') + ' ' + flock.name);
+  toast((flock.emoji || '👥') + ' ' + flock.name);
 }
 
 function createFlock(name, emoji) {
+  // Guard: must have a profile
+  if (!DATA.me.id || !DATA.me.name) {
+    toast('Please create your profile first');
+    return null;
+  }
   var id = generateFlockId();
   var code = generateCode();
-  var flock = { id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id, members:{}, memberIds:[] };
-  var creator = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator' };
+  var flock = { id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id, members:{}, memberIds:[], gatherings:[], ideas:[], activity:[] };
+
+  // Get pw hash if it exists (from join form)
+  var myPw = '';
+  var myMemberData = DATA.members.find(function(m){ return m.id === DATA.me.id; });
+  if (myMemberData && myMemberData.pw) myPw = myMemberData.pw;
+
+  var creator = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator', pw:myPw };
   flock.members[DATA.me.id] = creator;
   flock.memberIds = [DATA.me.id];
   FLOCKS[id] = flock;
   currentFlockId = id;
+
+  // Log creation activity
+  if (!flock.activity) flock.activity = [];
+  flock.activity.unshift({
+    member: DATA.me.id,
+    text: 'created the flock <strong>' + escapeHtml(name) + '</strong>',
+    time: 'Just now',
+    icon: '🏠',
+    ts: Date.now()
+  });
+  DATA.activity = flock.activity;
+
   saveFlockState();
   persistMyProfile();
   saveFlockToFirebase(flock, creator);
@@ -4944,35 +5048,98 @@ function addMeToFlock(flockId) {
   if (!flock) return;
   if (!flock.members) flock.members = {};
   if (!flock.memberIds) flock.memberIds = [];
+  if (!flock.gatherings) flock.gatherings = [];
+  if (!flock.ideas) flock.ideas = [];
+  if (!flock.activity) flock.activity = [];
 
-  var me = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'member' };
+  // Get pw from existing member data if available (set during join form)
+  var existingPw = '';
+  var existingMember = DATA.members.find(function(m){ return m.id === DATA.me.id; });
+  if (existingMember && existingMember.pw) existingPw = existingMember.pw;
+  if (flock.members[DATA.me.id] && flock.members[DATA.me.id].pw) existingPw = flock.members[DATA.me.id].pw;
+
+  var me = {
+    id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
+    location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
+    role: (flock.members[DATA.me.id] && flock.members[DATA.me.id].role) || 'member',
+    pw: existingPw
+  };
+
+  // Write member into flock — this is the critical save
   flock.members[DATA.me.id] = me;
   if (flock.memberIds.indexOf(DATA.me.id) === -1) flock.memberIds.push(DATA.me.id);
 
-  // Set as the active flock so saveFlockState flushes into the right bucket
+  // Set as active flock
   currentFlockId = flockId;
 
   // Load flock members into DATA (excluding myself)
   DATA.members = Object.values(flock.members).filter(function(m){ return m && m.id !== DATA.me.id; });
 
   // Pull in any existing flock gatherings/ideas
-  if (flock.gatherings && flock.gatherings.length > 0) DATA.gatherings = flock.gatherings;
-  if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
+  DATA.gatherings = flock.gatherings;
+  DATA.ideas = flock.ideas;
+  DATA.activity = flock.activity;
 
+  // Log "X joined the flock!" activity
+  logActivity(DATA.me.id, 'joined the flock! Welcome, <strong>' + escapeHtml(DATA.me.name) + '</strong> 🎉', '👋');
+
+  // Save to localStorage immediately
   saveFlockState();
   persistMyProfile();
-  if (window.__saveMemberToFlock) window.__saveMemberToFlock(flockId, me);
+
+  // Push to Firebase immediately (don't wait for debounce)
+  if (window.__saveMemberToFlock) {
+    window.__saveMemberToFlock(flockId, me);
+  } else {
+    // Firebase not loaded yet — queue it
+    window._pendingMemberSave = { flockId: flockId, member: me };
+  }
 }
 
 async function saveFlockToFirebase(flock, creator) {
   if (!window.__db || !window.__firestoreHelpers) return;
   try {
     var h = window.__firestoreHelpers;
-    var data = { id:flock.id, name:flock.name, emoji:flock.emoji, inviteCode:flock.inviteCode, createdBy:flock.createdBy, memberIds:flock.memberIds };
-    data['members.' + creator.id] = creator;
-    if (h.serverTimestamp) data.createdAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
-  } catch(e) { console.warn('[Kinverly] Flock save offline'); }
+    // Save full flock data — not just metadata
+    var data = {
+      id: flock.id,
+      name: flock.name,
+      emoji: flock.emoji,
+      inviteCode: flock.inviteCode,
+      createdBy: flock.createdBy,
+      memberIds: flock.memberIds || [],
+      members: flock.members || {},
+      gatherings: flock.gatherings || [],
+      ideas: flock.ideas || [],
+      activity: flock.activity || []
+    };
+    if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
+    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
+  } catch(e) { console.warn('[Kinverly] Flock save offline:', e.message); }
+}
+
+// Full flock sync to Firebase — call after any data change
+async function syncFlockToFirebase() {
+  if (!window.__db || !window.__firestoreHelpers || !currentFlockId || !FLOCKS[currentFlockId]) return;
+  try {
+    var h = window.__firestoreHelpers;
+    var flock = FLOCKS[currentFlockId];
+    var data = {
+      id: flock.id,
+      name: flock.name,
+      emoji: flock.emoji,
+      inviteCode: flock.inviteCode,
+      createdBy: flock.createdBy,
+      memberIds: flock.memberIds || [],
+      members: flock.members || {},
+      gatherings: flock.gatherings || [],
+      ideas: flock.ideas || [],
+      activity: (flock.activity || []).slice(0, 20),
+      rsvpData: rsvpData || {}
+    };
+    if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
+    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
+  } catch(e) { console.warn('[Kinverly] Sync offline:', e.message); }
 }
 
 function showFlockOnboarding() {
@@ -5059,6 +5226,7 @@ function renderFlockCreate() {
     if (!name) { ne.style.display = 'block'; ni.focus(); return; }
     ne.style.display = 'none';
     var flock = createFlock(name, selEmoji);
+    if (!flock) return;
     renderFlockCreated(flock);
   });
   inner.appendChild(cb);
@@ -7169,6 +7337,8 @@ function renderFlockSchedule() {
     if (DATA.me.id) {
       persistMyProfile();
       saveFlockState();
+      // Attempt immediate Firebase sync (best-effort, browser may cancel)
+      if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
     }
   });
 
@@ -7249,22 +7419,120 @@ try {
   // Expose for flock join-by-code lookup
   window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion, orderBy, onSnapshot };
 
-  // Listen for flock member updates in real time
+  // ═══════════════════════════════════════════════
+  //  REAL-TIME SYNC LISTENER
+  //  Remote is source of truth for shared data.
+  //  Local-only items (not yet synced) are preserved.
+  //  Your own RSVP data is never overwritten by remote.
+  // ═══════════════════════════════════════════════
   if (window._currentFlockListener) window._currentFlockListener();
   var flockId = window.currentFlockId || localStorage.getItem('kinverly_current_flock');
   if (flockId) {
+    var _isFirstSnapshot = true;
+
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
       if (!snap.exists()) return;
-      var flockData = snap.data();
-      if (flockData.members) {
-        var members = Object.values(flockData.members);
-        if (members.length > 0) {
-          DATA.members = members;
-          if (window.FLOCKS && window.FLOCKS[flockId]) {
-            window.FLOCKS[flockId].members = flockData.members;
-            window.FLOCKS[flockId].memberIds = flockData.memberIds || members.map(function(m){ return m.id; });
+      var remote = snap.data();
+      var myId = DATA.me.id;
+      if (!window.FLOCKS[flockId]) window.FLOCKS[flockId] = {};
+      var local = window.FLOCKS[flockId];
+
+      // ── MEMBERS ──
+      if (remote.members) {
+        var merged = local.members || {};
+        Object.keys(remote.members).forEach(function(mid) {
+          var rm = remote.members[mid];
+          var lm = merged[mid];
+          if (!lm) {
+            merged[mid] = rm;
+          } else {
+            merged[mid] = Object.assign({}, rm, {
+              pw: lm.pw || rm.pw || '',
+              role: lm.role || rm.role || 'member'
+            });
           }
-          renderHome();
+        });
+        local.members = merged;
+        local.memberIds = remote.memberIds || Object.keys(merged);
+        DATA.members = Object.values(merged).filter(function(m){ return m && m.id !== myId; });
+      }
+
+      // ── GATHERINGS: remote wins, keep local-only ──
+      if (remote.gatherings && Array.isArray(remote.gatherings)) {
+        var rMap = {};
+        remote.gatherings.forEach(function(g){ rMap[g.id] = true; });
+        // Start with remote (source of truth for existing items)
+        var gMerged = remote.gatherings.slice();
+        // Add local-only gatherings not yet in remote
+        (DATA.gatherings || []).forEach(function(lg){
+          if (!rMap[lg.id]) gMerged.push(lg);
+        });
+        DATA.gatherings = gMerged;
+        local.gatherings = gMerged;
+      }
+
+      // ── IDEAS: same strategy ──
+      if (remote.ideas && Array.isArray(remote.ideas)) {
+        var iMap = {};
+        remote.ideas.forEach(function(i){ iMap[i.id] = true; });
+        var iMerged = remote.ideas.slice();
+        (DATA.ideas || []).forEach(function(li){
+          if (!iMap[li.id]) iMerged.push(li);
+        });
+        DATA.ideas = iMerged;
+        local.ideas = iMerged;
+      }
+
+      // ── ACTIVITY ──
+      if (remote.activity && Array.isArray(remote.activity)) {
+        DATA.activity = remote.activity;
+        local.activity = remote.activity;
+      }
+
+      // ── RSVP DATA: merge, but never overwrite my own entries ──
+      if (remote.rsvpData) {
+        Object.keys(remote.rsvpData).forEach(function(gId){
+          if (!rsvpData[gId]) rsvpData[gId] = {};
+          Object.keys(remote.rsvpData[gId]).forEach(function(mid){
+            if (mid === myId && rsvpData[gId][mid]) return;
+            rsvpData[gId][mid] = remote.rsvpData[gId][mid];
+          });
+        });
+      }
+
+      // ── METADATA ──
+      if (remote.name) local.name = remote.name;
+      if (remote.emoji) local.emoji = remote.emoji;
+      if (remote.inviteCode) local.inviteCode = remote.inviteCode;
+      if (remote.createdBy) local.createdBy = remote.createdBy;
+
+      // Save merged state to localStorage
+      try {
+        localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
+        localStorage.setItem('kinverly_rsvp', JSON.stringify(rsvpData));
+      } catch(e){}
+
+      // Update topbar
+      var nameEl = document.getElementById('topbar-flock-name');
+      if (nameEl && local.name) nameEl.textContent = local.name;
+
+      // Skip full re-render on initial snapshot (init already rendered)
+      if (_isFirstSnapshot) { _isFirstSnapshot = false; return; }
+
+      // Re-render ALL views so every user sees changes
+      renderHome();
+      renderGatherings();
+      renderIdeas();
+      renderFairness();
+      renderProfile();
+      updateCountdown();
+
+      // If gathering detail is open, refresh it with updated data
+      if (window._currentDetailGathering) {
+        var updated = DATA.gatherings.find(function(g){ return g.id === window._currentDetailGathering.id; });
+        if (updated) {
+          window._currentDetailGathering = updated;
+          renderDetail(updated);
         }
       }
     });
@@ -7273,15 +7541,29 @@ try {
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
     try {
-      var update = {};
-      update['members.' + member.id] = member;
-      update['memberIds'] = arrayUnion(member.id);
-      await updateDoc(doc(db, 'flocks', flockId), update);
-    } catch(e) { console.warn('[Kinverly] Member save offline'); }
+      // Use setDoc with merge — works whether doc exists or not
+      var data = {};
+      data['members.' + member.id] = member;
+      data['memberIds'] = arrayUnion(member.id);
+      if (serverTimestamp) data.updatedAt = serverTimestamp();
+      await setDoc(doc(db, 'flocks', flockId), data, {merge: true});
+      // Also do a full sync to push all flock data
+      if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+    } catch(e) { console.warn('[Kinverly] Member save error:', e.message); }
   };
 
   // seedIfEmpty removed — users create from scratch
   console.log('[Kinverly] Firebase connected');
+
+  // Flush any pending member save that queued before Firebase loaded
+  if (window._pendingMemberSave) {
+    var p = window._pendingMemberSave;
+    window._pendingMemberSave = null;
+    window.__saveMemberToFlock(p.flockId, p.member);
+  }
+
+  // Do an immediate full sync on connect
+  if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
 } catch(e) {
   console.warn('[Kinverly] Firebase offline:', e.message);
 }
