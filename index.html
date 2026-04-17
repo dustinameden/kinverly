@@ -1644,6 +1644,8 @@ img,svg{display:block}
         <button class="alert-go" id="home-alert-go">Go</button>
       </div>
 
+      <div id="whats-new-banner" style="display:none"></div>
+
       <div class="section-title">The flock</div>
       <div class="flock-row" id="flock-row"></div>
 
@@ -2272,6 +2274,85 @@ function renderHome() {
 
   // Update the dynamic alert card based on current flock state
   updateAlertCard();
+
+  // Render "What's new" banner — recent activity since last visit
+  renderWhatsNewBanner();
+}
+
+// Track when user last viewed their home page per flock
+function getLastSeenTime() {
+  try {
+    var key = 'kinverly_lastseen_' + (currentFlockId || '');
+    return parseInt(localStorage.getItem(key)) || 0;
+  } catch(e){ return 0; }
+}
+function setLastSeenTime(ts) {
+  try {
+    var key = 'kinverly_lastseen_' + (currentFlockId || '');
+    localStorage.setItem(key, (ts || Date.now()).toString());
+  } catch(e){}
+}
+
+function renderWhatsNewBanner() {
+  var el = document.getElementById('whats-new-banner');
+  if (!el) return;
+
+  var lastSeen = getLastSeenTime();
+  var newItems = (DATA.activity||[]).filter(function(a){
+    // Only show items newer than last seen, and not from me
+    if (!a.ts || a.ts <= lastSeen) return false;
+    if (a.member === DATA.me.id) return false;
+    return true;
+  });
+
+  if (newItems.length === 0) {
+    el.style.display = 'none';
+    return;
+  }
+
+  // Group and summarize
+  var count = newItems.length;
+  var members = {};
+  newItems.forEach(function(a){ if (a.member && a.member !== 'group') members[a.member] = true; });
+  var memberCount = Object.keys(members).length;
+
+  var summary = count + ' new update' + (count!==1?'s':'');
+  if (memberCount > 0) {
+    summary += ' from ' + memberCount + ' flock member' + (memberCount!==1?'s':'');
+  }
+
+  // Show up to 3 preview items
+  var preview = newItems.slice(0, 3).map(function(a){
+    var m = a.member !== 'group' ? getMember(a.member) : null;
+    var icon = m ? makeAv(m.animal, 24) :
+      '<div style="width:24px;height:24px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">'+(a.icon||'✨')+'</div>';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;color:var(--text1)">' +
+      icon +
+      '<div style="flex:1;line-height:1.4"><strong>' + (m?escapeHtml(m.name):'Update') + '</strong> ' + a.text + '</div>' +
+    '</div>';
+  }).join('');
+
+  el.style.display = '';
+  el.innerHTML =
+    '<div style="background:linear-gradient(135deg,#3D2B6E 0%,#5a3fb8 100%);border-radius:14px;padding:12px 14px;margin-bottom:12px;color:#fff">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+        '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(240,192,48,.9);text-transform:uppercase">✨ What\'s new</div>' +
+        '<button id="whats-new-dismiss" style="background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:inherit">Mark all read</button>' +
+      '</div>' +
+      '<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:#fff">' + summary + '</div>' +
+      '<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:6px 10px">' + preview + '</div>' +
+    '</div>';
+
+  document.getElementById('whats-new-dismiss').addEventListener('click', function(){
+    setLastSeenTime(Date.now());
+    el.style.display = 'none';
+  });
+
+  // Auto-mark as read after 10 seconds of viewing
+  if (window._whatsNewTimer) clearTimeout(window._whatsNewTimer);
+  window._whatsNewTimer = setTimeout(function(){
+    setLastSeenTime(Date.now());
+  }, 10000);
 }
 
 // -- MEMBER PROFILE ---------------------------------
@@ -6696,12 +6777,14 @@ function showExpenseForm(parentWrap, g, allFlock, onDone) {
 
 
 // ════════════════════════════════════════════════
-//  FEATURE 6: GATHERING CHAT
+//  FEATURE 6: GATHERING CHAT (in-flock, syncs with everything)
 // ════════════════════════════════════════════════
 
-var chatListeners = {}; // gatheringId -> unsubscribe fn
-
 function renderGatheringChat(gatheringId) {
+  var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
+  if (!g) return document.createElement('div');
+  if (!g.chat) g.chat = [];
+
   var wrap = document.createElement('div');
   wrap.className = 'chat-wrap';
 
@@ -6721,31 +6804,27 @@ function renderGatheringChat(gatheringId) {
     if (!text) return;
     input.value = '';
     var msg = {
-      id: 'msg_' + Date.now().toString(36),
+      id: 'msg_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
       memberId: DATA.me.id,
       memberName: DATA.me.name,
       memberAnimal: DATA.me.animal,
       text: text,
       sentAt: Date.now()
     };
-    // Optimistic local add
-    // Remove empty state if present
-    var empty = msgList.querySelector('.chat-empty');
-    if (empty) msgList.innerHTML = '';
-    appendChatMessage(msgList, msg);
+    // Add to gathering chat
+    g.chat.push(msg);
+    // Cap to last 100 messages per gathering to avoid oversized flock doc
+    if (g.chat.length > 100) g.chat = g.chat.slice(-100);
 
-    // Save locally
-    var localMsgs = getChatLocal(gatheringId);
-    localMsgs.push(msg);
-    saveChatLocal(gatheringId, localMsgs);
+    // Re-render chat list
+    renderChatMessages(msgList, g);
 
-    // Save to Firestore
-    if (window.__db && window.__firestoreHelpers) {
-      var h = window.__firestoreHelpers;
-      h.setDoc(
-        h.doc(h.collection(window.__db, 'gatherings', gatheringId, 'messages'), msg.id),
-        msg
-      ).catch(function(e){ console.warn('[Kinverly] Chat save offline'); });
+    // Save + sync (this triggers Firebase sync via saveFlockState)
+    saveFlockState();
+
+    // Log to activity feed (but only every 5th message to avoid spam)
+    if (g.chat.length % 5 === 1) {
+      logActivity(DATA.me.id, 'is chatting in <strong>' + escapeHtml(g.name) + '</strong>', '💬');
     }
   }
 
@@ -6760,15 +6839,26 @@ function renderGatheringChat(gatheringId) {
   var msgList = document.createElement('div');
   msgList.className = 'chat-messages';
   msgList.id = 'chat-messages-' + gatheringId;
+  msgList.dataset.gid = gatheringId;
   wrap.appendChild(msgList);
 
-  // Load messages
-  loadChatMessages(gatheringId, msgList);
+  renderChatMessages(msgList, g);
 
   return wrap;
 }
 
-function appendChatMessage(container, msg) {
+function renderChatMessages(container, g) {
+  container.innerHTML = '';
+  if (!g.chat || g.chat.length === 0) {
+    container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
+    return;
+  }
+  g.chat.forEach(function(msg){
+    appendChatMessage(container, msg, g);
+  });
+}
+
+function appendChatMessage(container, msg, g) {
   var isMe = msg.memberId === DATA.me.id;
   var el = document.createElement('div');
   el.className = 'chat-msg' + (isMe ? ' mine' : '');
@@ -6783,91 +6873,17 @@ function appendChatMessage(container, msg) {
     '</div>' +
     (isMe ? makeAv(msg.memberAnimal || 'bear', 30) : '');
 
-  // Wire delete button
   var delBtn = el.querySelector('.chat-del-btn');
-  if (delBtn) {
+  if (delBtn && g) {
     delBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      // Remove from local storage
-      var gId = container.id.replace('chat-messages-', '');
-      var stored = getChatLocal(gId);
-      stored = stored.filter(function(m){ return m.id !== msg.id; });
-      saveChatLocal(gId, stored);
-      // Remove from DOM
+      g.chat = (g.chat||[]).filter(function(m){ return m.id !== msg.id; });
+      saveFlockState();
       el.parentNode && el.parentNode.removeChild(el);
-      // Remove from Firestore
-      if (window.__db && window.__firestoreHelpers) {
-        var h = window.__firestoreHelpers;
-        try {
-          h.setDoc(
-            h.doc(h.collection(window.__db, 'gatherings', gId, 'messages'), msg.id),
-            { _deleted: true, text: '', memberId: msg.memberId }
-          );
-        } catch(e2){}
-      }
       toast('Message deleted');
     });
   }
   container.appendChild(el);
-}
-
-// Local chat persistence
-function getChatLocal(gatheringId) {
-  try {
-    var s = localStorage.getItem('kinverly_chat_' + gatheringId);
-    return s ? JSON.parse(s) : [];
-  } catch(e){ return []; }
-}
-function saveChatLocal(gatheringId, messages) {
-  try {
-    // Keep last 100 messages
-    if (messages.length > 100) messages = messages.slice(-100);
-    localStorage.setItem('kinverly_chat_' + gatheringId, JSON.stringify(messages));
-  } catch(e){}
-}
-
-function loadChatMessages(gatheringId, container) {
-  container.innerHTML = '';
-
-  // Load from local storage first
-  var localMsgs = getChatLocal(gatheringId);
-  if (localMsgs.length > 0) {
-    localMsgs.forEach(function(msg){
-      if (msg._deleted) return;
-      appendChatMessage(container, msg);
-    });
-  } else {
-    container.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">&#128172;</div><div class="chat-empty-text">No messages yet</div><div class="chat-empty-sub">Be the first to say something!</div></div>';
-  }
-
-  if (!window.__db) return;
-
-  // Unsubscribe any existing listener
-  if (chatListeners[gatheringId]) chatListeners[gatheringId]();
-
-  try {
-    var h = window.__firestoreHelpers;
-    var msgsRef = h.collection(window.__db, 'gatherings', gatheringId, 'messages');
-    chatListeners[gatheringId] = h.onSnapshot(
-      h.query(msgsRef, h.orderBy ? h.orderBy('sentAt') : msgsRef),
-      function(snap) {
-        if (snap.empty && localMsgs.length === 0) return;
-        container.innerHTML = '';
-        var msgs = [];
-        snap.forEach(function(doc) {
-          var d = doc.data();
-          if (!d._deleted) {
-            appendChatMessage(container, d);
-            msgs.push(d);
-          }
-        });
-        // Sync to local
-        if (msgs.length > 0) saveChatLocal(gatheringId, msgs);
-      }
-    );
-  } catch(e) {
-    console.warn('[Kinverly] Chat listener error:', e.message);
-  }
 }
 
 function escapeHtml(str) {
@@ -7302,6 +7318,29 @@ function renderFlockSchedule() {
     if (flock.gatherings && flock.gatherings.length > 0) DATA.gatherings = flock.gatherings;
     if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
     if (flock.activity   && flock.activity.length   > 0) DATA.activity   = flock.activity;
+
+    // Migrate any old-style localStorage chat messages into gathering.chat arrays
+    DATA.gatherings.forEach(function(g){
+      if (!g.chat) g.chat = [];
+      try {
+        var oldChat = localStorage.getItem('kinverly_chat_' + g.id);
+        if (oldChat) {
+          var msgs = JSON.parse(oldChat);
+          if (Array.isArray(msgs) && msgs.length > 0) {
+            // Merge by id
+            var existingIds = {};
+            g.chat.forEach(function(m){ existingIds[m.id] = true; });
+            msgs.forEach(function(m){
+              if (!existingIds[m.id] && !m._deleted) g.chat.push(m);
+            });
+            // Sort by sentAt
+            g.chat.sort(function(a,b){ return (a.sentAt||0) - (b.sentAt||0); });
+          }
+          // Remove old storage
+          localStorage.removeItem('kinverly_chat_' + g.id);
+        }
+      } catch(e){}
+    });
   }
 
   // Now restore the user session — DATA.members is populated so lookup works
@@ -7527,12 +7566,31 @@ try {
       renderProfile();
       updateCountdown();
 
-      // If gathering detail is open, refresh it with updated data
+      // If gathering detail is open, update only the chat messages (preserve input)
       if (window._currentDetailGathering) {
         var updated = DATA.gatherings.find(function(g){ return g.id === window._currentDetailGathering.id; });
         if (updated) {
           window._currentDetailGathering = updated;
-          renderDetail(updated);
+
+          // Find active tab
+          var activeTab = document.querySelector('.gathering-tabs .gtab.active');
+          var activeTabId = activeTab ? activeTab.dataset.tab : null;
+
+          if (activeTabId === 'chat') {
+            // Just re-render messages without blowing away input
+            var msgList = document.getElementById('chat-messages-' + updated.id);
+            var input = document.querySelector('.chat-input');
+            var preservedInput = input ? input.value : '';
+            if (msgList) {
+              renderChatMessages(msgList, updated);
+              // Restore input value
+              if (input) input.value = preservedInput;
+            } else {
+              renderDetail(updated);
+            }
+          } else {
+            renderDetail(updated);
+          }
         }
       }
     });
