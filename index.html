@@ -2100,8 +2100,8 @@ function logActivity(memberId, text, icon) {
     else if (mins < 1440) a.time = Math.floor(mins/60) + 'h ago';
     else a.time = Math.floor(mins/1440) + 'd ago';
   });
-  // Cap at 20
-  if (DATA.activity.length > 20) DATA.activity.length = 20;
+  // Cap at 30
+  if (DATA.activity.length > 30) DATA.activity.length = 30;
   saveFlockState();
 }
 
@@ -5203,8 +5203,32 @@ async function saveFlockToFirebase(flock, creator) {
 async function syncFlockToFirebase() {
   if (!window.__db || !window.__firestoreHelpers || !currentFlockId || !FLOCKS[currentFlockId]) return;
   try {
+    // Flag that we're writing — suppress our own listener re-render
+    window._isSyncing = true;
     var h = window.__firestoreHelpers;
     var flock = FLOCKS[currentFlockId];
+    // Strip large photo data to stay under Firestore 1MB limit
+    // Photos sync via the flock doc metadata only (url, uploader, etc)
+    // Actual base64 data stays in localStorage only
+    var safeGatherings = (flock.gatherings || []).map(function(g) {
+      var copy = Object.assign({}, g);
+      if (copy.photos && copy.photos.length > 0) {
+        copy.photos = copy.photos.map(function(p) {
+          var safeP = Object.assign({}, p);
+          // Only keep dataUrl if it's under 50KB (a tiny thumbnail)
+          if (safeP.dataUrl && safeP.dataUrl.length > 50000) {
+            safeP.dataUrl = ''; // Strip large base64
+          }
+          return safeP;
+        });
+      }
+      // Cap chat to last 50 messages per gathering for Firebase
+      if (copy.chat && copy.chat.length > 50) {
+        copy.chat = copy.chat.slice(-50);
+      }
+      return copy;
+    });
+
     var data = {
       id: flock.id,
       name: flock.name,
@@ -5213,14 +5237,19 @@ async function syncFlockToFirebase() {
       createdBy: flock.createdBy,
       memberIds: flock.memberIds || [],
       members: flock.members || {},
-      gatherings: flock.gatherings || [],
+      gatherings: safeGatherings,
       ideas: flock.ideas || [],
-      activity: (flock.activity || []).slice(0, 20),
+      activity: (flock.activity || []).slice(0, 30),
       rsvpData: rsvpData || {}
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
-  } catch(e) { console.warn('[Kinverly] Sync offline:', e.message); }
+    // Clear flag after a short delay (listener fires async)
+    setTimeout(function(){ window._isSyncing = false; }, 1000);
+  } catch(e) {
+    window._isSyncing = false;
+    console.warn('[Kinverly] Sync offline:', e.message);
+  }
 }
 
 function showFlockOnboarding() {
@@ -5820,17 +5849,7 @@ function openRSVP(gatheringId) {
       saveFlockState();
     }
 
-    // Save to Firestore
-    if (window.__db && window.__firestoreHelpers) {
-      var h = window.__firestoreHelpers;
-      var update = {};
-      update['rsvps.' + me.id] = rsvp;
-      if (selectedStatus === 'yes' || selectedStatus === 'virtual') {
-        update['attending'] = DATA.gatherings[gIdx] ? DATA.gatherings[gIdx].attending : [];
-      }
-      h.updateDoc(h.doc(window.__db, 'gatherings', gatheringId), update)
-        .catch(function(e){ console.warn('[Kinverly] RSVP save offline'); });
-    }
+    // RSVP syncs to all users via flock document (saveFlockState triggers syncFlockToFirebase)
 
     document.getElementById('rsvp-overlay').classList.add('hidden');
     renderDetail(DATA.gatherings.find(function(x){ return x.id === gatheringId; }));
@@ -6223,7 +6242,7 @@ function saveTask(gatheringId, tasks) {
   var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
   if (gIdx >= 0) DATA.gatherings[gIdx].tasks = tasks;
   saveFlockState();
-  if (window.__saveTask) window.__saveTask(gatheringId, tasks);
+  // Tasks sync to all users via flock document (saveFlockState triggers syncFlockToFirebase)
 }
 
 
@@ -7414,48 +7433,12 @@ try {
 
   // No seed data — users create everything from scratch
 
-  // Live listeners
-  onSnapshot(collection(db,'gatherings'), function(snap){
-    snap.forEach(function(ds){
-      var data = ds.data();
-      var idx = DATA.gatherings.findIndex(function(g){ return g.id === data.id; });
-      if (idx >= 0) DATA.gatherings[idx] = Object.assign({}, DATA.gatherings[idx], data);
-    });
-  });
+  // ──────────────────────────────────────────────
+  // ALL DATA SYNCS THROUGH THE FLOCK DOCUMENT.
+  // No separate /gatherings/ or /ideas/ collections.
+  // ──────────────────────────────────────────────
 
-  onSnapshot(collection(db,'ideas'), function(snap){
-    snap.forEach(function(ds){
-      var data = ds.data();
-      var idx = DATA.ideas.findIndex(function(i){ return i.id === data.id; });
-      if (idx >= 0) DATA.ideas[idx] = Object.assign({}, DATA.ideas[idx], data);
-    });
-  });
-
-  // Save task toggles to Firebase
-  window.__saveTask = async function(gId, tasks) {
-    try { await updateDoc(doc(db,'gatherings',gId), {tasks:tasks}); } catch(e){}
-  };
-  window.__saveVote = async function(ideaId, voted, votes) {
-    try { await updateDoc(doc(db,'ideas',ideaId), {voted:voted,votes:votes}); } catch(e){}
-  };
-  window.__saveAvailability = async function(gatheringId, memberId, blocked) {
-    try {
-      if (!gatheringId) return;
-      var field = 'availability.'+memberId;
-      var update = {};
-      update[field] = {blocked:blocked, submittedAt:serverTimestamp()};
-      await updateDoc(doc(db,'gatherings',gatheringId), update);
-    } catch(e){}
-  };
-
-  // Expose firestore helpers for flock join-by-code
-  window.__firestoreHelpers = { collection, doc, getDocs, query, where, updateDoc, setDoc, serverTimestamp, arrayUnion: null };
-  // arrayUnion needs to be imported separately
-  import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js").then(function(m) {
-    window.__firestoreHelpers.arrayUnion = m.arrayUnion;
-  });
-
-  // Expose for flock join-by-code lookup
+  // Expose firestore helpers for flock operations
   window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion, orderBy, onSnapshot };
 
   // ═══════════════════════════════════════════════
@@ -7471,6 +7454,13 @@ try {
 
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
       if (!snap.exists()) return;
+
+      // Skip re-render on initial load (init already rendered)
+      if (_isFirstSnapshot) { _isFirstSnapshot = false; return; }
+
+      // Skip re-render if WE just wrote this (avoid UI flicker from our own save)
+      if (window._isSyncing) return;
+
       var remote = snap.data();
       var myId = DATA.me.id;
       if (!window.FLOCKS[flockId]) window.FLOCKS[flockId] = {};
@@ -7554,9 +7544,6 @@ try {
       // Update topbar
       var nameEl = document.getElementById('topbar-flock-name');
       if (nameEl && local.name) nameEl.textContent = local.name;
-
-      // Skip full re-render on initial snapshot (init already rendered)
-      if (_isFirstSnapshot) { _isFirstSnapshot = false; return; }
 
       // Re-render ALL views so every user sees changes
       renderHome();
