@@ -7557,16 +7557,15 @@ try {
       // ── MEMBERS: remote is authoritative for who's in the flock ──
       if (remote.members) {
         var localMembers = local.members || {};
-        // Start with remote members (this removes anyone deleted remotely)
         var merged = {};
         Object.keys(remote.members).forEach(function(mid) {
           var rm = remote.members[mid];
           var lm = localMembers[mid];
           if (lm) {
-            // Preserve local pw and role
+            // Remote wins for: role (admin decides), name, animal, location, stats, prefs
+            // Local wins for: pw (user's own device is authority for their password)
             merged[mid] = Object.assign({}, rm, {
-              pw: lm.pw || rm.pw || '',
-              role: lm.role || rm.role || 'member'
+              pw: lm.pw || rm.pw || ''
             });
           } else {
             merged[mid] = rm;
@@ -7575,6 +7574,12 @@ try {
         local.members = merged;
         local.memberIds = remote.memberIds || Object.keys(merged);
         DATA.members = Object.values(merged).filter(function(m){ return m && m.id !== myId; });
+
+        // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
+        if (merged[myId]) {
+          var myRemote = merged[myId];
+          if (myRemote.role) DATA.me.role = myRemote.role;
+        }
       }
 
       // ── GATHERINGS: remote is source of truth ──
