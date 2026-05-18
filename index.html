@@ -5015,6 +5015,19 @@ function saveFlockState() {
   try {
     if (currentFlockId && FLOCKS[currentFlockId]) {
       var _f = FLOCKS[currentFlockId];
+
+      // Normalize gatherings — ensure all arrays exist before saving
+      (DATA.gatherings||[]).forEach(function(g){
+        if (!g.chat) g.chat = [];
+        if (!g.notes) g.notes = [];
+        if (!g.polls) g.polls = [];
+        if (!g.bringList) g.bringList = [];
+        if (!g.expenses) g.expenses = [];
+        if (!g.photos) g.photos = [];
+        if (!g.tasks) g.tasks = [];
+        if (!g.attending) g.attending = [];
+      });
+
       _f.gatherings = DATA.gatherings;
       _f.ideas      = DATA.ideas;
       _f.activity   = DATA.activity;
@@ -5740,7 +5753,8 @@ function openCreateGathering() {
       beachMode: selectedType === 'beach',
       status: 'upcoming', theme: 'Planning starts now',
       themePill: 'pill-amber', progress: 0,
-      attending: [], tasks: []
+      attending: [], tasks: [],
+      chat: [], notes: [], polls: [], bringList: [], expenses: [], photos: []
     };
 
     DATA.gatherings.unshift(newG);
@@ -7790,6 +7804,12 @@ try {
       emoji:    selEmoji,
       attending:[],
       tasks:    [],
+      chat:     [],
+      notes:    [],
+      polls:    [],
+      bringList:[],
+      expenses: [],
+      photos:   [],
     };
 
     // Add to DATA
@@ -8071,7 +8091,8 @@ try {
         notes: [],
         polls: [],
         expenses: [],
-        photos: []
+        photos: [],
+        chat: []
       };
       DATA.gatherings.unshift(dup);
       saveFlockState();
