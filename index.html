@@ -1622,14 +1622,14 @@ img,svg{display:block}
     <div class="page active" id="page-home">
       <div class="hero" id="hero">
         <div class="hero-label">Next gathering</div>
-        <div class="hero-title">Loading...</div>
-        <div class="hero-sub"></div>
-        <div class="countdown">
-          <div class="cd-unit"><span class="cd-n" id="cd-d">23</span><span class="cd-l">days</span></div>
+        <div class="hero-title">Plan your first gathering</div>
+        <div class="hero-sub">Tap Gatherings to get started</div>
+        <div class="countdown" style="display:none">
+          <div class="cd-unit"><span class="cd-n" id="cd-d">0</span><span class="cd-l">days</span></div>
           <span class="cd-sep">:</span>
-          <div class="cd-unit"><span class="cd-n" id="cd-h">14</span><span class="cd-l">hrs</span></div>
+          <div class="cd-unit"><span class="cd-n" id="cd-h">00</span><span class="cd-l">hrs</span></div>
           <span class="cd-sep">:</span>
-          <div class="cd-unit"><span class="cd-n" id="cd-m">07</span><span class="cd-l">min</span></div>
+          <div class="cd-unit"><span class="cd-n" id="cd-m">00</span><span class="cd-l">min</span></div>
         </div>
         <div class="hero-watermark">
           <svg width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="55" r="28" fill="#fff"/><circle cx="36" cy="32" r="10" fill="#fff"/><circle cx="64" cy="32" r="10" fill="#fff"/></svg>
@@ -2223,10 +2223,20 @@ function renderHome() {
 
   // ── Render to-do section ──
   var todoEl = document.getElementById('home-todos');
+  var todoTitle = todoEl ? todoEl.previousElementSibling : null;
   if (todoEl) {
-    if (todos.length === 0) {
+    if (todos.length === 0 && DATA.gatherings.length > 0) {
+      // Has gatherings but nothing to do — show caught up
+      if (todoTitle) todoTitle.style.display = '';
+      todoEl.style.display = '';
       todoEl.innerHTML = '<div style="background:var(--green-bg);border-radius:12px;padding:14px;text-align:center;margin-bottom:12px"><div style="font-size:13px;font-weight:700;color:var(--green)">✓ You\'re all caught up!</div></div>';
+    } else if (todos.length === 0) {
+      // No gatherings at all — hide the section entirely
+      if (todoTitle) todoTitle.style.display = 'none';
+      todoEl.style.display = 'none';
     } else {
+      if (todoTitle) todoTitle.style.display = '';
+      todoEl.style.display = '';
       var todoHtml = '';
       todos.slice(0, 5).forEach(function(t){
         todoHtml += '<div class="todo-item" data-action="'+t.action+'" data-gid="'+(t.gId||'')+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:border-color .15s">' +
@@ -2262,11 +2272,22 @@ function renderHome() {
 
   // Activity — derived from real flock data
   var feed = document.getElementById('activity-feed');
+  var actTitle = feed ? feed.previousElementSibling : null;
   feed.innerHTML = '';
   var events = buildFlockActivity();
   if (events.length === 0) {
-    feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet — start planning!</div>';
+    if (DATA.gatherings.length === 0) {
+      // No data at all — hide activity section
+      if (actTitle) actTitle.style.display = 'none';
+      feed.style.display = 'none';
+    } else {
+      if (actTitle) actTitle.style.display = '';
+      feed.style.display = '';
+      feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet — start planning!</div>';
+    }
   } else {
+  if (actTitle) actTitle.style.display = '';
+  feed.style.display = '';
   events.forEach(function(a){
     var m = a.member !== 'group' ? getMember(a.member) : null;
     var item = document.createElement('div');
@@ -2425,12 +2446,19 @@ function renderGatherings() {
   var completed = DATA.gatherings.filter(function(g){ return g.status === 'completed'; }).length;
   var subEl = document.getElementById('gatherings-subtitle');
   if (subEl) {
-    subEl.textContent = total + ' gathering' + (total!==1?'s':'') +
-      (active ? ' · ' + active + ' active' : '') +
-      (completed ? ' · ' + completed + ' completed' : '');
+    if (total === 0) {
+      subEl.style.display = 'none';
+    } else {
+      subEl.style.display = '';
+      subEl.textContent = total + ' gathering' + (total!==1?'s':'') +
+        (active ? ' · ' + active + ' active' : '') +
+        (completed ? ' · ' + completed + ' completed' : '');
+    }
   }
 
-  // Wire filter buttons
+  // Wire filter buttons (hide when no gatherings)
+  var filterEl = document.getElementById('gatherings-filter');
+  if (filterEl) filterEl.style.display = total > 0 ? '' : 'none';
   document.querySelectorAll('#gatherings-filter .mode-btn').forEach(function(btn){
     btn.classList.toggle('active', btn.dataset.filter === _gatheringsFilter);
     btn.onclick = function(){
