@@ -1962,8 +1962,11 @@ function showDetail(gatheringId, openTab) {
 }
 
 function closeDetail() {
+  // Save any pending changes before leaving
+  saveFlockState();
   document.getElementById('page-detail').classList.remove('active');
   detailOpen = false;
+  window._currentDetailGathering = null;
   // Always return to gatherings list, re-render to ensure it's fresh
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   var gp = document.getElementById('page-gatherings');
@@ -1980,6 +1983,8 @@ function closeDetail() {
 // Nav buttons
 document.querySelectorAll('.nav-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
+    // Save any pending changes before switching pages
+    saveFlockState();
     showPage(btn.dataset.page);
     renderPage(btn.dataset.page);
   });
@@ -4436,7 +4441,13 @@ function openAdminPanel() {
   body.querySelectorAll('.admin-promote').forEach(function(btn){
     btn.addEventListener('click', function(){
       var mid = btn.dataset.mid;
-      if (flock.members[mid]) { flock.members[mid].role = 'admin'; saveFlockState(); openAdminPanel(); toast('Promoted to admin'); }
+      if (flock.members[mid]) {
+        flock.members[mid].role = 'admin';
+        saveFlockState();
+        if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+        openAdminPanel();
+        toast('Promoted to admin');
+      }
     });
   });
 
@@ -4444,7 +4455,13 @@ function openAdminPanel() {
   body.querySelectorAll('.admin-demote').forEach(function(btn){
     btn.addEventListener('click', function(){
       var mid = btn.dataset.mid;
-      if (flock.members[mid]) { flock.members[mid].role = 'member'; saveFlockState(); openAdminPanel(); toast('Removed admin role'); }
+      if (flock.members[mid]) {
+        flock.members[mid].role = 'member';
+        saveFlockState();
+        if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+        openAdminPanel();
+        toast('Removed admin role');
+      }
     });
   });
 
@@ -4453,7 +4470,13 @@ function openAdminPanel() {
     btn.addEventListener('click', function(){
       var mid = btn.dataset.mid;
       if (confirm('Reset password for ' + (flock.members[mid]?flock.members[mid].name:'this member') + '? They\'ll be able to log in without a password and set a new one.')) {
-        if (flock.members[mid]) { flock.members[mid].pw = ''; saveFlockState(); openAdminPanel(); toast('Password reset'); }
+        if (flock.members[mid]) {
+          flock.members[mid].pw = '';
+          saveFlockState();
+          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+          openAdminPanel();
+          toast('Password reset');
+        }
       }
     });
   });
@@ -5081,30 +5104,26 @@ function saveFlockState() {
       if (!_f.members) _f.members = {};
       if (!_f.memberIds) _f.memberIds = [];
 
-      // Update ONLY the current user — never overwrite other members
+      // Update ONLY the current user in flock members
       if (DATA.me.id) {
+        var myExisting = _f.members[DATA.me.id] || {};
         _f.members[DATA.me.id] = {
           id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
           location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
-          role:(_f.members[DATA.me.id]&&_f.members[DATA.me.id].role)||'member',
-          pw:(_f.members[DATA.me.id]&&_f.members[DATA.me.id].pw)||''
+          role: myExisting.role || 'member',
+          pw: myExisting.pw || ''
         };
         if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
       }
 
-      // Also merge DATA.members back (other users) — don't lose them
+      // Ensure DATA.members entries exist in _f.members (but DON'T overwrite)
       (DATA.members||[]).forEach(function(m){
         if (!m || !m.id || m.id === DATA.me.id) return;
         if (!_f.members[m.id]) {
+          // Brand new member not yet in flock — add them
           _f.members[m.id] = m;
-        } else {
-          // Preserve existing role/pw, update rest
-          var existing = _f.members[m.id];
-          _f.members[m.id] = Object.assign({}, existing, m, {
-            role: existing.role || m.role || 'member',
-            pw: existing.pw || ''
-          });
         }
+        // If already in _f.members, leave it alone — admin changes are already there
         if (_f.memberIds.indexOf(m.id)===-1) _f.memberIds.push(m.id);
       });
     }
@@ -8252,11 +8271,63 @@ try {
   window.openGatherEdit = openGatherEdit;
 
   document.getElementById('gather-edit-close').addEventListener('click', function(){
+    // Auto-save if there's an editing gathering
+    if (editingGathering) {
+      autoSaveGatherEdit(editingGathering);
+    }
     document.getElementById('gather-edit-overlay').classList.add('hidden');
   });
   document.getElementById('gather-edit-overlay').addEventListener('click', function(e){
-    if (e.target === this) this.classList.add('hidden');
+    if (e.target === this) {
+      if (editingGathering) {
+        autoSaveGatherEdit(editingGathering);
+      }
+      this.classList.add('hidden');
+    }
   });
+
+  // Auto-save pulls current values from the edit form and writes them to the gathering
+  function autoSaveGatherEdit(g) {
+    var nameEl = document.getElementById('ge-name');
+    var locEl  = document.getElementById('ge-loc');
+    var monthEl = document.getElementById('ge-month');
+    var dayEl  = document.getElementById('ge-day');
+    var themeEl = document.getElementById('ge-theme');
+    var hostEl = document.getElementById('ge-host');
+    if (!nameEl) return; // form not rendered
+
+    var name = nameEl.value.trim();
+    if (!name) return; // don't save blank name
+
+    g.name     = name;
+    g.location = locEl.value.trim() || g.location;
+    g.month    = MONTHS[parseInt(monthEl.value)] || g.month;
+    g.day      = parseInt(dayEl.value) || g.day;
+    g.theme    = themeEl.value.trim() || g.theme;
+    g.hybrid   = selType === 'hybrid';
+    g.virtual  = selType === 'virtual';
+    g.host     = hostEl ? (hostEl.value || g.host) : g.host;
+    g.status   = selStatus;
+
+    if (selStatus === 'completed') g.themePill = 'pill-gray';
+    else if (selStatus === 'planning') g.themePill = 'pill-blue';
+    else g.themePill = g.themePill || 'pill-amber';
+
+    if (selStatus === 'next') {
+      DATA.gatherings.forEach(function(other){
+        if (other.id !== g.id && other.status === 'next') other.status = 'upcoming';
+      });
+    }
+
+    saveFlockState();
+
+    // Refresh views
+    if (window._currentDetailGathering && window._currentDetailGathering.id === g.id) {
+      renderDetail(g);
+    }
+    if (document.getElementById('gatherings-list')) renderGatherings();
+    renderHome();
+  }
 })();
 
 </script>
