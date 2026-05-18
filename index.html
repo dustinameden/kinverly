@@ -5782,7 +5782,8 @@ function openCreateGathering() {
       status: 'upcoming', theme: 'Planning starts now',
       themePill: 'pill-amber', progress: 0,
       attending: [], tasks: [],
-      chat: [], notes: [], polls: [], bringList: [], expenses: [], photos: []
+      chat: [], notes: [], polls: [], bringList: [], expenses: [], photos: [],
+      _createdAt: Date.now()
     };
 
     DATA.gatherings.unshift(newG);
@@ -7553,19 +7554,22 @@ try {
       if (!window.FLOCKS[flockId]) window.FLOCKS[flockId] = {};
       var local = window.FLOCKS[flockId];
 
-      // ── MEMBERS ──
+      // ── MEMBERS: remote is authoritative for who's in the flock ──
       if (remote.members) {
-        var merged = local.members || {};
+        var localMembers = local.members || {};
+        // Start with remote members (this removes anyone deleted remotely)
+        var merged = {};
         Object.keys(remote.members).forEach(function(mid) {
           var rm = remote.members[mid];
-          var lm = merged[mid];
-          if (!lm) {
-            merged[mid] = rm;
-          } else {
+          var lm = localMembers[mid];
+          if (lm) {
+            // Preserve local pw and role
             merged[mid] = Object.assign({}, rm, {
               pw: lm.pw || rm.pw || '',
               role: lm.role || rm.role || 'member'
             });
+          } else {
+            merged[mid] = rm;
           }
         });
         local.members = merged;
@@ -7573,15 +7577,23 @@ try {
         DATA.members = Object.values(merged).filter(function(m){ return m && m.id !== myId; });
       }
 
-      // ── GATHERINGS: remote wins, keep local-only ──
+      // ── GATHERINGS: remote is source of truth ──
+      // Only keep local-only items that were created VERY recently (within 10s)
+      // and haven't synced yet. Anything older that's missing from remote was deleted.
       if (remote.gatherings && Array.isArray(remote.gatherings)) {
         var rMap = {};
         remote.gatherings.forEach(function(g){ rMap[g.id] = true; });
-        // Start with remote (source of truth for existing items)
         var gMerged = remote.gatherings.slice();
-        // Add local-only gatherings not yet in remote
+        var now = Date.now();
         (DATA.gatherings || []).forEach(function(lg){
-          if (!rMap[lg.id]) gMerged.push(lg);
+          if (!rMap[lg.id]) {
+            // Only keep if created in last 10 seconds (waiting for sync)
+            var createdAt = lg._createdAt || 0;
+            if (now - createdAt < 10000) {
+              gMerged.push(lg);
+            }
+            // Otherwise: it was deleted remotely — don't re-add
+          }
         });
         DATA.gatherings = gMerged;
         local.gatherings = gMerged;
@@ -7592,8 +7604,14 @@ try {
         var iMap = {};
         remote.ideas.forEach(function(i){ iMap[i.id] = true; });
         var iMerged = remote.ideas.slice();
+        var now2 = Date.now();
         (DATA.ideas || []).forEach(function(li){
-          if (!iMap[li.id]) iMerged.push(li);
+          if (!iMap[li.id]) {
+            var createdAt = li._createdAt || 0;
+            if (now2 - createdAt < 10000) {
+              iMerged.push(li);
+            }
+          }
         });
         DATA.ideas = iMerged;
         local.ideas = iMerged;
@@ -7838,6 +7856,7 @@ try {
       bringList:[],
       expenses: [],
       photos:   [],
+      _createdAt: Date.now(),
     };
 
     // Add to DATA
@@ -7911,7 +7930,8 @@ try {
       votes: 1,
       pct: 12,
       voted: true,
-      addedBy: DATA.me.id
+      addedBy: DATA.me.id,
+      _createdAt: Date.now()
     };
     DATA.ideas.unshift(newIdea);
     saveFlockState();
@@ -8120,7 +8140,8 @@ try {
         polls: [],
         expenses: [],
         photos: [],
-        chat: []
+        chat: [],
+        _createdAt: Date.now()
       };
       DATA.gatherings.unshift(dup);
       saveFlockState();
