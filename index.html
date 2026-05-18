@@ -7584,9 +7584,6 @@ try {
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
       if (!snap.exists()) return;
 
-      // Skip on initial load (init already rendered)
-      if (_isFirstSnapshot) { _isFirstSnapshot = false; return; }
-
       var remote = snap.data();
       var myId = DATA.me.id;
       if (!window.FLOCKS[flockId]) window.FLOCKS[flockId] = {};
@@ -7692,6 +7689,15 @@ try {
       // Update topbar
       var nameEl = document.getElementById('topbar-flock-name');
       if (nameEl && local.name) nameEl.textContent = local.name;
+
+      // On first snapshot, data is merged above but skip expensive re-render
+      // (init already rendered from localStorage which is now updated)
+      if (_isFirstSnapshot) {
+        _isFirstSnapshot = false;
+        // Still re-render profile in case role changed
+        renderProfile();
+        return;
+      }
 
       // Re-render ALL views so every user sees changes
       renderHome();
