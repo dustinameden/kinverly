@@ -1603,6 +1603,7 @@ img,svg{display:block}
       <div class="topbar-logo">Kinverly<span>.</span></div>
       <div style="display:flex;flex-direction:column;margin-left:2px">
         <div id="topbar-flock-name" style="font-size:10px;font-weight:700;color:rgba(240,192,48,0.8);line-height:1;letter-spacing:.02em">My Flock</div>
+        <div id="sync-indicator" style="font-size:9px;font-weight:700;opacity:0;transition:opacity .3s;margin-top:1px"></div>
         <div style="display:flex;align-items:center;gap:3px;margin-top:1px">
           <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><polyline points="2,3 5,7 8,3" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
@@ -1947,9 +1948,10 @@ function showPage(name) {
   });
 }
 
-function showDetail(gatheringId) {
+function showDetail(gatheringId, openTab) {
   var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
   if (!g) return;
+  window._openToTab = openTab || null;
   renderDetail(g);
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   document.getElementById('page-detail').classList.add('active');
@@ -2237,13 +2239,20 @@ function renderHome() {
       if (todos.length > 5) {
         todoEl.innerHTML += '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px">+' + (todos.length - 5) + ' more</div>';
       }
-      // Wire to-do clicks
+      // Wire to-do clicks — navigate to the specific tab
       todoEl.querySelectorAll('.todo-item').forEach(function(item){
         item.addEventListener('click', function(){
           var gId = item.dataset.gid;
           var action = item.dataset.action;
-          if (action === 'rsvp' && gId) { openRSVP(gId); }
-          else if (gId) { showPage('gatherings'); showDetail(gId); }
+          if (action === 'rsvp' && gId) {
+            openRSVP(gId);
+          } else if (gId) {
+            showPage('gatherings');
+            // Map action to tab id
+            var tabMap = {polls:'polls', bring:'bring', tasks:'tasks', detail:'overview', budget:'budget', notes:'notes', chat:'chat'};
+            var tabId = tabMap[action] || 'overview';
+            showDetail(gId, tabId);
+          }
         });
         item.addEventListener('mouseover', function(){ item.style.borderColor = 'var(--brand2)'; });
         item.addEventListener('mouseout', function(){ item.style.borderColor = 'var(--border)'; });
@@ -2465,6 +2474,24 @@ function renderGatheringsList() {
     if (isBonus) pills += ' <span class="pill pill-amber">? Bonus</span>';
     if (g.status==='planning') pills += ' <span class="pill pill-amber">Collecting dates</span>';
 
+    // Activity indicators for the card
+    var indicators = [];
+    var tCount = (g.tasks||[]).filter(function(t){ return !t.done; }).length;
+    var pCount = (g.polls||[]).length;
+    var bCount = (g.bringList||[]).filter(function(b){ return !b.claimedBy; }).length;
+    var cCount = (g.chat||[]).length;
+    var nCount = (g.notes||[]).length;
+    if (tCount) indicators.push('📋' + tCount);
+    if (pCount) indicators.push('🗳️' + pCount);
+    if (bCount) indicators.push('🎒' + bCount);
+    if (nCount) indicators.push('📌' + nCount);
+    if (cCount) indicators.push('💬' + cCount);
+    var indicatorHtml = indicators.length > 0
+      ? '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">' +
+        indicators.map(function(i){ return '<span style="font-size:11px;font-weight:700;color:var(--text2);background:var(--surface2);padding:2px 6px;border-radius:6px">' + i + '</span>'; }).join('') +
+        '</div>'
+      : '';
+
     card.innerHTML =
       '<div class="g-header">'+
         '<div class="g-date'+(isFeatured?' featured-bg':'')+(isBonus?' bonus-bg':'')+'">'+
@@ -2475,6 +2502,7 @@ function renderGatheringsList() {
           '<div class="g-title">'+g.name+'</div>'+
           '<div class="g-loc">'+g.location+'</div>'+
           '<div class="g-meta">'+pills+'<div class="g-avatars">'+faces+extra+'</div></div>'+
+          indicatorHtml +
         '</div>'+
       '</div>'+
       (g.progress > 0 ? '<div class="g-progress"><div class="g-progress-fill" style="width:'+g.progress+'%"></div></div>' : '');
@@ -2510,19 +2538,32 @@ function renderDetail(g) {
   // Tabs
   var tabs = document.createElement('div');
   tabs.className = 'gathering-tabs';
+  // Compute badge counts for tabs
+  var taskCount = (g.tasks||[]).filter(function(t){ return !t.done; }).length;
+  var noteCount = (g.notes||[]).length;
+  var pollCount = (g.polls||[]).length;
+  var bringTotal = (g.bringList||[]).length;
+  var bringUnclaimed = (g.bringList||[]).filter(function(b){ return !b.claimedBy; }).length;
+  var expTotal = (g.expenses||[]).length;
+  var chatCount = (g.chat||[]).length;
+  var photoCount = (g.photos||[]).length;
+
   var tabDefs = [
     {id:'overview', label:'Overview'},
-    {id:'tasks',    label:'Tasks'},
-    {id:'notes',    label:'Notes'},
-    {id:'polls',    label:'Polls'},
-    {id:'bring',    label:'Bring'},
-    {id:'budget',   label:'Budget'},
-    {id:'chat',     label:'Chat'},
-    {id:'photos',   label:'Photos'},
+    {id:'tasks',    label:'Tasks' + (taskCount ? ' · ' + taskCount : '')},
+    {id:'notes',    label:'Notes' + (noteCount ? ' · ' + noteCount : '')},
+    {id:'polls',    label:'Polls' + (pollCount ? ' · ' + pollCount : '')},
+    {id:'bring',    label:'Bring' + (bringTotal ? ' · ' + (bringTotal - bringUnclaimed) + '/' + bringTotal : '')},
+    {id:'budget',   label:'Budget' + (expTotal ? ' · ' + expTotal : '')},
+    {id:'chat',     label:'Chat' + (chatCount ? ' · ' + chatCount : '')},
+    {id:'photos',   label:'Photos' + (photoCount ? ' · ' + photoCount : '')},
     {id:'recap',    label:'Recap'},
   ];
 
-  var activeTab = 'overview';
+  // If we were asked to open to a specific tab
+  var requestedTab = window._openToTab || null;
+  window._openToTab = null;
+  var activeTab = requestedTab || 'overview';
   var contentArea = document.createElement('div');
   contentArea.id = 'gtab-content';
 
@@ -2567,8 +2608,8 @@ function renderDetail(g) {
   el.appendChild(tabs);
   el.appendChild(contentArea);
 
-  // Show overview by default
-  showTab('overview');
+  // Show requested tab (defaults to overview)
+  showTab(activeTab);
 }
 
 // ─── TASKS TAB ──────────────────────────────────────────────
@@ -3257,6 +3298,17 @@ function wireDetailButtons(g) {
     if(!nr.length){toast('Everyone has replied \u2713');return;}
     toast('\ud83d\udce3 Nudge sent to: '+nr.map(function(m){return m.name;}).join(', '));
   }); }
+
+  // Wire quick-link cards to switch tabs
+  document.querySelectorAll('.ql-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      var tabId = card.dataset.qlTab;
+      if (tabId) {
+        var tabBtn = document.querySelector('.gtab[data-tab="' + tabId + '"]');
+        if (tabBtn) tabBtn.click();
+      }
+    });
+  });
 }
 
 function buildStandardDetail(g) {
@@ -3399,10 +3451,10 @@ function buildStandardDetail(g) {
   var quickLinks = '';
   if (notesCount || pollsCount || bringCount || expenseCount) {
     quickLinks = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">';
-    if (notesCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'notes\')t.click()})"><div style="font-size:16px;margin-bottom:2px">📌</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + notesCount + ' note' + (notesCount!==1?'s':'') + '</div></div>';
-    if (pollsCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'polls\')t.click()})"><div style="font-size:16px;margin-bottom:2px">🗳️</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + pollsCount + ' poll' + (pollsCount!==1?'s':'') + '</div></div>';
-    if (bringCount)  quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'bring\')t.click()})"><div style="font-size:16px;margin-bottom:2px">🎒</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + bringClaimed + '/' + bringCount + ' claimed</div></div>';
-    if (expenseCount) quickLinks += '<div class="card" style="margin:0;padding:10px 12px;cursor:pointer" onclick="document.querySelectorAll(\'.gtab\').forEach(function(t){if(t.dataset.tab===\'budget\')t.click()})"><div style="font-size:16px;margin-bottom:2px">💰</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + expenseCount + ' expense' + (expenseCount!==1?'s':'') + '</div></div>';
+    if (notesCount)   quickLinks += '<div class="card ql-card" data-ql-tab="notes" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">📌</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + notesCount + ' note' + (notesCount!==1?'s':'') + '</div></div>';
+    if (pollsCount)   quickLinks += '<div class="card ql-card" data-ql-tab="polls" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">🗳️</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + pollsCount + ' poll' + (pollsCount!==1?'s':'') + '</div></div>';
+    if (bringCount)   quickLinks += '<div class="card ql-card" data-ql-tab="bring" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">🎒</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + bringClaimed + '/' + bringCount + ' claimed</div></div>';
+    if (expenseCount) quickLinks += '<div class="card ql-card" data-ql-tab="budget" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">💰</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + expenseCount + ' expense' + (expenseCount!==1?'s':'') + '</div></div>';
     quickLinks += '</div>';
   }
 
@@ -5004,7 +5056,17 @@ function saveFlockState() {
     // Sync to Firebase if available (debounced 500ms)
     if (window._syncTimer) clearTimeout(window._syncTimer);
     window._syncTimer = setTimeout(function(){
-      if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+      if (typeof syncFlockToFirebase === 'function') {
+        syncFlockToFirebase().then(function(){
+          // Show brief green checkmark
+          var ind = document.getElementById('sync-indicator');
+          if (ind) { ind.textContent = '✓ Saved'; ind.style.color = 'var(--green)'; ind.style.opacity = '1'; }
+          setTimeout(function(){ if(ind) ind.style.opacity = '0'; }, 2000);
+        }).catch(function(){
+          var ind = document.getElementById('sync-indicator');
+          if (ind) { ind.textContent = '⚠ Offline'; ind.style.color = 'var(--amber)'; ind.style.opacity = '1'; }
+        });
+      }
     }, 500);
   } catch(e) {}
 }
@@ -5203,29 +5265,18 @@ async function saveFlockToFirebase(flock, creator) {
 async function syncFlockToFirebase() {
   if (!window.__db || !window.__firestoreHelpers || !currentFlockId || !FLOCKS[currentFlockId]) return;
   try {
-    // Flag that we're writing — suppress our own listener re-render
-    window._isSyncing = true;
     var h = window.__firestoreHelpers;
     var flock = FLOCKS[currentFlockId];
-    // Strip large photo data to stay under Firestore 1MB limit
-    // Photos sync via the flock doc metadata only (url, uploader, etc)
-    // Actual base64 data stays in localStorage only
     var safeGatherings = (flock.gatherings || []).map(function(g) {
       var copy = Object.assign({}, g);
       if (copy.photos && copy.photos.length > 0) {
         copy.photos = copy.photos.map(function(p) {
           var safeP = Object.assign({}, p);
-          // Only keep dataUrl if it's under 50KB (a tiny thumbnail)
-          if (safeP.dataUrl && safeP.dataUrl.length > 50000) {
-            safeP.dataUrl = ''; // Strip large base64
-          }
+          if (safeP.dataUrl && safeP.dataUrl.length > 50000) safeP.dataUrl = '';
           return safeP;
         });
       }
-      // Cap chat to last 50 messages per gathering for Firebase
-      if (copy.chat && copy.chat.length > 50) {
-        copy.chat = copy.chat.slice(-50);
-      }
+      if (copy.chat && copy.chat.length > 50) copy.chat = copy.chat.slice(-50);
       return copy;
     });
 
@@ -5244,10 +5295,7 @@ async function syncFlockToFirebase() {
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
-    // Clear flag after a short delay (listener fires async)
-    setTimeout(function(){ window._isSyncing = false; }, 1000);
   } catch(e) {
-    window._isSyncing = false;
     console.warn('[Kinverly] Sync offline:', e.message);
   }
 }
@@ -7455,11 +7503,8 @@ try {
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
       if (!snap.exists()) return;
 
-      // Skip re-render on initial load (init already rendered)
+      // Skip on initial load (init already rendered)
       if (_isFirstSnapshot) { _isFirstSnapshot = false; return; }
-
-      // Skip re-render if WE just wrote this (avoid UI flicker from our own save)
-      if (window._isSyncing) return;
 
       var remote = snap.data();
       var myId = DATA.me.id;
@@ -7750,6 +7795,9 @@ try {
     // Add to DATA
     if (!DATA.gatherings) DATA.gatherings = [];
     DATA.gatherings.unshift(newG);
+
+    // SAVE IMMEDIATELY — don't rely on logActivity to trigger save
+    saveFlockState();
 
     // Close sheet
     document.getElementById('gather-overlay').classList.add('hidden');
