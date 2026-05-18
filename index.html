@@ -4416,11 +4416,11 @@ function openAdminPanel() {
         '<div style="font-size:11px;color:var(--text2)">' + (m.location||'') + ' &middot; ' + (m.pw ? 'Password set' : 'No password') + '</div>' +
       '</div>' +
       roleBadge +
-      (!isMe ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0">' +
+      (!isMe ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:180px">' +
         (role !== 'admin' && role !== 'creator' ? '<button class="admin-promote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make admin</button>' : '') +
         (role === 'admin' ? '<button class="admin-demote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove admin</button>' : '') +
         '<button class="admin-reset-pw" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-family:inherit">Reset pw</button>' +
-        (role !== 'creator' ? '<button class="admin-remove" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit">&times;</button>' : '') +
+        '<button class="admin-remove" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit">Remove</button>' +
       '</div>' : '') +
     '</div>';
   }).join('');
@@ -4463,15 +4463,34 @@ function openAdminPanel() {
     btn.addEventListener('click', function(){
       var mid = btn.dataset.mid;
       var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
-      if (confirm('Remove ' + memberName + ' from the flock? This can\'t be undone.')) {
+      if (confirm('Remove ' + memberName + ' from the flock?\n\nThey\'ll disappear from all gatherings and won\'t be able to access this flock anymore. This can\'t be undone.')) {
+        // Remove from flock
         delete flock.members[mid];
         var idx = (flock.memberIds||[]).indexOf(mid);
         if (idx >= 0) flock.memberIds.splice(idx, 1);
-        // Also remove from DATA.members
+
+        // Remove from DATA.members
         DATA.members = DATA.members.filter(function(m){ return m.id !== mid; });
+
+        // Clean their RSVPs from all gatherings
+        Object.keys(rsvpData).forEach(function(gId){
+          if (rsvpData[gId] && rsvpData[gId][mid]) delete rsvpData[gId][mid];
+        });
+
+        // Remove from gathering attending lists
+        (DATA.gatherings||[]).forEach(function(g){
+          if (g.attending) g.attending = g.attending.filter(function(a){ return a !== mid; });
+        });
+
+        // Log activity
+        logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(memberName) + '</strong> from the flock', '🚫');
+
         saveFlockState();
+        // Force immediate sync so other devices see the removal
+        if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
         openAdminPanel();
         renderHome();
+        renderGatherings();
         toast(memberName + ' removed from flock');
       }
     });
