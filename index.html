@@ -5249,27 +5249,24 @@ function saveFlockState() {
       if (!_f.memberIds) _f.memberIds = [];
 
       // Update ONLY the current user in flock members
+      // BUT: don't re-add self if we were removed by an admin
       if (DATA.me.id) {
-        var myExisting = _f.members[DATA.me.id] || {};
-        _f.members[DATA.me.id] = {
-          id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
-          location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
-          role: DATA.me.role || myExisting.role || 'member',
-          pw: myExisting.pw || ''
-        };
-        if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
+        var wasRemoved = _f.memberIds.length > 0 && _f.memberIds.indexOf(DATA.me.id) === -1 && Object.keys(_f.members).length > 0 && !_f.members[DATA.me.id];
+        if (!wasRemoved) {
+          var myExisting = _f.members[DATA.me.id] || {};
+          _f.members[DATA.me.id] = {
+            id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
+            location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
+            role: DATA.me.role || myExisting.role || 'member',
+            pw: myExisting.pw || ''
+          };
+          if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
+        }
       }
 
-      // Ensure DATA.members entries exist in _f.members (but DON'T overwrite)
-      (DATA.members||[]).forEach(function(m){
-        if (!m || !m.id || m.id === DATA.me.id) return;
-        if (!_f.members[m.id]) {
-          // Brand new member not yet in flock — add them
-          _f.members[m.id] = m;
-        }
-        // If already in _f.members, leave it alone — admin changes are already there
-        if (_f.memberIds.indexOf(m.id)===-1) _f.memberIds.push(m.id);
-      });
+      // DO NOT re-add members from DATA.members into _f.members
+      // The flock document (synced from Firebase) is the authority for who's in the flock
+      // DATA.members is just the local display list
     }
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
     localStorage.setItem('kinverly_current_flock', currentFlockId || '');
@@ -5514,7 +5511,8 @@ async function syncFlockToFirebase() {
       gatherings: safeGatherings,
       ideas: flock.ideas || [],
       activity: (flock.activity || []).slice(0, 30),
-      rsvpData: rsvpData || {}
+      rsvpData: rsvpData || {},
+      _notifications: (flock._notifications || []).slice(-20)
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
@@ -7824,12 +7822,39 @@ try {
         // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
         if (merged[myId]) {
           var myRemote = merged[myId];
-          // Force-apply role from remote — this is the critical admin permission sync
           if (myRemote.role && myRemote.role !== (DATA.me.role || 'member')) {
             DATA.me.role = myRemote.role;
-            // Also persist so it survives saveFlockState's self-update
             persistMyProfile();
           }
+        }
+
+        // Detect if I was REMOVED from the flock
+        if (myId && !merged[myId] && Object.keys(merged).length > 0) {
+          // I'm not in the member list anymore — I was kicked
+          toast('You were removed from this flock');
+          // Stop the listener so we don't keep syncing
+          if (window._currentFlockListener) { window._currentFlockListener(); window._currentFlockListener = null; }
+          // Remove this flock from local data
+          delete window.FLOCKS[flockId];
+          localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
+          // Switch to another flock or show onboarding
+          var remaining = Object.keys(window.FLOCKS);
+          if (remaining.length > 0) {
+            switchToFlock(remaining[0]);
+          } else {
+            currentFlockId = null;
+            DATA.members = [];
+            DATA.gatherings = [];
+            DATA.ideas = [];
+            DATA.activity = [];
+            renderHome();
+            renderGatherings();
+            renderIdeas();
+            renderFlockPage();
+            renderProfile();
+            showFlockOnboarding();
+          }
+          return; // Stop processing this snapshot
         }
       }
 
@@ -7912,6 +7937,21 @@ try {
       if (remote.emoji) local.emoji = remote.emoji;
       if (remote.inviteCode) local.inviteCode = remote.inviteCode;
       if (remote.createdBy) local.createdBy = remote.createdBy;
+
+      // ── NOTIFICATIONS ──
+      if (remote._notifications && Array.isArray(remote._notifications)) {
+        // Merge: keep local read status, add new remote notifications
+        var localNotifs = local._notifications || [];
+        var localIds = {};
+        localNotifs.forEach(function(n){ if(n.ts) localIds[n.ts] = n; });
+        remote._notifications.forEach(function(rn){
+          if (localIds[rn.ts]) {
+            // Keep local read status (if user already dismissed it)
+            if (localIds[rn.ts].read) rn.read = true;
+          }
+        });
+        local._notifications = remote._notifications;
+      }
 
       // Save merged state to localStorage
       try {
