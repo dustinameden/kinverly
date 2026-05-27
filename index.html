@@ -4444,7 +4444,11 @@ function openAdminPanel() {
       if (flock.members[mid]) {
         flock.members[mid].role = 'admin';
         saveFlockState();
+        // Direct member push to Firebase (bypasses full sync)
+        if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
+        // Also full sync as backup
         if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+        logActivity(DATA.me.id, 'made <strong>' + escapeHtml(flock.members[mid].name) + '</strong> an admin', '🛡️');
         openAdminPanel();
         toast('Promoted to admin');
       }
@@ -4458,7 +4462,9 @@ function openAdminPanel() {
       if (flock.members[mid]) {
         flock.members[mid].role = 'member';
         saveFlockState();
+        if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
         if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+        logActivity(DATA.me.id, 'removed admin from <strong>' + escapeHtml(flock.members[mid].name) + '</strong>', '🛡️');
         openAdminPanel();
         toast('Removed admin role');
       }
@@ -4473,6 +4479,7 @@ function openAdminPanel() {
         if (flock.members[mid]) {
           flock.members[mid].pw = '';
           saveFlockState();
+          if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
           if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
           openAdminPanel();
           toast('Password reset');
@@ -5110,7 +5117,7 @@ function saveFlockState() {
         _f.members[DATA.me.id] = {
           id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
           location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
-          role: myExisting.role || 'member',
+          role: DATA.me.role || myExisting.role || 'member',
           pw: myExisting.pw || ''
         };
         if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
@@ -6828,8 +6835,7 @@ function renderBudget(g) {
 
     // Add expense form
     var addBtn = document.createElement('button');
-    addBtn.className = 'btn-primary';
-    addBtn.style.marginBottom = '14px';
+    addBtn.style.cssText = 'width:100%;padding:13px;border-radius:14px;background:var(--brand);color:#fff;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:inherit;margin-bottom:14px';
     addBtn.textContent = '+ Add an expense';
     addBtn.addEventListener('click', function(){ showExpenseForm(wrap, g, allFlock, rebuild); });
     wrap.appendChild(addBtn);
@@ -6876,33 +6882,81 @@ function renderBudget(g) {
 }
 
 function showExpenseForm(parentWrap, g, allFlock, onDone) {
+  // Remove any existing form first
+  var existing = parentWrap.querySelector('.expense-form-active');
+  if (existing) existing.remove();
+
   var form = document.createElement('div');
+  form.className = 'expense-form-active';
   form.style.cssText = 'background:var(--surface);border:1.5px solid var(--brand);border-radius:14px;padding:14px;margin-bottom:14px';
 
-  var memberOpts = '<option value="'+DATA.me.id+'">Me (' + escapeHtml(DATA.me.name) + ')</option>' +
-    (DATA.members||[]).map(function(m){ return '<option value="'+m.id+'">' + escapeHtml(m.name) + '</option>'; }).join('');
+  // Description
+  var descLabel = document.createElement('div');
+  descLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+  descLabel.textContent = 'What was it for?';
+  form.appendChild(descLabel);
 
-  form.innerHTML =
-    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">What was it for?</div>' +
-    '<input class="gc-input" id="exp-desc" placeholder="e.g. Airbnb, groceries, activity tickets\u2026" maxlength="60" style="margin-bottom:10px">' +
-    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Amount</div>' +
-        '<input class="gc-input" id="exp-amount" type="number" placeholder="0.00" min="0" step="0.01" style="font-size:18px;font-weight:300"></div>' +
-      '<div style="flex:1"><div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Who paid?</div>' +
-        '<select class="gc-input" id="exp-payer">' + memberOpts + '</select></div>' +
-    '</div>' +
-    '<div style="display:flex;gap:8px">' +
-      '<button class="gc-save-btn" id="exp-save" style="flex:1;margin-top:0;padding:12px;font-size:14px">Add expense</button>' +
-      '<button id="exp-cancel" style="padding:12px 16px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Cancel</button>' +
-    '</div>';
+  var descInput = document.createElement('input');
+  descInput.style.cssText = 'width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:16px;font-weight:600;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px';
+  descInput.placeholder = 'e.g. Airbnb, groceries, activity tickets…';
+  descInput.maxLength = 60;
+  form.appendChild(descInput);
 
-  form.querySelector('#exp-cancel').addEventListener('click', function(){ form.remove(); });
-  form.querySelector('#exp-save').addEventListener('click', function(){
-    var desc = form.querySelector('#exp-desc').value.trim();
-    var amount = form.querySelector('#exp-amount').value;
-    var payer = form.querySelector('#exp-payer').value;
-    if (!desc) { form.querySelector('#exp-desc').focus(); toast('What was it for?'); return; }
-    if (!amount || parseFloat(amount) <= 0) { form.querySelector('#exp-amount').focus(); toast('Enter an amount'); return; }
+  // Amount + Payer row
+  var row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:10px';
+
+  var amtWrap = document.createElement('div');
+  amtWrap.style.flex = '1';
+  var amtLabel = document.createElement('div');
+  amtLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+  amtLabel.textContent = 'Amount';
+  amtWrap.appendChild(amtLabel);
+  var amtInput = document.createElement('input');
+  amtInput.type = 'number';
+  amtInput.placeholder = '0.00';
+  amtInput.min = '0';
+  amtInput.step = '0.01';
+  amtInput.style.cssText = 'width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:18px;font-weight:300;font-family:inherit;outline:none;box-sizing:border-box';
+  amtWrap.appendChild(amtInput);
+  row.appendChild(amtWrap);
+
+  var payWrap = document.createElement('div');
+  payWrap.style.flex = '1';
+  var payLabel = document.createElement('div');
+  payLabel.style.cssText = 'font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px';
+  payLabel.textContent = 'Who paid?';
+  payWrap.appendChild(payLabel);
+  var paySelect = document.createElement('select');
+  paySelect.style.cssText = 'width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:16px;font-weight:600;font-family:inherit;outline:none;box-sizing:border-box';
+  var meOpt = document.createElement('option');
+  meOpt.value = DATA.me.id;
+  meOpt.textContent = 'Me (' + DATA.me.name + ')';
+  paySelect.appendChild(meOpt);
+  (DATA.members||[]).forEach(function(m){
+    var opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.name;
+    paySelect.appendChild(opt);
+  });
+  payWrap.appendChild(paySelect);
+  row.appendChild(payWrap);
+  form.appendChild(row);
+
+  // Buttons
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.style.cssText = 'flex:1;padding:12px;border-radius:14px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;font-family:inherit';
+  saveBtn.textContent = 'Add expense';
+  saveBtn.addEventListener('click', function(){
+    var desc = descInput.value.trim();
+    var amount = amtInput.value;
+    var payer = paySelect.value;
+    if (!desc) { descInput.focus(); toast('What was it for?'); return; }
+    if (!amount || parseFloat(amount) <= 0) { amtInput.focus(); toast('Enter an amount'); return; }
+    if (!g.expenses) g.expenses = [];
     g.expenses.push({
       id:'exp_'+Date.now().toString(36),
       description:desc,
@@ -6917,10 +6971,24 @@ function showExpenseForm(parentWrap, g, allFlock, onDone) {
     onDone();
     toast('Expense added');
   });
+  btnRow.appendChild(saveBtn);
 
-  // Insert after summary
-  parentWrap.insertBefore(form, parentWrap.children[2] || null);
-  setTimeout(function(){ form.querySelector('#exp-desc').focus(); }, 200);
+  var cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'padding:12px 16px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', function(){ form.remove(); });
+  btnRow.appendChild(cancelBtn);
+
+  form.appendChild(btnRow);
+
+  // Insert after the add button
+  var addBtn = parentWrap.querySelector('.btn-primary');
+  if (addBtn && addBtn.nextSibling) {
+    parentWrap.insertBefore(form, addBtn.nextSibling);
+  } else {
+    parentWrap.appendChild(form);
+  }
+  setTimeout(function(){ descInput.focus(); }, 200);
 }
 
 
@@ -7613,7 +7681,12 @@ try {
         // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
         if (merged[myId]) {
           var myRemote = merged[myId];
-          if (myRemote.role) DATA.me.role = myRemote.role;
+          // Force-apply role from remote — this is the critical admin permission sync
+          if (myRemote.role && myRemote.role !== (DATA.me.role || 'member')) {
+            DATA.me.role = myRemote.role;
+            // Also persist so it survives saveFlockState's self-update
+            persistMyProfile();
+          }
         }
       }
 
