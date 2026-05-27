@@ -1657,7 +1657,7 @@ img,svg{display:block}
       <div class="activity-feed" id="activity-feed"></div>
 
       <div style="height:12px"></div>
-      <button class="btn-primary" id="view-gatherings-btn">View all gatherings →</button>
+      <div id="home-invite-card"></div>
     </div>
 
     <!-- GATHERINGS -->
@@ -1706,11 +1706,10 @@ img,svg{display:block}
       <div id="ideas-list"></div>
     </div>
 
-    <!-- FAIRNESS -->
-    <div class="page" id="page-fairness">
-      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:8px">Fairness tracker</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;font-weight:600">No one should always pay the most. Equal pool contributions, subsidies for highest travelers.</div>
-      <div id="fairness-content"></div>
+    <!-- FLOCK -->
+    <div class="page" id="page-flock">
+      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:14px">Your flock</div>
+      <div id="flock-page-content"></div>
     </div>
 
     <!-- PROFILE -->
@@ -1729,12 +1728,12 @@ img,svg{display:block}
       Gatherings
     </button>
     <button class="nav-btn" data-page="ideas">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
       Ideas
     </button>
-    <button class="nav-btn" data-page="fairness">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      Fairness
+    <button class="nav-btn" data-page="flock">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Flock
     </button>
     <button class="nav-btn" data-page="profile">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1999,12 +1998,6 @@ document.getElementById('topbar-av').addEventListener('click', function(){
 // Detail back
 document.getElementById('detail-back').addEventListener('click', closeDetail);
 
-// View gatherings from home
-document.getElementById('view-gatherings-btn').addEventListener('click', function(){
-  showPage('gatherings');
-  renderGatherings();
-});
-
 // New gathering btn
 document.getElementById('new-gathering-btn').addEventListener('click', function(){
   openGatherCreator();
@@ -2023,7 +2016,7 @@ function renderPage(name) {
   if (name === 'home')       renderHome();
   if (name === 'gatherings') renderGatherings();
   if (name === 'ideas')      renderIdeas();
-  if (name === 'fairness')   renderFairness();
+  if (name === 'flock')      renderFlockPage();
   if (name === 'profile')    renderProfile();
 }
 
@@ -2264,7 +2257,7 @@ function renderHome() {
           } else if (gId) {
             showPage('gatherings');
             // Map action to tab id
-            var tabMap = {polls:'polls', bring:'bring', tasks:'tasks', detail:'overview', budget:'budget', notes:'notes', chat:'chat'};
+            var tabMap = {polls:'polls', tasks:'tasks', chat:'chat', detail:'overview', bring:'overview', budget:'overview', notes:'overview'};
             var tabId = tabMap[action] || 'overview';
             showDetail(gId, tabId);
           }
@@ -2312,6 +2305,33 @@ function renderHome() {
 
   // Render "What's new" banner — recent activity since last visit
   renderWhatsNewBanner();
+
+  // Render invite card at bottom of home
+  var inviteCard = document.getElementById('home-invite-card');
+  if (inviteCard) {
+    if (currentFlockId && FLOCKS[currentFlockId]) {
+      var invFlock = FLOCKS[currentFlockId];
+      inviteCard.innerHTML =
+        '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px;text-align:center">' +
+          '<div style="font-size:14px;font-weight:800;color:var(--text1);margin-bottom:4px">Grow your flock</div>' +
+          '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Share this code to invite family members</div>' +
+          '<div style="font-size:24px;font-weight:300;letter-spacing:.15em;font-family:monospace;color:var(--brand);margin-bottom:12px">' + (invFlock.inviteCode || '---') + '</div>' +
+          '<button id="home-share-invite" style="padding:10px 24px;border-radius:10px;background:var(--brand);color:#fff;font-size:13px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Share invite</button>' +
+        '</div>';
+      var shareInvBtn = document.getElementById('home-share-invite');
+      if (shareInvBtn) shareInvBtn.addEventListener('click', function(){
+        var text = 'Join ' + invFlock.name + ' on Kinverly!\n\nInvite code: ' + (invFlock.inviteCode || '') + '\n\nOpen the app and tap "I have an invite code" to join.';
+        if (navigator.share) {
+          navigator.share({ title: 'Join ' + invFlock.name, text: text }).catch(function(){});
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(text);
+          toast('Invite copied to clipboard!');
+        }
+      });
+    } else {
+      inviteCard.innerHTML = '';
+    }
+  }
 }
 
 // Track when user last viewed their home page per flock
@@ -2584,13 +2604,9 @@ function renderDetail(g) {
   var tabDefs = [
     {id:'overview', label:'Overview'},
     {id:'tasks',    label:'Tasks' + (taskCount ? ' · ' + taskCount : '')},
-    {id:'notes',    label:'Notes' + (noteCount ? ' · ' + noteCount : '')},
     {id:'polls',    label:'Polls' + (pollCount ? ' · ' + pollCount : '')},
-    {id:'bring',    label:'Bring' + (bringTotal ? ' · ' + (bringTotal - bringUnclaimed) + '/' + bringTotal : '')},
-    {id:'budget',   label:'Budget' + (expTotal ? ' · ' + expTotal : '')},
     {id:'chat',     label:'Chat' + (chatCount ? ' · ' + chatCount : '')},
     {id:'photos',   label:'Photos' + (photoCount ? ' · ' + photoCount : '')},
-    {id:'recap',    label:'Recap'},
   ];
 
   // If we were asked to open to a specific tab
@@ -2601,31 +2617,28 @@ function renderDetail(g) {
   contentArea.id = 'gtab-content';
 
   function showTab(tabId) {
+    // Always get a FRESH reference to avoid stale closure issues
+    var liveG = getLiveGathering(g.id) || g;
+    g = liveG; // Update the closure's g
+    window._currentDetailGathering = liveG;
+
     activeTab = tabId;
     tabs.querySelectorAll('.gtab').forEach(function(t){
       t.classList.toggle('active', t.dataset.tab === tabId);
     });
     contentArea.innerHTML = '';
     if (tabId === 'overview') {
-      contentArea.innerHTML = g.beachMode ? buildBeachDetail(g) : buildStandardDetail(g);
-      wireDetailButtons(g);
+      contentArea.innerHTML = liveG.beachMode ? buildBeachDetail(liveG) : buildStandardDetail(liveG);
+      wireDetailButtons(liveG);
     } else if (tabId === 'tasks') {
-      contentArea.innerHTML = buildTasksTab(g);
-      wireTaskButtons(g);
-    } else if (tabId === 'notes') {
-      contentArea.appendChild(renderPinboard(g));
+      contentArea.innerHTML = buildTasksTab(liveG);
+      wireTaskButtons(liveG);
     } else if (tabId === 'polls') {
-      contentArea.appendChild(renderPolls(g));
-    } else if (tabId === 'bring') {
-      contentArea.appendChild(renderBringList(g));
-    } else if (tabId === 'budget') {
-      contentArea.appendChild(renderBudget(g));
+      contentArea.appendChild(renderPolls(liveG));
     } else if (tabId === 'chat') {
-      contentArea.appendChild(renderGatheringChat(g.id));
+      contentArea.appendChild(renderGatheringChat(liveG.id));
     } else if (tabId === 'photos') {
-      contentArea.appendChild(renderPhotoAlbum(g.id));
-    } else if (tabId === 'recap') {
-      contentArea.appendChild(renderGatheringRecap(g.id));
+      contentArea.appendChild(renderPhotoAlbum(liveG.id));
     }
   }
 
@@ -3342,6 +3355,16 @@ function wireDetailButtons(g) {
       }
     });
   });
+
+  // Mount Notes, Bring, and Budget into overview sections
+  var notesContainer = document.getElementById('overview-notes-' + g.id);
+  if (notesContainer) notesContainer.appendChild(renderPinboard(g));
+
+  var bringContainer = document.getElementById('overview-bring-' + g.id);
+  if (bringContainer) bringContainer.appendChild(renderBringList(g));
+
+  var budgetContainer = document.getElementById('overview-budget-' + g.id);
+  if (budgetContainer) budgetContainer.appendChild(renderBudget(g));
 }
 
 function buildStandardDetail(g) {
@@ -3481,14 +3504,16 @@ function buildStandardDetail(g) {
   var bringClaimed = (g.bringList||[]).filter(function(b){return b.claimedBy;}).length;
   var expenseCount = (g.expenses||[]).length;
 
-  var quickLinks = '';
-  if (notesCount || pollsCount || bringCount || expenseCount) {
-    quickLinks = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">';
-    if (notesCount)   quickLinks += '<div class="card ql-card" data-ql-tab="notes" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">📌</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + notesCount + ' note' + (notesCount!==1?'s':'') + '</div></div>';
-    if (pollsCount)   quickLinks += '<div class="card ql-card" data-ql-tab="polls" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">🗳️</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + pollsCount + ' poll' + (pollsCount!==1?'s':'') + '</div></div>';
-    if (bringCount)   quickLinks += '<div class="card ql-card" data-ql-tab="bring" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">🎒</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + bringClaimed + '/' + bringCount + ' claimed</div></div>';
-    if (expenseCount) quickLinks += '<div class="card ql-card" data-ql-tab="budget" style="margin:0;padding:10px 12px;cursor:pointer"><div style="font-size:16px;margin-bottom:2px">💰</div><div style="font-size:12px;font-weight:800;color:var(--text1)">' + expenseCount + ' expense' + (expenseCount!==1?'s':'') + '</div></div>';
-    quickLinks += '</div>';
+  // Build inline sections for Notes, Bring, Budget
+  var notesSectionHtml = '<div class="section-title" style="margin-top:16px">📌 Notes' + (notesCount ? ' (' + notesCount + ')' : '') + '</div><div id="overview-notes-' + g.id + '"></div>';
+
+  var bringSectionHtml = '<div class="section-title" style="margin-top:16px">🎒 Bring list' + (bringCount ? ' (' + bringClaimed + '/' + bringCount + ')' : '') + '</div><div id="overview-bring-' + g.id + '"></div>';
+
+  var budgetSectionHtml = '';
+  if (expenseCount > 0) {
+    var total = 0;
+    (g.expenses||[]).forEach(function(e){ total += (parseFloat(e.amount)||0); });
+    budgetSectionHtml = '<div class="section-title" style="margin-top:16px">💰 Expenses ($' + total.toFixed(0) + ')</div><div id="overview-budget-' + g.id + '"></div>';
   }
 
   return '<div class="detail-hero">' +
@@ -3498,7 +3523,6 @@ function buildStandardDetail(g) {
     '<div class="detail-stats">' + statsHtml + '</div>' +
   '</div>' +
 
-  // Status-specific CTA
   (g.status === 'completed' ? '' : rsvpBannerHtml) +
 
   (g.status === 'completed' ? '' :
@@ -3511,9 +3535,6 @@ function buildStandardDetail(g) {
     '<div id="date-window-panel-'+g.id+'"></div>'
   : '') +
 
-  // Quick links to tabs with content
-  quickLinks +
-
   '<div class="section-title" style="margin-top:4px">Who\'s coming</div>' +
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
 
@@ -3521,7 +3542,9 @@ function buildStandardDetail(g) {
     '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>'
   : '') +
 
-  (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '');
+  (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '') +
+
+  notesSectionHtml + bringSectionHtml + budgetSectionHtml;
 }
 
 function buildBeachDetail(g) {
@@ -3732,74 +3755,121 @@ function renderIdeas() {
 
 // -- FAIRNESS ------------------------------------
 function renderFairness() {
-  var f = DATA.fairness;
+  // Fairness page removed — functionality moved to per-gathering Budget
+  return;
+}
 
-  // Empty state — no gatherings or no fairness data
-  if (!f || !f.members || f.members.length === 0) {
-    document.getElementById('fairness-content').innerHTML =
-      '<div style="text-align:center;padding:40px 20px">'+
-        '<div style="font-size:48px;margin-bottom:12px">⚖️</div>'+
-        '<div style="font-size:18px;font-weight:800;color:var(--text1);margin-bottom:8px;font-family:Fredoka One,cursive">Fairness tracking</div>'+
-        '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:8px">Once your flock has gatherings with locations, Kinverly will track travel costs and help you find fair meeting spots.</div>'+
-        '<div style="background:#ede8ff;border-radius:12px;padding:14px 16px;text-align:left;margin-top:16px">'+
-          '<div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:6px">How fairness works</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.7">'+
-            '• Each member\'s travel cost is estimated based on their location<br>'+
-            '• A fairness pool can be set up to subsidize high travelers<br>'+
-            '• Year-to-date miles help rotate where you gather<br>'+
-            '• The app suggests locations that minimize the overall burden'+
-          '</div>'+
-        '</div>'+
-      '</div>';
+// -- FLOCK PAGE ----------------------------------
+function renderFlockPage() {
+  var el = document.getElementById('flock-page-content');
+  if (!el) return;
+  var flock = FLOCKS[currentFlockId];
+  if (!flock) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)"><div style="font-size:48px;margin-bottom:12px">👥</div><div style="font-size:14px;font-weight:700">No flock yet</div></div>';
     return;
   }
 
-  var html = '<div class="card">'+
-    '<div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:12px">'+f.gathering+'</div>';
+  var allMembers = flock.members ? Object.values(flock.members) : [];
+  var memberCount = allMembers.length;
 
-  f.members.forEach(function(m){
-    var mem = getMember(m.id);
-    var pill = m.color==='#3B8A4A'?'pill-green':m.color==='#D85A30'?'pill-red':m.color==='#C87820'?'pill-amber':'pill-blue';
-    html += '<div class="cost-row">'+
-      makeAv((mem&&mem.animal)||'bear',30)+
-      '<div class="cost-name">'+(mem?mem.name:m.id)+'</div>'+
-      '<div class="cost-bar-wrap">'+
-        '<div class="cost-bar-bg"><div class="cost-bar-fill" style="width:'+m.pct+'%;background:'+m.color+'"></div></div>'+
-        '<div class="cost-amt" style="color:'+m.color+'">$'+m.cost+'</div>'+
-      '</div>'+
-      '<span class="pill '+pill+'">'+m.label+'</span>'+
+  // Invite code card
+  var inviteHtml =
+    '<div style="background:linear-gradient(135deg,#3D2B6E 0%,#5a3fb8 100%);border-radius:16px;padding:18px;margin-bottom:16px;color:#fff">' +
+      '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(240,192,48,.9);text-transform:uppercase;margin-bottom:8px">Invite code</div>' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div style="font-size:28px;font-weight:300;letter-spacing:.15em;font-family:monospace;flex:1">' + (flock.inviteCode || '---') + '</div>' +
+        '<button id="flock-copy-code" style="padding:8px 16px;border-radius:10px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Copy</button>' +
+        '<button id="flock-share-code" style="padding:8px 16px;border-radius:10px;background:var(--gold);border:none;color:#1E1433;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Share</button>' +
+      '</div>' +
+      '<div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:8px">Share this code with family members so they can join your flock</div>' +
+    '</div>';
+
+  // Members list
+  var membersHtml = '<div class="card" style="padding:0;overflow:hidden">';
+  allMembers.forEach(function(m, i){
+    var isMe = m.id === DATA.me.id;
+    var role = m.role || 'member';
+    var roleBadge = role === 'creator' ? '<span style="background:var(--gold);color:#1E1433;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Creator</span>'
+                  : role === 'admin' ? '<span style="background:#ede8ff;color:var(--brand);font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Admin</span>'
+                  : '';
+    membersHtml += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px' + (i < allMembers.length - 1 ? ';border-bottom:1px solid var(--border)' : '') + '">' +
+      makeAv(m.animal||'bear', 38) +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:14px;font-weight:700;color:var(--text1)">' + escapeHtml(m.name) + (isMe ? ' <span style="color:var(--text3);font-weight:500">(you)</span>' : '') + '</div>' +
+        '<div style="font-size:11px;color:var(--text3)">' + (m.location||'') + '</div>' +
+      '</div>' +
+      roleBadge +
     '</div>';
   });
+  membersHtml += '</div>';
 
-  html += '<div class="pool-box">'+
-    '<div><div class="pool-label">Fairness pool</div><div class="pool-sub">$'+f.poolPerPerson+' from each ? subsidies for highest travelers</div></div>'+
-    '<div class="pool-amt">$'+f.poolTotal.toLocaleString()+'</div>'+
-  '</div></div>';
-
-  html += '<div class="card" style="margin-top:0">'+
-    '<div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:12px">Year-to-date travel burden</div>';
-
-  f.yearMiles.forEach(function(m){
-    var mem = getMember(m.id);
-    html += '<div class="cost-row">'+
-      makeAv((mem&&mem.animal)||'bear',30)+
-      '<div class="cost-name">'+(mem?mem.name:m.id)+'</div>'+
-      '<div class="cost-bar-wrap">'+
-        '<div class="cost-bar-bg"><div class="cost-bar-fill" style="width:'+m.pct+'%;background:'+m.color+'"></div></div>'+
-        '<div class="cost-amt" style="color:'+m.color+'">'+m.miles.toLocaleString()+' mi</div>'+
-      '</div>'+
+  // Flock stats
+  var gatheringCount = DATA.gatherings.length;
+  var ideaCount = DATA.ideas.length;
+  var statsHtml =
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">' +
+      '<div class="card" style="margin:0;text-align:center;padding:14px 8px"><div style="font-size:22px;font-weight:300;color:var(--brand)">' + memberCount + '</div><div style="font-size:11px;font-weight:700;color:var(--text2)">Members</div></div>' +
+      '<div class="card" style="margin:0;text-align:center;padding:14px 8px"><div style="font-size:22px;font-weight:300;color:var(--brand)">' + gatheringCount + '</div><div style="font-size:11px;font-weight:700;color:var(--text2)">Gatherings</div></div>' +
+      '<div class="card" style="margin:0;text-align:center;padding:14px 8px"><div style="font-size:22px;font-weight:300;color:var(--brand)">' + ideaCount + '</div><div style="font-size:11px;font-weight:700;color:var(--text2)">Ideas</div></div>' +
     '</div>';
+
+  // Admin button
+  var adminHtml = isFlockAdmin()
+    ? '<button id="flock-admin-btn" style="width:100%;padding:13px;border-radius:14px;background:var(--surface);border:1.5px solid var(--brand);color:var(--brand);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:12px">🛡️ Admin panel</button>'
+    : '';
+
+  // Flock switcher
+  var flockKeys = Object.keys(FLOCKS);
+  var switcherHtml = '';
+  if (flockKeys.length > 1) {
+    switcherHtml = '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:16px">Your flocks</div>';
+    flockKeys.forEach(function(fId){
+      var f = FLOCKS[fId];
+      var isCurrent = fId === currentFlockId;
+      switcherHtml += '<div class="flock-switch-row" data-fid="' + fId + '" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:' + (isCurrent ? '#ede8ff' : 'var(--surface)') + ';border:1.5px solid ' + (isCurrent ? 'var(--brand)' : 'var(--border)') + ';border-radius:12px;margin-bottom:6px;cursor:pointer">' +
+        '<div style="font-size:20px">' + (f.emoji === 'HOME' ? '🏠' : (f.emoji || '👥')) + '</div>' +
+        '<div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--text1)">' + escapeHtml(f.name) + '</div>' +
+        '<div style="font-size:11px;color:var(--text3)">' + (f.memberIds ? f.memberIds.length : 0) + ' members</div></div>' +
+        (isCurrent ? '<span style="font-size:10px;font-weight:800;color:var(--brand)">Active</span>' : '') +
+      '</div>';
+    });
+  }
+
+  el.innerHTML = inviteHtml + statsHtml +
+    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + memberCount + ')</div>' +
+    membersHtml + '<div style="height:12px"></div>' +
+    adminHtml + switcherHtml;
+
+  // Wire buttons
+  var copyBtn = document.getElementById('flock-copy-code');
+  if (copyBtn) copyBtn.addEventListener('click', function(){
+    if (navigator.clipboard) navigator.clipboard.writeText(flock.inviteCode || '');
+    toast('Invite code copied!');
   });
 
-  html += '<div style="background:#ede8ff;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:12px;color:var(--brand);font-weight:700;line-height:1.5">'+
-    '? Next 2 gatherings should lean toward the Pacific Northwest to rebalance.'+
-  '</div></div>';
+  var shareBtn = document.getElementById('flock-share-code');
+  if (shareBtn) shareBtn.addEventListener('click', function(){
+    var text = 'Join ' + flock.name + ' on Kinverly!\n\nInvite code: ' + (flock.inviteCode || '') + '\n\nOpen the app and tap "I have an invite code" to join.';
+    if (navigator.share) {
+      navigator.share({ title: 'Join ' + flock.name, text: text }).catch(function(){});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      toast('Invite copied to clipboard!');
+    }
+  });
 
-  html += '<button class="btn-secondary" id="fair-loc-btn" style="margin-top:4px">Find fair meeting locations ?</button>';
+  var adminBtn = document.getElementById('flock-admin-btn');
+  if (adminBtn) adminBtn.addEventListener('click', openAdminPanel);
 
-  document.getElementById('fairness-content').innerHTML = html;
-  document.getElementById('fair-loc-btn').addEventListener('click', function(){
-    toast('Location finder coming soon!');
+  // Wire flock switcher
+  el.querySelectorAll('.flock-switch-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      var fId = row.dataset.fid;
+      if (fId && fId !== currentFlockId) {
+        switchToFlock(fId);
+        renderFlockPage();
+      }
+    });
   });
 }
 
@@ -3851,7 +3921,6 @@ function renderProfile() {
     '<button class="btn-primary" id="edit-profile-btn" style="margin-top:4px">Edit my profile</button>'+
     '<button class="btn-secondary" id="change-animal-btn" style="margin-top:8px">Change my animal</button>'+
     '<button class="btn-secondary" id="change-pw-btn" style="margin-top:8px">Change my password</button>'+
-    (isFlockAdmin() ? '<button class="btn-secondary" id="admin-panel-btn" style="margin-top:8px;border-color:var(--brand);color:var(--brand)">&#128737; Admin panel</button>' : '') +
     '<button class="btn-secondary" id="leave-flock-btn" style="margin-top:8px;border-color:var(--amber);color:var(--amber)">Leave this flock</button>' +
     '<button class="btn-secondary" id="logout-btn" style="margin-top:8px;border-color:var(--red);color:var(--red)">Log out</button>';
 
@@ -3898,7 +3967,7 @@ function renderProfile() {
       renderHome();
       renderGatherings();
       renderIdeas();
-      renderFairness();
+      renderFlockPage();
       renderProfile();
       showFlockOnboarding();
     }
@@ -3914,8 +3983,6 @@ function renderProfile() {
       showLoginScreen();
     }
   });
-  var adminBtn = document.getElementById('admin-panel-btn');
-  if (adminBtn) adminBtn.addEventListener('click', openAdminPanel);
   document.getElementById('profile-av-wrap').addEventListener('click', openAnimalPicker);
 }
 
@@ -5210,7 +5277,7 @@ function switchToFlock(flockId) {
   renderHome();
   renderGatherings();
   renderIdeas();
-  renderFairness();
+  renderFlockPage();
   renderProfile();
   toast((flock.emoji || '👥') + ' ' + flock.name);
 }
@@ -5703,7 +5770,7 @@ function showFlockSheet() {
             renderHome();
             renderGatherings();
             renderIdeas();
-            renderFairness();
+            renderFlockPage();
             renderProfile();
             if (Object.keys(FLOCKS).length === 0) {
               showFlockOnboarding();
@@ -6385,6 +6452,12 @@ function saveTask(gatheringId, tasks) {
 // ════════════════════════════════════════════════
 //  FEATURE 8: PINBOARD / NOTES
 // ════════════════════════════════════════════════
+
+// Always get the live gathering reference from DATA.gatherings
+// This prevents stale closure references from losing edits
+function getLiveGathering(gId) {
+  return DATA.gatherings.find(function(x){ return x.id === gId; });
+}
 
 function renderPinboard(g) {
   if (!g.notes) g.notes = [];
@@ -7571,7 +7644,7 @@ function renderFlockSchedule() {
   renderHome();
   renderGatherings();
   renderIdeas();
-  renderFairness();
+  renderFlockPage();
   renderProfile();
   updateCountdown();
   setInterval(updateCountdown, 60000);
@@ -7700,16 +7773,33 @@ try {
         var now = Date.now();
         (DATA.gatherings || []).forEach(function(lg){
           if (!rMap[lg.id]) {
-            // Only keep if created in last 10 seconds (waiting for sync)
             var createdAt = lg._createdAt || 0;
             if (now - createdAt < 10000) {
               gMerged.push(lg);
             }
-            // Otherwise: it was deleted remotely — don't re-add
           }
         });
+
+        // CRITICAL: Preserve local mutations that haven't synced yet.
+        // If _currentDetailGathering has unsaved changes (user is editing),
+        // patch the merged version with the local version's data.
+        if (window._currentDetailGathering) {
+          var localG = window._currentDetailGathering;
+          var mergedIdx = gMerged.findIndex(function(g){ return g.id === localG.id; });
+          if (mergedIdx >= 0) {
+            // Replace the remote version with our local version (which may have edits)
+            gMerged[mergedIdx] = localG;
+          }
+        }
+
         DATA.gatherings = gMerged;
         local.gatherings = gMerged;
+
+        // Update _currentDetailGathering to point to the object in the new array
+        if (window._currentDetailGathering) {
+          var updated = DATA.gatherings.find(function(g){ return g.id === window._currentDetailGathering.id; });
+          if (updated) window._currentDetailGathering = updated;
+        }
       }
 
       // ── IDEAS: same strategy ──
@@ -7776,7 +7866,7 @@ try {
       renderHome();
       renderGatherings();
       renderIdeas();
-      renderFairness();
+      renderFlockPage();
       renderProfile();
       updateCountdown();
 
@@ -8297,6 +8387,9 @@ try {
 
     // Wire save
     document.getElementById('ge-save-btn').addEventListener('click', function(){
+      // Always get the LIVE gathering object from DATA.gatherings, not the closure's stale reference
+      var liveG = DATA.gatherings.find(function(x){ return x.id === g.id; }) || g;
+
       var name    = document.getElementById('ge-name').value.trim();
       var loc     = document.getElementById('ge-loc').value.trim();
       var monthI  = parseInt(document.getElementById('ge-month').value);
@@ -8306,40 +8399,37 @@ try {
 
       if (!name) { document.getElementById('ge-name').focus(); toast('Please enter a gathering name'); return; }
 
-      // Apply to the gathering object
-      g.name     = name;
-      g.location = loc || g.location;
-      g.month    = MONTHS[monthI];
-      g.day      = dayV || g.day;
-      g.theme    = theme || g.theme;
-      g.hybrid   = selType === 'hybrid';
-      g.virtual  = selType === 'virtual';
-      g.host     = host || g.host;
-      g.status   = selStatus;
+      // Apply to the LIVE gathering object
+      liveG.name     = name;
+      liveG.location = loc || liveG.location;
+      liveG.month    = MONTHS[monthI];
+      liveG.day      = dayV || liveG.day;
+      liveG.theme    = theme || liveG.theme;
+      liveG.hybrid   = selType === 'hybrid';
+      liveG.virtual  = selType === 'virtual';
+      liveG.host     = host || liveG.host;
+      liveG.status   = selStatus;
 
-      // Update theme pill based on status
-      if (selStatus === 'completed') g.themePill = 'pill-gray';
-      else if (selStatus === 'planning') g.themePill = 'pill-blue';
-      else g.themePill = g.themePill || 'pill-amber';
+      if (selStatus === 'completed') liveG.themePill = 'pill-gray';
+      else if (selStatus === 'planning') liveG.themePill = 'pill-blue';
+      else liveG.themePill = liveG.themePill || 'pill-amber';
 
-      // If setting as 'next', demote any other 'next' gathering
       if (selStatus === 'next') {
         DATA.gatherings.forEach(function(other){
-          if (other.id !== g.id && other.status === 'next') other.status = 'upcoming';
+          if (other.id !== liveG.id && other.status === 'next') other.status = 'upcoming';
         });
       }
 
-      // Log activity
       logActivity(DATA.me.id, 'updated <strong>' + escapeHtml(name) + '</strong>');
-
       saveFlockState();
 
-      // Close sheet
       document.getElementById('gather-edit-overlay').classList.add('hidden');
 
-      // Re-render detail and gatherings list
-      renderDetail(g);
+      // Update the detail reference and re-render
+      window._currentDetailGathering = liveG;
+      renderDetail(liveG);
       if (document.getElementById('gatherings-list')) renderGatherings();
+      renderHome();
 
       toast('Gathering updated \u2713');
     });
@@ -8367,43 +8457,43 @@ try {
 
   // Auto-save pulls current values from the edit form and writes them to the gathering
   function autoSaveGatherEdit(g) {
+    // Always get the LIVE gathering object
+    var liveG = DATA.gatherings.find(function(x){ return x.id === g.id; }) || g;
+
     var nameEl = document.getElementById('ge-name');
     var locEl  = document.getElementById('ge-loc');
     var monthEl = document.getElementById('ge-month');
     var dayEl  = document.getElementById('ge-day');
     var themeEl = document.getElementById('ge-theme');
     var hostEl = document.getElementById('ge-host');
-    if (!nameEl) return; // form not rendered
+    if (!nameEl) return;
 
     var name = nameEl.value.trim();
-    if (!name) return; // don't save blank name
+    if (!name) return;
 
-    g.name     = name;
-    g.location = locEl.value.trim() || g.location;
-    g.month    = MONTHS[parseInt(monthEl.value)] || g.month;
-    g.day      = parseInt(dayEl.value) || g.day;
-    g.theme    = themeEl.value.trim() || g.theme;
-    g.hybrid   = selType === 'hybrid';
-    g.virtual  = selType === 'virtual';
-    g.host     = hostEl ? (hostEl.value || g.host) : g.host;
-    g.status   = selStatus;
+    liveG.name     = name;
+    liveG.location = locEl.value.trim() || liveG.location;
+    liveG.month    = MONTHS[parseInt(monthEl.value)] || liveG.month;
+    liveG.day      = parseInt(dayEl.value) || liveG.day;
+    liveG.theme    = themeEl.value.trim() || liveG.theme;
+    liveG.hybrid   = selType === 'hybrid';
+    liveG.virtual  = selType === 'virtual';
+    liveG.host     = hostEl ? (hostEl.value || liveG.host) : liveG.host;
+    liveG.status   = selStatus;
 
-    if (selStatus === 'completed') g.themePill = 'pill-gray';
-    else if (selStatus === 'planning') g.themePill = 'pill-blue';
-    else g.themePill = g.themePill || 'pill-amber';
+    if (selStatus === 'completed') liveG.themePill = 'pill-gray';
+    else if (selStatus === 'planning') liveG.themePill = 'pill-blue';
+    else liveG.themePill = liveG.themePill || 'pill-amber';
 
     if (selStatus === 'next') {
       DATA.gatherings.forEach(function(other){
-        if (other.id !== g.id && other.status === 'next') other.status = 'upcoming';
+        if (other.id !== liveG.id && other.status === 'next') other.status = 'upcoming';
       });
     }
 
     saveFlockState();
+    window._currentDetailGathering = liveG;
 
-    // Refresh views
-    if (window._currentDetailGathering && window._currentDetailGathering.id === g.id) {
-      renderDetail(g);
-    }
     if (document.getElementById('gatherings-list')) renderGatherings();
     renderHome();
   }
