@@ -2140,6 +2140,17 @@ function updateAlertCard() {
 }
 
 function renderHome() {
+  // Check for personal notifications (e.g. "You've been made an admin")
+  var flock = FLOCKS[currentFlockId];
+  if (flock && flock._notifications) {
+    var myNotifs = flock._notifications.filter(function(n){ return n.to === DATA.me.id && !n.read; });
+    myNotifs.forEach(function(n){
+      toast('🛡️ ' + n.text);
+      n.read = true;
+    });
+    if (myNotifs.length > 0) saveFlockState();
+  }
+
   // Topbar avatar
   var av = document.getElementById('topbar-av');
   av.innerHTML = makeAvSvg(DATA.me.animal, 36);
@@ -3365,6 +3376,40 @@ function wireDetailButtons(g) {
 
   var budgetContainer = document.getElementById('overview-budget-' + g.id);
   if (budgetContainer) budgetContainer.appendChild(renderBudget(g));
+
+  // Wire complete gathering button
+  var completeBtn = document.getElementById('complete-gathering-btn');
+  if (completeBtn) {
+    completeBtn.addEventListener('click', function(){
+      var liveG = getLiveGathering(g.id) || g;
+      liveG.status = 'completed';
+      liveG.themePill = 'pill-gray';
+      logActivity(DATA.me.id, 'marked <strong>' + escapeHtml(liveG.name) + '</strong> as complete ✅', '✅');
+      saveFlockState();
+      window._currentDetailGathering = liveG;
+      renderDetail(liveG);
+      renderGatherings();
+      renderHome();
+      toast('🎉 ' + liveG.name + ' is complete!');
+    });
+  }
+
+  // Wire reopen gathering button
+  var reopenBtn = document.getElementById('reopen-gathering-btn');
+  if (reopenBtn) {
+    reopenBtn.addEventListener('click', function(){
+      var liveG = getLiveGathering(g.id) || g;
+      liveG.status = 'upcoming';
+      liveG.themePill = 'pill-amber';
+      logActivity(DATA.me.id, 'reopened <strong>' + escapeHtml(liveG.name) + '</strong>', '↩️');
+      saveFlockState();
+      window._currentDetailGathering = liveG;
+      renderDetail(liveG);
+      renderGatherings();
+      renderHome();
+      toast(liveG.name + ' reopened');
+    });
+  }
 }
 
 function buildStandardDetail(g) {
@@ -3543,6 +3588,23 @@ function buildStandardDetail(g) {
   : '') +
 
   (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '') +
+
+  // Complete / Reopen button (host, creator, or admin only)
+  (function(){
+    var canManage = g.host === DATA.me.id || isFlockAdmin();
+    if (!canManage) return '';
+    if (g.status === 'completed') {
+      return '<button class="btn-secondary" id="reopen-gathering-btn" style="margin-top:16px;border-color:var(--brand);color:var(--brand)">' +
+        '↩️ Reopen this gathering</button>';
+    } else {
+      return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">' +
+        '<button id="complete-gathering-btn" style="width:100%;padding:14px;border-radius:14px;background:var(--green);color:#fff;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">' +
+          '✅ Mark as complete' +
+        '</button>' +
+        '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px">This moves the gathering to "Completed" and hides the RSVP</div>' +
+      '</div>';
+    }
+  })() +
 
   notesSectionHtml + bringSectionHtml + budgetSectionHtml;
 }
@@ -4504,94 +4566,102 @@ function openAdminPanel() {
       '<div>' + memberRows + '</div>'+
     '</div>';
 
-  // Wire promote buttons
-  body.querySelectorAll('.admin-promote').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var mid = btn.dataset.mid;
-      if (flock.members[mid]) {
-        flock.members[mid].role = 'admin';
-        saveFlockState();
-        // Direct member push to Firebase (bypasses full sync)
-        if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
-        // Also full sync as backup
-        if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-        logActivity(DATA.me.id, 'made <strong>' + escapeHtml(flock.members[mid].name) + '</strong> an admin', '🛡️');
-        openAdminPanel();
-        toast('Promoted to admin');
-      }
-    });
-  });
-
-  // Wire demote buttons
-  body.querySelectorAll('.admin-demote').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var mid = btn.dataset.mid;
-      if (flock.members[mid]) {
-        flock.members[mid].role = 'member';
-        saveFlockState();
-        if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
-        if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-        logActivity(DATA.me.id, 'removed admin from <strong>' + escapeHtml(flock.members[mid].name) + '</strong>', '🛡️');
-        openAdminPanel();
-        toast('Removed admin role');
-      }
-    });
-  });
-
-  // Wire reset password buttons
-  body.querySelectorAll('.admin-reset-pw').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var mid = btn.dataset.mid;
-      if (confirm('Reset password for ' + (flock.members[mid]?flock.members[mid].name:'this member') + '? They\'ll be able to log in without a password and set a new one.')) {
+  // Wire all admin panel buttons after a tick to ensure DOM is settled
+  setTimeout(function(){
+    // Wire promote buttons
+    body.querySelectorAll('.admin-promote').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var mid = btn.dataset.mid;
         if (flock.members[mid]) {
-          flock.members[mid].pw = '';
+          flock.members[mid].role = 'admin';
           saveFlockState();
           if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
           if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+          logActivity(DATA.me.id, 'made <strong>' + escapeHtml(flock.members[mid].name) + '</strong> an admin 🛡️', '🛡️');
+
+          // Add a notification for the promoted user
+          if (!flock._notifications) flock._notifications = [];
+          flock._notifications.push({
+            to: mid,
+            text: 'You\'ve been made an admin by ' + DATA.me.name + '! You now have access to the Admin panel on the Flock page.',
+            ts: Date.now(),
+            read: false
+          });
+
+          saveFlockState();
+          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
           openAdminPanel();
-          toast('Password reset');
+          toast('Promoted to admin');
         }
-      }
+      });
     });
-  });
 
-  // Wire remove buttons
-  body.querySelectorAll('.admin-remove').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var mid = btn.dataset.mid;
-      var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
-      if (confirm('Remove ' + memberName + ' from the flock?\n\nThey\'ll disappear from all gatherings and won\'t be able to access this flock anymore. This can\'t be undone.')) {
-        // Remove from flock
-        delete flock.members[mid];
-        var idx = (flock.memberIds||[]).indexOf(mid);
-        if (idx >= 0) flock.memberIds.splice(idx, 1);
-
-        // Remove from DATA.members
-        DATA.members = DATA.members.filter(function(m){ return m.id !== mid; });
-
-        // Clean their RSVPs from all gatherings
-        Object.keys(rsvpData).forEach(function(gId){
-          if (rsvpData[gId] && rsvpData[gId][mid]) delete rsvpData[gId][mid];
-        });
-
-        // Remove from gathering attending lists
-        (DATA.gatherings||[]).forEach(function(g){
-          if (g.attending) g.attending = g.attending.filter(function(a){ return a !== mid; });
-        });
-
-        // Log activity
-        logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(memberName) + '</strong> from the flock', '🚫');
-
-        saveFlockState();
-        // Force immediate sync so other devices see the removal
-        if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-        openAdminPanel();
-        renderHome();
-        renderGatherings();
-        toast(memberName + ' removed from flock');
-      }
+    // Wire demote buttons
+    body.querySelectorAll('.admin-demote').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var mid = btn.dataset.mid;
+        if (flock.members[mid]) {
+          flock.members[mid].role = 'member';
+          saveFlockState();
+          if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
+          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+          logActivity(DATA.me.id, 'removed admin from <strong>' + escapeHtml(flock.members[mid].name) + '</strong>', '🛡️');
+          openAdminPanel();
+          toast('Removed admin role');
+        }
+      });
     });
-  });
+
+    // Wire reset password buttons
+    body.querySelectorAll('.admin-reset-pw').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var mid = btn.dataset.mid;
+        var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
+        if (confirm('Reset password for ' + memberName + '?')) {
+          if (flock.members[mid]) {
+            flock.members[mid].pw = '';
+            saveFlockState();
+            if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
+            if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+            openAdminPanel();
+            toast('Password reset');
+          }
+        }
+      });
+    });
+
+    // Wire remove buttons
+    body.querySelectorAll('.admin-remove').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var mid = btn.dataset.mid;
+        var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
+        if (confirm('Remove ' + memberName + ' from the flock?')) {
+          delete flock.members[mid];
+          var idx = (flock.memberIds||[]).indexOf(mid);
+          if (idx >= 0) flock.memberIds.splice(idx, 1);
+          DATA.members = DATA.members.filter(function(m){ return m.id !== mid; });
+          Object.keys(rsvpData).forEach(function(gId){
+            if (rsvpData[gId] && rsvpData[gId][mid]) delete rsvpData[gId][mid];
+          });
+          (DATA.gatherings||[]).forEach(function(g){
+            if (g.attending) g.attending = g.attending.filter(function(a){ return a !== mid; });
+          });
+          logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(memberName) + '</strong> from the flock', '🚫');
+          saveFlockState();
+          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+          openAdminPanel();
+          renderHome();
+          renderGatherings();
+          renderFlockPage();
+          toast(memberName + ' removed');
+        }
+      });
+    });
+  }, 50);
 
   overlay.classList.remove('hidden');
 }
