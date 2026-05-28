@@ -5170,6 +5170,26 @@ function buildStandardDetail(g) {
   notesSectionHtml + bringSectionHtml + budgetSectionHtml;
 }
 
+
+function getWindowAvailabilitySummary(g, win, state) {
+  state = state || deriveGatheringState(g);
+  var submitted = 0, works = 0, partial = 0, no = 0;
+  state.activeMembers.forEach(function(m){
+    var r = getRsvpForMember(g.id, m.id);
+    if (!r || !r.availSubmitted) return;
+    submitted++;
+    var answers = r.windowAnswers || r.window_answers || {};
+    var ans = answers[String(win.id)] || answers[win.id] || 'works';
+    if (ans === 'no') no++;
+    else if (ans === 'partial') partial++;
+    else works++;
+  });
+  if (!submitted) return 'Waiting for responses';
+  if (no > 0) return 'Doesn't work for ' + no;
+  if (partial > 0) return 'Partially works for ' + partial;
+  return 'Works for ' + works + '/' + submitted;
+}
+
 function buildBeachDetail(g) {
   var state = deriveGatheringState(g);
   var responded = state.submittedCount;
@@ -5177,7 +5197,10 @@ function buildBeachDetail(g) {
 
   var windowsHTML = state.proposalWindows.length
     ? state.proposalWindows.map(function(w){
-        return '<div class="window-opt '+(w.status || 'partial')+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(w.label || '')+'</div></div>';
+        var isBest = state.recommendedWindow && String(state.recommendedWindow.id) === String(w.id);
+        var cls = isBest ? 'best' : 'partial';
+        var sub = isBest ? 'Best window' : getWindowAvailabilitySummary(g, w, state);
+        return '<div class="window-opt '+cls+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(sub)+'</div></div>';
       }).join('')
     : '';
 
@@ -5747,10 +5770,12 @@ function openAvailModal(g) {
     var suggested = getPersonalBlackoutDateKeysForGathering(ag);
     Object.keys(suggested).forEach(function(k){ blockedDates[k] = true; });
   }
-  if (ag && rsvpData[ag.id] && rsvpData[ag.id][DATA.me.id]) {
-    var mine = rsvpData[ag.id][DATA.me.id];
-    (mine.blockedDates || []).forEach(function(k){ blockedDates[k] = true; });
-    availabilityWindowAnswers = Object.assign({}, mine.windowAnswers || mine.window_answers || {});
+  if (ag) {
+    var existingMine = getRsvpForMember(ag.id, getCurrentMemberId());
+    if (existingMine) {
+      (existingMine.blockedDates || existingMine.blocked_dates || []).forEach(function(k){ blockedDates[k] = true; });
+      availabilityWindowAnswers = Object.assign({}, existingMine.windowAnswers || existingMine.window_answers || {});
+    }
   }
 
   var lbl = document.getElementById('avail-gathering-label');
@@ -5945,102 +5970,111 @@ if (availManageCalendarBtn) availManageCalendarBtn.addEventListener('click', fun
 function confirmAvailabilityReview() {
   if (window._availabilityConfirming) return;
   window._availabilityConfirming = true;
-  setTimeout(function(){ window._availabilityConfirming = false; }, 700);
-  var g = window._availGathering || window._currentDetailGathering || null;
-  if (!g || !g.id) {
-    toast('Open a gathering first, then review availability.');
-    return;
-  }
+  setTimeout(function(){ window._availabilityConfirming = false; }, 900);
 
-  var currentMember = getCurrentMemberRecord();
-  var memberId = getCurrentMemberId();
-  if (memberId === undefined || memberId === null || memberId === '') {
-    toast('Could not identify your member profile.');
-    return;
-  }
-
-  // Make sure every visible proposed window has a saved answer, even if the user did not tap it.
-  getAvailabilityReviewWindows(g).forEach(function(win){
-    if (!availabilityWindowAnswers[win.id]) availabilityWindowAnswers[win.id] = defaultAnswerForWindow(win);
-  });
-
-  if (!rsvpData[g.id]) rsvpData[g.id] = {};
-
-  var stamp = nowISO();
-  var blocked = Object.keys(blockedDates).filter(function(k){ return blockedDates[k]; });
-  var existing = getRsvpForMember(g.id, memberId) || getRsvpForMember(g.id, DATA.me.id) || { status: 'yes' };
-  var mine = Object.assign({}, existing);
-  mine.id = memberId;
-  mine.member_id = memberId;
-  mine.status = mine.status || 'yes';
-  mine.blockedDates = blocked;
-  mine.blocked_dates = blocked;
-  mine.windowAnswers = Object.assign({}, availabilityWindowAnswers);
-  mine.window_answers = Object.assign({}, availabilityWindowAnswers);
-  mine.availSubmitted = true;
-  mine.availability_submitted = true;
-  mine.availability_reviewed_at = stamp;
-  mine.updated_at = stamp;
-  if (!mine.created_at) mine.created_at = stamp;
-
-  // Save under the canonical numeric member id. Also keep legacy aliases so older UI
-  // paths and older Firebase records do not appear disconnected.
-  var identityKeys = getMemberIdentityKeys(currentMember).concat(getMemberIdentityKeys(DATA.me));
-  identityKeys.push(memberId);
-  identityKeys.forEach(function(k){
-    if (k === undefined || k === null || k === '') return;
-    rsvpData[g.id][k] = mine;
-    rsvpData[g.id][String(k)] = mine;
-  });
-
-  if (!Array.isArray(g.responses)) g.responses = [];
-  var resp = g.responses.find(function(r){
-    return getMemberIdentityKeys(r).some(function(k){ return identityKeys.map(String).indexOf(String(k)) >= 0; });
-  });
-  if (resp) {
-    resp.id = memberId;
-    resp.member_id = memberId;
-    resp.status = 'responded';
-    resp.availSubmitted = true;
-    resp.availability_submitted = true;
-    resp.updated_at = stamp;
-  } else {
-    g.responses.push({ id: memberId, member_id: memberId, status: 'responded', availSubmitted: true, availability_submitted: true, created_at: stamp, updated_at: stamp, deleted_at: null });
-  }
-  touchEntity(g);
-
-  logActivity(memberId, 'confirmed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
-  if (typeof recordEvent === 'function') {
-    recordEvent('availability.confirmed', 'gathering', g.id, null, {
-      gathering_id: g.id,
-      member_id: memberId,
-      blocked_dates: blocked,
-      window_answers: Object.assign({}, availabilityWindowAnswers)
-    });
-  }
-
-  saveLocal();
-  if (typeof saveFlockState === 'function') saveFlockState();
-  if (typeof pushToFirebase === 'function') {
-    try {
-      var maybePromise = pushToFirebase();
-      if (maybePromise && typeof maybePromise.catch === 'function') maybePromise.catch(function(err){ console.warn('Availability sync failed', err); });
-    } catch (err) {
-      console.warn('Availability sync failed', err);
+  try {
+    var g = window._availGathering || window._currentDetailGathering || null;
+    if (g && g.id && typeof getLiveGathering === 'function') g = getLiveGathering(g.id) || g;
+    if (!g || !g.id) {
+      toast('Open a gathering first, then review availability.');
+      return;
     }
+    window._availGathering = g;
+    window._currentDetailGathering = g;
+
+    var currentMember = getCurrentMemberRecord();
+    var memberId = getCurrentMemberId();
+    if (memberId === undefined || memberId === null || memberId === '') {
+      toast('Could not identify your member profile.');
+      return;
+    }
+
+    getAvailabilityReviewWindows(g).forEach(function(win){
+      if (!availabilityWindowAnswers[win.id]) availabilityWindowAnswers[win.id] = defaultAnswerForWindow(win);
+    });
+
+    if (!rsvpData[g.id]) rsvpData[g.id] = {};
+
+    var stamp = nowISO();
+    var blocked = Object.keys(blockedDates).filter(function(k){ return blockedDates[k]; });
+    var existing = getRsvpForMember(g.id, memberId) || { status: 'yes' };
+    var mine = Object.assign({}, existing);
+    mine.id = memberId;
+    mine.member_id = memberId;
+    mine.status = mine.status || 'yes';
+    mine.blockedDates = blocked;
+    mine.blocked_dates = blocked;
+    mine.windowAnswers = Object.assign({}, availabilityWindowAnswers);
+    mine.window_answers = Object.assign({}, availabilityWindowAnswers);
+    mine.availSubmitted = true;
+    mine.availability_submitted = true;
+    mine.availability_reviewed_at = stamp;
+    mine.updated_at = stamp;
+    if (!mine.created_at) mine.created_at = stamp;
+
+    var identityKeys = getMemberIdentityKeys(currentMember).concat(getMemberIdentityKeys(DATA.me));
+    identityKeys.push(memberId);
+    var keyStrings = [];
+    identityKeys.forEach(function(k){
+      if (k === undefined || k === null || k === '') return;
+      var sk = String(k);
+      if (keyStrings.indexOf(sk) < 0) keyStrings.push(sk);
+      rsvpData[g.id][k] = mine;
+      rsvpData[g.id][sk] = mine;
+    });
+
+    if (!Array.isArray(g.responses)) g.responses = [];
+    var resp = g.responses.find(function(r){
+      return getMemberIdentityKeys(r).some(function(k){ return keyStrings.indexOf(String(k)) >= 0; });
+    });
+    if (resp) {
+      resp.id = memberId;
+      resp.member_id = memberId;
+      resp.status = 'responded';
+      resp.availSubmitted = true;
+      resp.availability_submitted = true;
+      resp.updated_at = stamp;
+    } else {
+      g.responses.push({ id: memberId, member_id: memberId, status: 'responded', availSubmitted: true, availability_submitted: true, created_at: stamp, updated_at: stamp, deleted_at: null });
+    }
+    touchEntity(g);
+
+    logActivity(memberId, 'confirmed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
+    if (typeof recordEvent === 'function') {
+      recordEvent('availability.confirmed', 'gathering', g.id, null, {
+        gathering_id: g.id,
+        member_id: memberId,
+        blocked_dates: blocked,
+        window_answers: Object.assign({}, availabilityWindowAnswers)
+      });
+    }
+
+    saveLocal();
+    if (typeof saveFlockState === 'function') saveFlockState();
+    if (typeof pushToFirebase === 'function') {
+      try {
+        var maybePromise = pushToFirebase();
+        if (maybePromise && typeof maybePromise.catch === 'function') maybePromise.catch(function(err){ console.warn('Availability sync failed', err); });
+      } catch (err) {
+        console.warn('Availability sync failed', err);
+      }
+    }
+
+    var ov = document.getElementById('avail-overlay');
+    if (ov) ov.classList.add('hidden');
+
+    var counts = Object.values(availabilityWindowAnswers).reduce(function(acc, a){ acc[a] = (acc[a] || 0) + 1; return acc; }, {});
+    toast('✅ Availability confirmed' + (counts.no ? ' · ' + counts.no + ' option' + (counts.no > 1 ? 's' : '') + ' marked unavailable' : ''));
+
+    var panel = document.getElementById('date-window-panel-' + g.id);
+    if (panel) renderDateWindowPanel(g, panel);
+    if (typeof renderDetail === 'function' && window.detailOpen) renderDetail(g);
+    if (typeof renderHome === 'function') renderHome();
+    if (typeof renderMyWorld === 'function') renderMyWorld();
+  } catch (err) {
+    console.error('Confirm availability failed', err);
+    toast('Availability could not be saved. Check the console for details.');
   }
-
-  var ov = document.getElementById('avail-overlay');
-  if (ov) ov.classList.add('hidden');
-
-  var counts = Object.values(availabilityWindowAnswers).reduce(function(acc, a){ acc[a] = (acc[a] || 0) + 1; return acc; }, {});
-  toast('✅ Availability confirmed' + (counts.no ? ' · ' + counts.no + ' option' + (counts.no > 1 ? 's' : '') + ' marked unavailable' : ''));
-
-  var panel = document.getElementById('date-window-panel-' + g.id);
-  if (panel) renderDateWindowPanel(g, panel);
-  if (typeof renderGatheringDetail === 'function') renderGatheringDetail(g);
-  if (typeof renderHome === 'function') renderHome();
-  if (typeof renderMyWorld === 'function') renderMyWorld();
 }
 
 window.confirmAvailabilityReview = confirmAvailabilityReview;
@@ -6051,6 +6085,12 @@ if (availSubmitEl) availSubmitEl.addEventListener('click', function(e){
 });
 // Safety net: if the sheet gets re-rendered later, the confirm button still works.
 document.addEventListener('click', function(e){
+  var btn = e.target && e.target.closest ? e.target.closest('#avail-submit') : null;
+  if (!btn) return;
+  e.preventDefault();
+  confirmAvailabilityReview();
+});
+document.addEventListener('pointerup', function(e){
   var btn = e.target && e.target.closest ? e.target.closest('#avail-submit') : null;
   if (!btn) return;
   e.preventDefault();
