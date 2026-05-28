@@ -674,6 +674,26 @@ img,svg{display:block}
 }
 .avail-link-btn{width:100%;border:none;background:transparent;color:var(--text2);font-size:12px;font-weight:800;text-decoration:underline;text-underline-offset:3px;margin-top:10px;cursor:pointer}
 
+.avail-window-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 12px}
+.avail-window-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:12px;transition:border-color .15s,background .15s}
+.avail-window-card.works{border-color:rgba(59,138,74,.35);background:var(--green-bg)}
+.avail-window-card.partial{border-color:rgba(200,120,32,.38);background:var(--amber-bg)}
+.avail-window-card.no{border-color:rgba(216,90,48,.38);background:var(--red-bg)}
+.avail-window-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px}
+.avail-window-date{font-size:14px;font-weight:900;color:var(--text1);line-height:1.25}
+.avail-window-status{font-size:10px;font-weight:900;border-radius:20px;padding:4px 8px;white-space:nowrap;background:var(--surface2);color:var(--text2)}
+.avail-window-status.works{background:var(--green-bg);color:var(--green)}
+.avail-window-status.partial{background:var(--amber-bg);color:var(--amber)}
+.avail-window-status.no{background:var(--red-bg);color:var(--red)}
+.avail-window-meta{font-size:11.5px;color:var(--text2);font-weight:700;line-height:1.4;margin-bottom:9px}
+.avail-window-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.avail-answer-btn{border:1.5px solid var(--border);background:#fff;border-radius:10px;padding:8px 4px;font-size:11px;font-weight:900;color:var(--text2);cursor:pointer;font-family:inherit}
+.avail-answer-btn.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.avail-answer-btn.no.active{background:var(--red);border-color:var(--red)}
+.avail-answer-btn.partial.active{background:var(--amber);border-color:var(--amber);color:#fff}
+.avail-review-section-title{font-size:11px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin:14px 0 7px}
+.avail-review-note{font-size:12px;color:var(--text2);line-height:1.45;margin:6px 0 10px}
+
 /* ═══════════════════════════════════════════════
    LOGIN SCREEN
 ═══════════════════════════════════════════════ */
@@ -1983,18 +2003,22 @@ img,svg{display:block}
     <div class="sheet-body">
       <div id="avail-gathering-label" style="font-size:13px;color:var(--text2);margin-bottom:8px;font-weight:700"></div>
       <div class="avail-review-card">
-        <div class="avail-review-title">Your availability check</div>
-        <div class="avail-review-sub">Kinverly uses your My Calendar unavailable dates first. Review them here, make quick changes, then confirm for this gathering.</div>
+        <div class="avail-review-title">Availability Review</div>
+        <div class="avail-review-sub">Answer one simple question: which proposed dates work for you? My Calendar pre-fills conflicts, and you can adjust before confirming.</div>
+      </div>
+
+      <div class="avail-review-section-title">1. Proposed dates</div>
+      <div id="avail-window-list" class="avail-window-list"></div>
+
+      <div class="avail-review-section-title">2. Conflicts from My Calendar</div>
+      <div class="avail-review-card">
         <div id="avail-conflicts"></div>
-        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add another unavailable date</button>
+        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add unavailable time</button>
       </div>
-      <div style="font-size:13px;color:var(--text1);font-weight:800;margin:10px 0 8px">Tap dates below only if you need to adjust this gathering.</div>
-      <div id="cal-content"></div>
-      <div class="cal-legend">
-        <div class="leg-item"><div class="leg-dot avail"></div>Works for me</div>
-        <div class="leg-item"><div class="leg-dot blocked"></div>Unavailable</div>
-      </div>
-      <button class="btn-primary" id="avail-submit" style="margin-top:16px">Confirm availability</button>
+
+      <div class="avail-review-section-title">3. Confirm for this gathering</div>
+      <div class="avail-review-note">These answers only update this gathering. Your unavailable times stay saved in My Calendar.</div>
+      <button class="btn-primary" id="avail-submit" style="margin-top:4px">Confirm availability</button>
       <button class="avail-link-btn" id="avail-manage-calendar">Manage full calendar in My World</button>
     </div>
   </div>
@@ -5650,24 +5674,29 @@ function renderProfile() {
 
 // -- AVAILABILITY MODAL --------------------------
 var blockedDates = {};
+var availabilityWindowAnswers = {};
 
 function openAvailModal(g) {
   window._availGathering = g || window._currentDetailGathering || null;
   var ag = window._availGathering;
-  // Pre-fill blockedDates from saved data
   blockedDates = {};
+  availabilityWindowAnswers = {};
+
   if (ag) {
     var suggested = getPersonalBlackoutDateKeysForGathering(ag);
     Object.keys(suggested).forEach(function(k){ blockedDates[k] = true; });
   }
-  if (ag && rsvpData[ag.id] && rsvpData[ag.id][DATA.me.id] && rsvpData[ag.id][DATA.me.id].blockedDates) {
-    rsvpData[ag.id][DATA.me.id].blockedDates.forEach(function(k){ blockedDates[k] = true; });
+  if (ag && rsvpData[ag.id] && rsvpData[ag.id][DATA.me.id]) {
+    var mine = rsvpData[ag.id][DATA.me.id];
+    (mine.blockedDates || []).forEach(function(k){ blockedDates[k] = true; });
+    availabilityWindowAnswers = Object.assign({}, mine.windowAnswers || mine.window_answers || {});
   }
-  // Update sheet title
+
   var lbl = document.getElementById('avail-gathering-label');
-  if (lbl && ag) lbl.textContent = (ag.name || 'Gathering') + ' · Availability check';
+  if (lbl && ag) lbl.textContent = (ag.name || 'Gathering') + ' · Availability Review';
+
   renderAvailabilityReviewSummary(ag);
-  buildCalendar(ag);
+  renderAvailabilityWindowList(ag);
   document.getElementById('avail-overlay').classList.remove('hidden');
   setTimeout(function(){ var ao=document.getElementById('avail-overlay'); if(ao) ao.scrollTop=0; },50);
 }
@@ -5690,7 +5719,7 @@ function renderAvailabilityReviewSummary(g) {
   if (!box) return;
   var events = getPersonalUnavailableEventsForGathering(g);
   if (!events.length) {
-    box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:0">No unavailable dates found in My Calendar yet. Add one here if something blocks this gathering.</div>';
+    box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:0">No unavailable times found in My Calendar yet. Add one here if something blocks these proposed dates.</div>';
     return;
   }
   var rows = events.slice(0, 5).map(function(ev){
@@ -5712,65 +5741,133 @@ function addUnavailableFromAvailabilityModal() {
   var suggested = getPersonalBlackoutDateKeysForGathering(g);
   Object.keys(suggested).forEach(function(k){ blockedDates[k] = true; });
   renderAvailabilityReviewSummary(g);
-  buildCalendar(g);
-  toast('Unavailable date added to My Calendar');
+  renderAvailabilityWindowList(g);
+  toast('Unavailable time added to My Calendar');
 }
 
-function buildCalendar(g) {
-  var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-  var MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var MFULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var MMAP   = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  var html = '<div class="mw-cal-note" style="margin-bottom:10px">Your My Calendar unavailable dates are preselected. Changes here apply to this gathering when you confirm.</div>';
-
-  // Compute month range from gathering or default to next 2 months
-  var now = new Date();
-  var baseM, baseY;
-  if (g && g.month && MMAP[g.month]!==undefined) {
-    baseM = MMAP[g.month]; baseY = now.getFullYear();
-    if (baseM < now.getMonth()) baseY++; // next year if passed
-  } else {
-    baseM = now.getMonth(); baseY = now.getFullYear();
+function monthDayKeyFromDateObj(d) {
+  if (!d) return null;
+  var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  return monthAbbr + '-' + d.getDate();
+}
+function dateObjFromMonthDayKey(key, baseDate) {
+  if (!key) return null;
+  var parts = String(key).split('-');
+  if (parts.length < 2 || MMAP_DW[parts[0]] === undefined) return null;
+  var now = baseDate || new Date();
+  var m = MMAP_DW[parts[0]];
+  var y = now.getFullYear();
+  if (m < now.getMonth() - 1) y++;
+  return new Date(y, m, parseInt(parts[1], 10));
+}
+function monthDayKeysBetween(startKey, endKey) {
+  var keys = [];
+  var s = dateObjFromMonthDayKey(startKey);
+  var e = dateObjFromMonthDayKey(endKey, s || undefined);
+  if (!s || !e) return keys;
+  if (e < s) e = new Date(e.getFullYear() + 1, e.getMonth(), e.getDate());
+  eachDateInRange(s, e, function(d){ keys.push(monthDayKeyFromDateObj(d)); });
+  return keys;
+}
+function parseWindowLabelToKeys(label) {
+  label = String(label || '').replace(/\s+/g, ' ').trim();
+  var months = '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)';
+  var m = label.match(new RegExp(months + '\\.?\\s*(\\d{1,2})\\s*[–-]\\s*(?:(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\.?\\s*)?(\\d{1,2})', 'i'));
+  if (m) {
+    var sm = m[1].slice(0,3); var sd = m[2]; var em = (m[3] || sm).slice(0,3); var ed = m[4];
+    return monthDayKeysBetween(sm + '-' + parseInt(sd,10), em + '-' + parseInt(ed,10));
   }
-  // Show month before and month of gathering
-  var prevM = baseM - 1 < 0 ? 11 : baseM - 1;
-  var prevY = baseM - 1 < 0 ? baseY - 1 : baseY;
-  var months = [
-    {name:MFULL[prevM], abbr:MNAMES[prevM], month:prevM, year:prevY},
-    {name:MFULL[baseM], abbr:MNAMES[baseM], month:baseM, year:baseY},
-  ];
-
-  months.forEach(function(m){
-    var daysInMonth = new Date(m.year, m.month+1, 0).getDate();
-    var firstDay    = new Date(m.year, m.month, 1).getDay();
-    html += '<div class="cal-header">'+m.name+'</div><div class="cal-grid">';
-    html += days.map(function(d){ return '<div class="cal-day-hdr">'+d+'</div>'; }).join('');
-    for (var i = 0; i < firstDay; i++) html += '<div class="cal-day empty"></div>';
-    for (var d = 1; d <= daysInMonth; d++) {
-      var key = m.abbr+'-'+d;
-      var isBlocked = blockedDates[key];
-      html += '<div class="cal-day'+(isBlocked?' blocked':'')+'" data-key="'+key+'">'+d+'</div>';
+  var single = label.match(new RegExp(months + '\\.?\\s*(\\d{1,2})', 'i'));
+  if (single) return [single[1].slice(0,3) + '-' + parseInt(single[2],10)];
+  return [];
+}
+function getAvailabilityReviewWindows(g) {
+  var state = deriveGatheringState(g);
+  var out = [];
+  state.proposalWindows.forEach(function(pw, idx){
+    var label = pw.dates || pw.label || ('Option ' + (idx + 1));
+    var keys = [];
+    if (pw.raw) {
+      if (Array.isArray(pw.raw.days)) keys = pw.raw.days.map(function(d){ return d.key || d; }).filter(Boolean);
+      if (!keys.length && pw.raw.start && pw.raw.end) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(pw.raw.start))) {
+          var sd = parseLocalDateKey(pw.raw.start), ed = parseLocalDateKey(pw.raw.end);
+          eachDateInRange(sd, ed || sd, function(d){ keys.push(monthDayKeyFromDateObj(d)); });
+        } else {
+          keys = parseWindowLabelToKeys(label);
+        }
+      }
     }
-    html += '</div>';
+    if (!keys.length) keys = parseWindowLabelToKeys(label);
+    out.push({ id: String(pw.id || idx + 1), label: label, keys: keys, source: 'proposal' });
   });
 
-  var cal = document.getElementById('cal-content');
-  cal.innerHTML = html;
+  if (!out.length) {
+    var conflicts = computeConflicts(g.id, state.activeMembers);
+    var months  = gatheringMonths(g);
+    var allDays = buildDayList(months);
+    var generated = state.submittedCount > 0 ? findBestWindows(allDays, conflicts, state.submittedCount, 5, 3) : [];
+    generated.forEach(function(w, idx){ out.push({ id: 'generated-' + idx, label: formatDateWindowRange(w), keys: (w.days || []).map(function(d){ return d.key; }).filter(Boolean), source: 'generated' }); });
+  }
+  return out;
+}
+function defaultAnswerForWindow(win) {
+  var keys = win.keys || [];
+  if (!keys.length) return 'works';
+  var conflictCount = keys.filter(function(k){ return blockedDates[k]; }).length;
+  if (conflictCount === 0) return 'works';
+  if (conflictCount >= keys.length) return 'no';
+  return 'partial';
+}
+function answerLabel(a) {
+  if (a === 'no') return 'Doesn’t work';
+  if (a === 'partial') return 'Partially works';
+  return 'Works for me';
+}
+function renderAvailabilityWindowList(g) {
+  var box = document.getElementById('avail-window-list');
+  if (!box) return;
+  var windows = getAvailabilityReviewWindows(g || {});
+  if (!windows.length) {
+    box.innerHTML = '<div class="avail-review-card"><div class="avail-review-sub" style="margin-bottom:0">No proposed dates are set yet. The organizer can add proposed dates first, then everyone can review availability.</div></div>';
+    return;
+  }
+  box.innerHTML = windows.map(function(win, idx){
+    var keys = win.keys || [];
+    var conflicts = keys.filter(function(k){ return blockedDates[k]; });
+    var ans = availabilityWindowAnswers[win.id] || defaultAnswerForWindow(win);
+    availabilityWindowAnswers[win.id] = ans;
+    var meta = conflicts.length
+      ? conflicts.length + ' unavailable day' + (conflicts.length === 1 ? '' : 's') + ' detected: ' + conflicts.slice(0,3).join(', ') + (conflicts.length > 3 ? ' +' + (conflicts.length - 3) : '')
+      : 'No conflicts detected from My Calendar.';
+    return '<div class="avail-window-card ' + ans + '" data-window-id="' + escapeHtml(win.id) + '">' +
+      '<div class="avail-window-head"><div><div class="avail-window-date">' + escapeHtml(win.label) + '</div></div><div class="avail-window-status ' + ans + '">' + answerLabel(ans) + '</div></div>' +
+      '<div class="avail-window-meta">' + escapeHtml(meta) + '</div>' +
+      '<div class="avail-window-actions">' +
+        '<button class="avail-answer-btn works ' + (ans === 'works' ? 'active' : '') + '" data-answer="works">Works</button>' +
+        '<button class="avail-answer-btn partial ' + (ans === 'partial' ? 'active' : '') + '" data-answer="partial">Partial</button>' +
+        '<button class="avail-answer-btn no ' + (ans === 'no' ? 'active' : '') + '" data-answer="no">No</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 
-  // Wire day clicks
-  cal.querySelectorAll('.cal-day:not(.empty)').forEach(function(dayEl){
-    dayEl.addEventListener('click', function(){
-      var key = dayEl.dataset.key;
-      blockedDates[key] = !blockedDates[key];
-      dayEl.classList.toggle('blocked', blockedDates[key]);
+  box.querySelectorAll('.avail-answer-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var card = btn.closest('.avail-window-card');
+      var id = card && card.dataset.windowId;
+      if (!id) return;
+      availabilityWindowAnswers[id] = btn.dataset.answer || 'works';
+      renderAvailabilityWindowList(g);
     });
   });
 }
 
-document.getElementById('avail-close').addEventListener('click', function(){
+var availCloseEl = document.getElementById('avail-close');
+if (availCloseEl) availCloseEl.addEventListener('click', function(){
   document.getElementById('avail-overlay').classList.add('hidden');
 });
-document.getElementById('avail-overlay').addEventListener('click', function(e){
+var availOverlayEl = document.getElementById('avail-overlay');
+if (availOverlayEl) availOverlayEl.addEventListener('click', function(e){
   if (e.target === this) this.classList.add('hidden');
 });
 var availAddUnavailableBtn = document.getElementById('avail-add-unavailable');
@@ -5784,26 +5881,30 @@ if (availManageCalendarBtn) availManageCalendarBtn.addEventListener('click', fun
     if (cal && cal.scrollIntoView) cal.scrollIntoView({behavior:'smooth', block:'start'});
   }, 150);
 });
-document.getElementById('avail-submit').addEventListener('click', function(){
-  // Save to rsvpData under the current gathering
+var availSubmitEl = document.getElementById('avail-submit');
+if (availSubmitEl) availSubmitEl.addEventListener('click', function(){
   var g = window._availGathering;
   if (g) {
     if (!rsvpData[g.id]) rsvpData[g.id] = {};
     if (!rsvpData[g.id][DATA.me.id]) rsvpData[g.id][DATA.me.id] = {status:'yes'};
-    rsvpData[g.id][DATA.me.id].blockedDates = Object.keys(blockedDates).filter(function(k){return blockedDates[k];});
-    rsvpData[g.id][DATA.me.id].availSubmitted = true;
-    // Mark as responded in g.responses
+    var mine = rsvpData[g.id][DATA.me.id];
+    mine.blockedDates = Object.keys(blockedDates).filter(function(k){return blockedDates[k];});
+    mine.windowAnswers = Object.assign({}, availabilityWindowAnswers);
+    mine.window_answers = Object.assign({}, availabilityWindowAnswers);
+    mine.availSubmitted = true;
+    mine.availability_reviewed_at = nowISO();
+    mine.updated_at = nowISO();
     if (g.responses) {
       var resp = g.responses.find(function(r){return r.id===DATA.me.id;});
       if (resp) resp.status = 'responded';
       else g.responses.push({id:DATA.me.id, status:'responded'});
     }
+    logActivity(DATA.me.id, 'reviewed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
     saveFlockState();
   }
   document.getElementById('avail-overlay').classList.add('hidden');
-  var count = Object.values(blockedDates).filter(Boolean).length;
-  toast(count===0 ? '\u2705 Availability confirmed — all dates work for you!' : '\ud83d\udcc5 Availability confirmed with '+count+' unavailable date'+(count>1?'s':'')+'.');
-  // Re-render date window panel
+  var counts = Object.values(availabilityWindowAnswers).reduce(function(acc, a){ acc[a] = (acc[a] || 0) + 1; return acc; }, {});
+  toast('✅ Availability confirmed' + (counts.no ? ' · ' + counts.no + ' option' + (counts.no > 1 ? 's' : '') + ' marked unavailable' : ''));
   if (g) {
     var panel = document.getElementById('date-window-panel-'+g.id);
     if (panel) renderDateWindowPanel(g, panel);
