@@ -171,6 +171,34 @@ img,svg{display:block}
   padding:14px;
   margin-bottom:12px;
 }
+
+/* ── DECISION ENGINE RECOMMENDATION CARD ───────────── */
+.decision-card{
+  background:linear-gradient(135deg,#fff 0%,#F7F3FF 100%);
+  border:1.5px solid rgba(61,43,110,.16);
+  border-radius:var(--radius-lg);
+  padding:14px;
+  margin-bottom:14px;
+  box-shadow:var(--shadow);
+}
+.decision-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.decision-icon{
+  width:36px;height:36px;border-radius:12px;
+  background:#ede8ff;color:var(--brand);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.decision-eyebrow{font-size:10px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.decision-title{font-size:16px;font-weight:900;color:var(--text1);line-height:1.25}
+.decision-sub{font-size:12px;color:var(--text2);line-height:1.45;margin-top:3px}
+.decision-score-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.decision-score{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 6px;text-align:center}
+.decision-score-n{font-size:15px;font-weight:900;color:var(--text1);line-height:1}
+.decision-score-l{font-size:8px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
+.decision-reasons{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.decision-reason{font-size:10.5px;font-weight:800;color:var(--text2);background:#fff;border:1px solid var(--border);border-radius:20px;padding:4px 8px}
+.decision-reason.good{color:var(--green);background:var(--green-bg);border-color:rgba(59,138,74,.16)}
+.decision-reason.warn{color:var(--amber);background:var(--amber-bg);border-color:rgba(200,120,32,.16)}
 .section-title{
   font-size:11px;font-weight:800;
   color:var(--text2);
@@ -2724,6 +2752,126 @@ function renderGatheringsList() {
   }
 }
 
+
+// -- DECISION ENGINE ----------------------------------
+// Pure recommendation helper: reads the gathering + current flock data and returns display-ready output.
+function computeGatheringRecommendation(g) {
+  var allFlock = [DATA.me].concat(DATA.members || []).filter(Boolean);
+  var totalMembers = Math.max(allFlock.length, 1);
+  var gRsvps = (rsvpData && rsvpData[g.id]) || {};
+
+  var yesCount = 0;
+  var virtualCount = 0;
+  var noCount = 0;
+  var submittedCount = 0;
+
+  allFlock.forEach(function(m) {
+    var r = gRsvps[m.id];
+    if (!r) return;
+    if (r.status === 'yes') yesCount++;
+    if (r.status === 'virtual') virtualCount++;
+    if (r.status === 'no') noCount++;
+    if (r.availSubmitted) submittedCount++;
+  });
+
+  var attendingCount = yesCount + virtualCount;
+  var replyCount = attendingCount + noCount;
+  var availabilityScore = Math.round((attendingCount / totalMembers) * 100);
+  var replyScore = Math.round((replyCount / totalMembers) * 100);
+
+  var taskTotal = (g.tasks || []).length;
+  var taskDone = (g.tasks || []).filter(function(t){ return t.done || t.status === 'done'; }).length;
+  var taskScore = taskTotal ? Math.round((taskDone / taskTotal) * 100) : 100;
+
+  var bestWindow = null;
+  var windowScore = null;
+  if (g.status === 'planning') {
+    var conflicts = computeConflicts(g.id, allFlock);
+    var months = gatheringMonths(g);
+    var allDays = buildDayList(months);
+    var topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 1) : [];
+    if (topWindows.length) {
+      var w = topWindows[0];
+      var availableSlots = Math.max(submittedCount * w.days.length - w.totalConflicts, 0);
+      var possibleSlots = Math.max(submittedCount * w.days.length, 1);
+      windowScore = Math.round((availableSlots / possibleSlots) * 100);
+      bestWindow = w.start.label + '–' + w.end.label;
+    }
+  }
+
+  var finalScore = g.status === 'planning'
+    ? Math.round(((windowScore || 0) * 0.70) + ((submittedCount / totalMembers) * 100 * 0.30))
+    : Math.round((availabilityScore * 0.60) + (replyScore * 0.25) + (taskScore * 0.15));
+
+  var confidence = finalScore >= 80 ? 'High' : finalScore >= 55 ? 'Medium' : 'Low';
+  var title = '';
+  var subtitle = '';
+  var reasons = [];
+
+  if (g.status === 'planning') {
+    title = bestWindow ? ('Best window: ' + bestWindow) : 'Collect more availability';
+    subtitle = bestWindow
+      ? 'This window has the fewest blocked dates from members who responded.'
+      : 'Kinverly needs more submitted dates before it can confidently recommend a window.';
+    reasons.push({ text: submittedCount + '/' + totalMembers + ' shared dates', type: submittedCount >= Math.ceil(totalMembers * .7) ? 'good' : 'warn' });
+    if (bestWindow) reasons.push({ text: (windowScore || 0) + '% availability fit', type: (windowScore || 0) >= 75 ? 'good' : 'warn' });
+  } else if (g.status === 'completed') {
+    title = 'Gathering complete';
+    subtitle = 'Use photos, notes, and tasks to create the recap.';
+    reasons.push({ text: attendingCount + ' attended', type: 'good' });
+    if (taskTotal) reasons.push({ text: taskDone + '/' + taskTotal + ' tasks done', type: taskScore >= 80 ? 'good' : 'warn' });
+  } else {
+    title = availabilityScore >= 70 ? 'Strong turnout expected' : 'Needs a few more replies';
+    subtitle = availabilityScore >= 70
+      ? 'This gathering is in good shape based on current RSVPs.'
+      : 'Nudging pending members should improve the recommendation confidence.';
+    reasons.push({ text: attendingCount + '/' + totalMembers + ' attending', type: availabilityScore >= 70 ? 'good' : 'warn' });
+    reasons.push({ text: replyCount + '/' + totalMembers + ' replied', type: replyScore >= 80 ? 'good' : 'warn' });
+    if (taskTotal) reasons.push({ text: taskDone + '/' + taskTotal + ' tasks done', type: taskScore >= 80 ? 'good' : 'warn' });
+  }
+
+  return {
+    score: Math.max(0, Math.min(finalScore, 100)),
+    confidence: confidence,
+    title: title,
+    subtitle: subtitle,
+    availabilityScore: availabilityScore,
+    replyScore: replyScore,
+    taskScore: taskScore,
+    windowScore: windowScore,
+    reasons: reasons
+  };
+}
+
+function buildDecisionCard(g) {
+  var rec = computeGatheringRecommendation(g);
+  var scoreLabel = g.status === 'planning' ? 'Fit' : 'Score';
+  var middleScore = g.status === 'planning' && rec.windowScore !== null ? rec.windowScore : rec.replyScore;
+  var middleLabel = g.status === 'planning' ? 'Window' : 'Replies';
+  var reasonHtml = (rec.reasons || []).map(function(r){
+    return '<span class="decision-reason ' + (r.type || '') + '">' + escapeHtml(r.text) + '</span>';
+  }).join('');
+
+  return '<div class="decision-card">' +
+    '<div class="decision-top">' +
+      '<div class="decision-icon">✨</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="decision-eyebrow">Kinverly recommendation</div>' +
+        '<div class="decision-title">' + escapeHtml(rec.title) + '</div>' +
+        '<div class="decision-sub">' + escapeHtml(rec.subtitle) + '</div>' +
+      '</div>' +
+      '<span class="pill ' + (rec.confidence === 'High' ? 'pill-green' : rec.confidence === 'Medium' ? 'pill-amber' : 'pill-gray') + '">' + rec.confidence + '</span>' +
+    '</div>' +
+    '<div class="decision-score-row">' +
+      '<div class="decision-score"><div class="decision-score-n">' + rec.score + '%</div><div class="decision-score-l">' + scoreLabel + '</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + rec.availabilityScore + '%</div><div class="decision-score-l">Attend</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + middleScore + '%</div><div class="decision-score-l">' + middleLabel + '</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + rec.taskScore + '%</div><div class="decision-score-l">Tasks</div></div>' +
+    '</div>' +
+    (reasonHtml ? '<div class="decision-reasons">' + reasonHtml + '</div>' : '') +
+  '</div>';
+}
+
 // -- GATHERING DETAIL ----------------------------
 function renderDetail(g) {
   window._currentDetailGathering = g;
@@ -3701,6 +3849,8 @@ function buildStandardDetail(g) {
     '<div class="detail-stats">' + statsHtml + '</div>' +
   '</div>' +
 
+  buildDecisionCard(g) +
+
   (g.status === 'completed' ? '' : rsvpBannerHtml) +
 
   (g.status === 'completed' ? '' :
@@ -3768,6 +3918,7 @@ function buildBeachDetail(g) {
     '</div>'+
     (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
   '</div>'+
+  buildDecisionCard(g)+
   '<div class="collab-box">'+
     '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
     '<div><div class="collab-title">Share your availability</div><div class="collab-sub">Updates live as more responses come in.</div></div>'+
@@ -8154,16 +8305,26 @@ try {
           }
         });
 
-        // CRITICAL: Preserve local mutations that haven't synced yet.
-        // If _currentDetailGathering has unsaved changes (user is editing),
-        // patch the merged version with the local version's data.
-        if (window._currentDetailGathering) {
+        // Preserve very recent gathering edits made on this device so an older
+        // Firestore snapshot cannot visually roll the edit back before the write lands.
+        if (window._pendingGatheringEdits) {
+          Object.keys(window._pendingGatheringEdits).forEach(function(gid){
+            var pending = window._pendingGatheringEdits[gid];
+            if (!pending || Date.now() - pending.ts >= 20000) {
+              delete window._pendingGatheringEdits[gid];
+              return;
+            }
+            var idx = gMerged.findIndex(function(x){ return x.id === gid; });
+            if (idx >= 0) gMerged[idx] = pending.gathering;
+            else gMerged.push(pending.gathering);
+          });
+        }
+
+        // If the edit sheet is currently open, keep the current detail object stable.
+        if (editingGathering && window._currentDetailGathering) {
           var localG = window._currentDetailGathering;
           var mergedIdx = gMerged.findIndex(function(g){ return g.id === localG.id; });
-          if (mergedIdx >= 0) {
-            // Replace the remote version with our local version (which may have edits)
-            gMerged[mergedIdx] = localG;
-          }
+          if (mergedIdx >= 0) gMerged[mergedIdx] = localG;
         }
 
         DATA.gatherings = gMerged;
@@ -8551,6 +8712,77 @@ try {
 // ── GATHER EDIT SHEET ──────────────────────────────────────
 (function(){
   var editingGathering = null;
+  var editDraftType = 'in-person';
+  var editDraftStatus = 'upcoming';
+
+  function getGatheringById(id) {
+    return (DATA.gatherings || []).find(function(x){ return x && x.id === id; });
+  }
+
+  function changedLabel(before, after, label) {
+    var b = (before === undefined || before === null) ? '' : String(before);
+    var a = (after === undefined || after === null) ? '' : String(after);
+    return b !== a ? label : null;
+  }
+
+  function describeGatheringChanges(before, after) {
+    var beforeType = before.hybrid ? 'hybrid' : (before.virtual ? 'virtual' : 'in-person');
+    var afterType  = after.hybrid ? 'hybrid' : (after.virtual ? 'virtual' : 'in-person');
+    var changes = [
+      changedLabel(before.name, after.name, 'title'),
+      changedLabel(before.location, after.location, 'location'),
+      changedLabel(before.month, after.month, 'month'),
+      changedLabel(before.day, after.day, 'day'),
+      changedLabel(before.theme, after.theme, 'details'),
+      changedLabel(before.host, after.host, 'host'),
+      changedLabel(before.status, after.status, 'status'),
+      changedLabel(beforeType, afterType, 'type')
+    ].filter(Boolean);
+    if (!changes.length) return 'updated details';
+    if (changes.length === 1) return 'updated ' + changes[0];
+    return 'updated ' + changes.slice(0, -1).join(', ') + ' and ' + changes[changes.length - 1];
+  }
+
+  function markGatheringEditPending(g) {
+    window._pendingGatheringEdits = window._pendingGatheringEdits || {};
+    window._pendingGatheringEdits[g.id] = {
+      ts: Date.now(),
+      gathering: JSON.parse(JSON.stringify(g))
+    };
+  }
+
+  async function persistGatheringEdit(g) {
+    saveLocal();
+    markGatheringEditPending(g);
+
+    if (!window.__db || !window.__firestoreHelpers || !currentFlockId || !FLOCKS[currentFlockId]) {
+      saveFlockState();
+      return;
+    }
+
+    var h = window.__firestoreHelpers;
+    var flock = FLOCKS[currentFlockId];
+    var safeGatherings = (flock.gatherings || []).map(function(item) {
+      var copy = Object.assign({}, item);
+      if (copy.photos && copy.photos.length > 0) {
+        copy.photos = copy.photos.map(function(photo) {
+          var safePhoto = Object.assign({}, photo);
+          if (safePhoto.dataUrl && safePhoto.dataUrl.length > 50000) safePhoto.dataUrl = '';
+          return safePhoto;
+        });
+      }
+      if (copy.chat && copy.chat.length > 50) copy.chat = copy.chat.slice(-50);
+      return copy;
+    });
+
+    var updates = {
+      gatherings: safeGatherings,
+      activity: (flock.activity || DATA.activity || []).slice(0, 30),
+      rsvpData: rsvpData || {}
+    };
+    if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
+    await h.updateDoc(h.doc(window.__db, 'flocks', currentFlockId), updates);
+  }
 
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -8577,6 +8809,8 @@ try {
 
     // Type: derive from hybrid/virtual flags
     var curType = g.hybrid ? 'hybrid' : (g.virtual ? 'virtual' : 'in-person');
+    editDraftType = curType;
+    editDraftStatus = g.status || 'upcoming';
 
     body.innerHTML =
       // ── Name ──
@@ -8660,9 +8894,11 @@ try {
 
     // Wire type buttons
     var selType = curType;
+    editDraftType = selType;
     document.querySelectorAll('#ge-type-row .gc-type-btn').forEach(function(btn){
       btn.addEventListener('click', function(){
         selType = btn.dataset.type;
+        editDraftType = selType;
         document.querySelectorAll('#ge-type-row .gc-type-btn').forEach(function(b){
           b.classList.toggle('selected', b.dataset.type === selType);
         });
@@ -8680,9 +8916,11 @@ try {
 
     // Wire status buttons
     var selStatus = g.status || 'upcoming';
+    editDraftStatus = selStatus;
     document.querySelectorAll('#ge-status-row .ge-status-btn').forEach(function(btn){
       btn.addEventListener('click', function(){
         selStatus = btn.dataset.status;
+        editDraftStatus = selStatus;
         document.querySelectorAll('#ge-status-row .ge-status-btn').forEach(function(b){
           b.classList.toggle('selected', b.dataset.status === selStatus);
         });
@@ -8779,9 +9017,10 @@ try {
     });
 
     // Wire save
-    document.getElementById('ge-save-btn').addEventListener('click', function(){
-      // Always get the LIVE gathering object from DATA.gatherings, not the closure's stale reference
-      var liveG = DATA.gatherings.find(function(x){ return x.id === g.id; }) || g;
+    document.getElementById('ge-save-btn').addEventListener('click', async function(){
+      var saveBtn = this;
+      var liveG = getGatheringById(g.id) || g;
+      var before = JSON.parse(JSON.stringify(liveG));
 
       var name    = document.getElementById('ge-name').value.trim();
       var loc     = document.getElementById('ge-loc').value.trim();
@@ -8792,19 +9031,21 @@ try {
 
       if (!name) { document.getElementById('ge-name').focus(); toast('Please enter a gathering name'); return; }
 
-      // Apply to the LIVE gathering object
       liveG.name     = name;
-      liveG.location = loc || liveG.location;
-      liveG.month    = MONTHS[monthI];
-      liveG.day      = dayV || liveG.day;
-      liveG.theme    = theme || liveG.theme;
+      liveG.location = loc || '';
+      liveG.month    = MONTHS[monthI] || liveG.month;
+      liveG.day      = dayV || 0;
+      liveG.theme    = theme || '';
       liveG.hybrid   = selType === 'hybrid';
       liveG.virtual  = selType === 'virtual';
-      liveG.host     = host || liveG.host;
+      liveG.host     = host || '';
       liveG.status   = selStatus;
+      liveG.updatedAt = Date.now();
+      liveG.updatedBy = DATA.me.id;
 
       if (selStatus === 'completed') liveG.themePill = 'pill-gray';
       else if (selStatus === 'planning') liveG.themePill = 'pill-blue';
+      else if (selStatus === 'next') liveG.themePill = 'pill-brand';
       else liveG.themePill = liveG.themePill || 'pill-amber';
 
       if (selStatus === 'next') {
@@ -8813,18 +9054,30 @@ try {
         });
       }
 
-      logActivity(DATA.me.id, 'updated <strong>' + escapeHtml(name) + '</strong>');
-      saveAndSync();
+      var changeText = describeGatheringChanges(before, liveG);
+      logActivity(DATA.me.id, changeText + ' for <strong>' + escapeHtml(name) + '</strong>', '✏️');
+      markGatheringEditPending(liveG);
 
-      document.getElementById('gather-edit-overlay').classList.add('hidden');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
 
-      // Update the detail reference and re-render
-      window._currentDetailGathering = liveG;
-      renderDetail(liveG);
-      if (document.getElementById('gatherings-list')) renderGatherings();
-      renderHome();
+      try {
+        await persistGatheringEdit(liveG);
+        document.getElementById('gather-edit-overlay').classList.add('hidden');
+        editingGathering = null;
 
-      toast('Gathering updated \u2713');
+        window._currentDetailGathering = liveG;
+        renderDetail(liveG);
+        if (document.getElementById('gatherings-list')) renderGatherings();
+        renderHome();
+
+        toast('Gathering saved ✓');
+      } catch (err) {
+        console.warn('[Kinverly] Gathering edit save failed:', err);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save changes';
+        toast('Could not save yet — try again');
+      }
     });
 
     document.getElementById('gather-edit-overlay').classList.remove('hidden');
@@ -8848,10 +9101,11 @@ try {
     }
   });
 
-  // Auto-save pulls current values from the edit form and writes them to the gathering
-  function autoSaveGatherEdit(g) {
-    // Always get the LIVE gathering object
-    var liveG = DATA.gatherings.find(function(x){ return x.id === g.id; }) || g;
+  // Auto-save pulls current values from the edit form and writes them to the gathering.
+  // It uses the same persistence path as the Save button so refreshes do not revert the edit.
+  async function autoSaveGatherEdit(g) {
+    var liveG = getGatheringById(g.id) || g;
+    var before = JSON.parse(JSON.stringify(liveG));
 
     var nameEl = document.getElementById('ge-name');
     var locEl  = document.getElementById('ge-loc');
@@ -8865,27 +9119,38 @@ try {
     if (!name) return;
 
     liveG.name     = name;
-    liveG.location = locEl.value.trim() || liveG.location;
-    liveG.month    = MONTHS[parseInt(monthEl.value)] || liveG.month;
-    liveG.day      = parseInt(dayEl.value) || liveG.day;
-    liveG.theme    = themeEl.value.trim() || liveG.theme;
-    liveG.hybrid   = selType === 'hybrid';
-    liveG.virtual  = selType === 'virtual';
-    liveG.host     = hostEl ? (hostEl.value || liveG.host) : liveG.host;
-    liveG.status   = selStatus;
+    liveG.location = locEl ? locEl.value.trim() : '';
+    liveG.month    = monthEl ? (MONTHS[parseInt(monthEl.value)] || liveG.month) : liveG.month;
+    liveG.day      = dayEl ? (parseInt(dayEl.value) || 0) : 0;
+    liveG.theme    = themeEl ? themeEl.value.trim() : '';
+    liveG.hybrid   = editDraftType === 'hybrid';
+    liveG.virtual  = editDraftType === 'virtual';
+    liveG.host     = hostEl ? (hostEl.value || '') : (liveG.host || '');
+    liveG.status   = editDraftStatus || liveG.status || 'upcoming';
+    liveG.updatedAt = Date.now();
+    liveG.updatedBy = DATA.me.id;
 
-    if (selStatus === 'completed') liveG.themePill = 'pill-gray';
-    else if (selStatus === 'planning') liveG.themePill = 'pill-blue';
+    if (liveG.status === 'completed') liveG.themePill = 'pill-gray';
+    else if (liveG.status === 'planning') liveG.themePill = 'pill-blue';
+    else if (liveG.status === 'next') liveG.themePill = 'pill-brand';
     else liveG.themePill = liveG.themePill || 'pill-amber';
 
-    if (selStatus === 'next') {
+    if (liveG.status === 'next') {
       DATA.gatherings.forEach(function(other){
         if (other.id !== liveG.id && other.status === 'next') other.status = 'upcoming';
       });
     }
 
-    saveFlockState();
+    var changeText = describeGatheringChanges(before, liveG);
+    if (changeText !== 'updated details') {
+      logActivity(DATA.me.id, changeText + ' for <strong>' + escapeHtml(name) + '</strong>', '✏️');
+    }
+
+    markGatheringEditPending(liveG);
     window._currentDetailGathering = liveG;
+
+    try { await persistGatheringEdit(liveG); }
+    catch (err) { console.warn('[Kinverly] Gathering auto-save failed:', err); saveFlockState(); }
 
     if (document.getElementById('gatherings-list')) renderGatherings();
     renderHome();
