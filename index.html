@@ -1981,9 +1981,120 @@ var DATA = {
 };
 
 function getMember(id) {
-  if (id === DATA.me.id) return DATA.me;
-  return DATA.members.find(function(m){ return m.id === id; }) || null;
+  if (id === DATA.me.id && !DATA.me.deleted_at) return DATA.me;
+  return DATA.members.find(function(m){ return m && !m.deleted_at && m.id === id; }) || null;
 }
+
+// ═══════════════════════════════════════════════
+//  SCHEMA HELPERS — INTEGER IDS + AUDIT FIELDS
+// ═══════════════════════════════════════════════
+function nowISO() { return new Date().toISOString(); }
+function legacyTimeToISO(v) {
+  if (!v) return null;
+  if (typeof v === 'string' && /T/.test(v)) return v;
+  if (typeof v === 'number') return new Date(v).toISOString();
+  return null;
+}
+function ensureAuditFields(obj, createdFallback) {
+  if (!obj || typeof obj !== 'object') return obj;
+  var created = legacyTimeToISO(obj.created_at) || legacyTimeToISO(obj.createdAt) || legacyTimeToISO(obj._createdAt) || legacyTimeToISO(obj.ts) || createdFallback || nowISO();
+  obj.created_at = obj.created_at || created;
+  obj.updated_at = obj.updated_at || legacyTimeToISO(obj.updatedAt) || obj.created_at;
+  if (!('deleted_at' in obj)) obj.deleted_at = null;
+  return obj;
+}
+function ensureFlockMeta(flock) {
+  if (!flock) return null;
+  if (!flock.meta) flock.meta = {};
+  if (!flock.meta.next_member_id) flock.meta.next_member_id = 1;
+  if (!flock.meta.next_gathering_id) flock.meta.next_gathering_id = 1;
+  if (!flock.meta.next_task_id) flock.meta.next_task_id = 1;
+  if (!flock.meta.next_message_id) flock.meta.next_message_id = 1;
+  if (!flock.meta.next_photo_id) flock.meta.next_photo_id = 1;
+  if (!flock.meta.next_activity_id) flock.meta.next_activity_id = 1;
+  if (!flock.meta.next_idea_id) flock.meta.next_idea_id = 1;
+  return flock.meta;
+}
+function nextEntityInt(flock, key) {
+  var meta = ensureFlockMeta(flock);
+  var prop = 'next_' + key + '_id';
+  if (!meta[prop]) meta[prop] = 1;
+  var out = meta[prop];
+  meta[prop] += 1;
+  return out;
+}
+function reserveMax(meta, prop, val) {
+  if (typeof val === 'number' && val >= meta[prop]) meta[prop] = val + 1;
+}
+function normalizeKinverlySchema(flock) {
+  if (!flock) return flock;
+  var meta = ensureFlockMeta(flock);
+  ensureAuditFields(flock);
+  var members = flock.members || {};
+  Object.keys(members).forEach(function(k){
+    var m = members[k];
+    if (!m) return;
+    ensureAuditFields(m, flock.created_at);
+    if (!m.id) m.id = k;
+    if (typeof m.member_id !== 'number') m.member_id = nextEntityInt(flock, 'member');
+    reserveMax(meta, 'next_member_id', m.member_id);
+  });
+  flock.memberIds = Object.keys(members).filter(function(k){ return members[k] && !members[k].deleted_at; });
+
+  (flock.gatherings || []).forEach(function(g){
+    if (!g) return;
+    ensureAuditFields(g, flock.created_at);
+    if (typeof g.gathering_id !== 'number') g.gathering_id = nextEntityInt(flock, 'gathering');
+    reserveMax(meta, 'next_gathering_id', g.gathering_id);
+    (g.tasks || []).forEach(function(t){
+      ensureAuditFields(t, g.created_at);
+      if (typeof t.task_id !== 'number') t.task_id = nextEntityInt(flock, 'task');
+      reserveMax(meta, 'next_task_id', t.task_id);
+      if (t.done && !t.completed_at) t.completed_at = t.updated_at || nowISO();
+      if (!('completed_at' in t)) t.completed_at = null;
+    });
+    (g.chat || []).forEach(function(m){
+      ensureAuditFields(m, g.created_at);
+      if (typeof m.message_id !== 'number') m.message_id = nextEntityInt(flock, 'message');
+      reserveMax(meta, 'next_message_id', m.message_id);
+    });
+    (g.photos || []).forEach(function(ph){
+      ensureAuditFields(ph, g.created_at);
+      if (typeof ph.photo_id !== 'number') ph.photo_id = nextEntityInt(flock, 'photo');
+      reserveMax(meta, 'next_photo_id', ph.photo_id);
+      if (!ph.uploaded_at) ph.uploaded_at = ph.created_at;
+    });
+    (g.notes || []).forEach(function(n){ ensureAuditFields(n, g.created_at); });
+    (g.polls || []).forEach(function(pl){ ensureAuditFields(pl, g.created_at); });
+    (g.bringList || []).forEach(function(b){ ensureAuditFields(b, g.created_at); });
+    (g.expenses || []).forEach(function(ex){ ensureAuditFields(ex, g.created_at); });
+  });
+  flock.gatherings = (flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+
+  (flock.ideas || []).forEach(function(i){
+    ensureAuditFields(i, flock.created_at);
+    if (typeof i.idea_id !== 'number') i.idea_id = nextEntityInt(flock, 'idea');
+    reserveMax(meta, 'next_idea_id', i.idea_id);
+  });
+  flock.ideas = (flock.ideas || []).filter(function(i){ return i && !i.deleted_at; });
+
+  (flock.activity || []).forEach(function(a){
+    ensureAuditFields(a, flock.created_at);
+    if (typeof a.activity_id !== 'number') a.activity_id = nextEntityInt(flock, 'activity');
+    reserveMax(meta, 'next_activity_id', a.activity_id);
+  });
+  return flock;
+}
+function normalizeCurrentFlockSchema() {
+  if (currentFlockId && FLOCKS[currentFlockId]) {
+    normalizeKinverlySchema(FLOCKS[currentFlockId]);
+    DATA.gatherings = (FLOCKS[currentFlockId].gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+    DATA.ideas = (FLOCKS[currentFlockId].ideas || []).filter(function(i){ return i && !i.deleted_at; });
+    DATA.activity = FLOCKS[currentFlockId].activity || DATA.activity || [];
+  }
+}
+function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
+function activeOnly(arr) { return (arr || []).filter(function(x){ return x && !x.deleted_at; }); }
 </script>
 
 <!-- ═══════════════════════════════════════════════
@@ -2165,13 +2276,19 @@ function logActivity(memberId, text, icon) {
   if (!DATA.activity) DATA.activity = [];
   var now = new Date();
   var timeStr = 'Just now';
-  DATA.activity.unshift({
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  var created = nowISO();
+  DATA.activity.unshift(ensureAuditFields({
+    activity_id: flock ? nextEntityInt(flock, 'activity') : undefined,
     member: memberId,
     text: text,
     time: timeStr,
     icon: icon || '✨',
-    ts: now.getTime()
-  });
+    ts: now.getTime(),
+    created_at: created,
+    updated_at: created,
+    deleted_at: null
+  }, created));
   // Age existing entries
   DATA.activity.forEach(function(a, i){
     if (i === 0) return;
@@ -5150,7 +5267,8 @@ async function removeMemberFromFlock(memberId) {
   if (window.__db && h && h.updateDoc && h.deleteField && h.arrayRemove) {
     try {
       var updates = {};
-      updates['members.' + memberId] = h.deleteField();
+      updates['members.' + memberId + '.deleted_at'] = deletedAt;
+      updates['members.' + memberId + '.updated_at'] = deletedAt;
       updates.memberIds = h.arrayRemove(memberId);
       updates.rsvpData = rsvpData || {};
       updates.gatherings = (flock.gatherings || DATA.gatherings || []);
@@ -5683,11 +5801,18 @@ function renderJoinForm() {
     if (!ok) return;
 
     var id = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '_' + Date.now().toString(36);
-    var newMember = {
-      id:id, name:name, animal:pickedAnimal, location:city,
+    var flockForId = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+    var createdAt = nowISO();
+    var newMember = ensureAuditFields({
+      id:id,
+      member_id: flockForId ? nextEntityInt(flockForId, 'member') : undefined,
+      name:name, animal:pickedAnimal, location:city,
       online:false, mode:'in-person', pct:0,
-      pw: simpleHash(pw)
-    };
+      pw: simpleHash(pw),
+      created_at: createdAt,
+      updated_at: createdAt,
+      deleted_at: null
+    }, createdAt);
 
     // Add default stats and prefs for new member
     newMember.stats = {attended:0, hosted:0, ideas:0};
@@ -5895,6 +6020,7 @@ function saveLocal() {
     if (window._kickedFromFlock) return;
 
     if (currentFlockId && FLOCKS[currentFlockId]) {
+      normalizeCurrentFlockSchema();
       var _f = FLOCKS[currentFlockId];
 
       // Normalize gatherings
@@ -5918,12 +6044,17 @@ function saveLocal() {
       // Update self ONLY if we are in the flock's member list
       if (DATA.me.id && _f.members[DATA.me.id]) {
         var myExisting = _f.members[DATA.me.id];
-        _f.members[DATA.me.id] = {
-          id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
+        _f.members[DATA.me.id] = ensureAuditFields({
+          id:DATA.me.id,
+          member_id: myExisting.member_id,
+          name:DATA.me.name, animal:DATA.me.animal,
           location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
           role: DATA.me.role || myExisting.role || 'member',
-          pw: myExisting.pw || ''
-        };
+          pw: myExisting.pw || '',
+          created_at: myExisting.created_at,
+          updated_at: nowISO(),
+          deleted_at: myExisting.deleted_at || null
+        }, myExisting.created_at);
       }
     }
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
@@ -5994,13 +6125,14 @@ function switchToFlock(flockId) {
   currentFlockId = flockId;
   var flock = FLOCKS[flockId];
   if (!flock) return;
+  normalizeKinverlySchema(flock);
 
   var nameEl = document.getElementById('topbar-flock-name');
   if (nameEl) nameEl.textContent = flock.name;
 
   // Load members — exclude myself
   DATA.members = (flock.members && Object.keys(flock.members).length > 0)
-    ? Object.values(flock.members).filter(function(m){ return m && m.id !== DATA.me.id; })
+    ? Object.values(flock.members).filter(function(m){ return m && !m.deleted_at && m.id !== DATA.me.id; })
     : [];
 
   // Load flock data
@@ -6029,14 +6161,20 @@ function createFlock(name, emoji) {
   }
   var id = generateFlockId();
   var code = generateCode();
-  var flock = { id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id, members:{}, memberIds:[], gatherings:[], ideas:[], activity:[] };
+  var createdAt = nowISO();
+  var flock = ensureAuditFields({
+    id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id,
+    members:{}, memberIds:[], gatherings:[], ideas:[], activity:[],
+    meta:{ next_member_id:1, next_gathering_id:1, next_task_id:1, next_message_id:1, next_photo_id:1, next_activity_id:1, next_idea_id:1 },
+    created_at: createdAt, updated_at: createdAt, deleted_at: null
+  }, createdAt);
 
   // Get pw hash if it exists (from join form)
   var myPw = '';
   var myMemberData = DATA.members.find(function(m){ return m.id === DATA.me.id; });
   if (myMemberData && myMemberData.pw) myPw = myMemberData.pw;
 
-  var creator = { id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator', pw:myPw };
+  var creator = ensureAuditFields({ id:DATA.me.id, member_id:nextEntityInt(flock,'member'), name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator', pw:myPw, created_at:createdAt, updated_at:createdAt, deleted_at:null }, createdAt);
   flock.members[DATA.me.id] = creator;
   flock.memberIds = [DATA.me.id];
   FLOCKS[id] = flock;
@@ -6044,13 +6182,17 @@ function createFlock(name, emoji) {
 
   // Log creation activity
   if (!flock.activity) flock.activity = [];
-  flock.activity.unshift({
+  flock.activity.unshift(ensureAuditFields({
+    activity_id: nextEntityInt(flock, 'activity'),
     member: DATA.me.id,
     text: 'created the flock <strong>' + escapeHtml(name) + '</strong>',
     time: 'Just now',
     icon: '🏠',
-    ts: Date.now()
-  });
+    ts: Date.now(),
+    created_at: createdAt,
+    updated_at: createdAt,
+    deleted_at: null
+  }, createdAt));
   DATA.activity = flock.activity;
 
   saveFlockState();
@@ -6093,12 +6235,20 @@ function addMeToFlock(flockId) {
   if (existingMember && existingMember.pw) existingPw = existingMember.pw;
   if (flock.members[DATA.me.id] && flock.members[DATA.me.id].pw) existingPw = flock.members[DATA.me.id].pw;
 
-  var me = {
-    id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
+  normalizeKinverlySchema(flock);
+  var existingAudit = flock.members[DATA.me.id] || {};
+  var joinAt = nowISO();
+  var me = ensureAuditFields({
+    id:DATA.me.id,
+    member_id: existingAudit.member_id || nextEntityInt(flock, 'member'),
+    name:DATA.me.name, animal:DATA.me.animal,
     location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
-    role: (flock.members[DATA.me.id] && flock.members[DATA.me.id].role) || 'member',
-    pw: existingPw
-  };
+    role: existingAudit.role || 'member',
+    pw: existingPw,
+    created_at: existingAudit.created_at || joinAt,
+    updated_at: joinAt,
+    deleted_at: null
+  }, joinAt);
 
   // Write member into flock — this is the critical save
   flock.members[DATA.me.id] = me;
@@ -6108,7 +6258,7 @@ function addMeToFlock(flockId) {
   currentFlockId = flockId;
 
   // Load flock members into DATA (excluding myself)
-  DATA.members = Object.values(flock.members).filter(function(m){ return m && m.id !== DATA.me.id; });
+  DATA.members = Object.values(flock.members).filter(function(m){ return m && !m.deleted_at && m.id !== DATA.me.id; });
 
   // Pull in any existing flock gatherings/ideas
   DATA.gatherings = flock.gatherings;
@@ -6134,6 +6284,7 @@ async function saveFlockToFirebase(flock, creator) {
   if (!window.__db || !window.__firestoreHelpers) return;
   try {
     var h = window.__firestoreHelpers;
+    normalizeKinverlySchema(flock);
     // Save full flock data — not just metadata
     var data = {
       id: flock.id,
@@ -6145,7 +6296,11 @@ async function saveFlockToFirebase(flock, creator) {
       members: flock.members || {},
       gatherings: flock.gatherings || [],
       ideas: flock.ideas || [],
-      activity: flock.activity || []
+      activity: flock.activity || [],
+      meta: flock.meta || {},
+      created_at: flock.created_at || nowISO(),
+      updated_at: flock.updated_at || nowISO(),
+      deleted_at: flock.deleted_at || null
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
@@ -6160,6 +6315,8 @@ async function syncFlockToFirebase() {
   try {
     var h = window.__firestoreHelpers;
     var flock = FLOCKS[currentFlockId];
+    normalizeKinverlySchema(flock);
+    touchEntity(flock);
     var safeGatherings = (flock.gatherings || []).map(function(g) {
       var copy = Object.assign({}, g);
       if (copy.photos && copy.photos.length > 0) {
@@ -6184,6 +6341,10 @@ async function syncFlockToFirebase() {
       gatherings: safeGatherings,
       ideas: flock.ideas || [],
       activity: (flock.activity || []).slice(0, 30),
+      meta: flock.meta || {},
+      created_at: flock.created_at || nowISO(),
+      updated_at: flock.updated_at || nowISO(),
+      deleted_at: flock.deleted_at || null,
       rsvpData: rsvpData || {},
       _notifications: (flock._notifications || []).slice(-20)
     };
@@ -8435,7 +8596,7 @@ function renderFlockSchedule() {
             var existingIds = {};
             g.chat.forEach(function(m){ existingIds[m.id] = true; });
             msgs.forEach(function(m){
-              if (!existingIds[m.id] && !m._deleted) g.chat.push(m);
+              if (!existingIds[m.id] && !m._deleted && !m.deleted_at) g.chat.push(m);
             });
             // Sort by sentAt
             g.chat.sort(function(a,b){ return (a.sentAt||0) - (b.sentAt||0); });
@@ -8797,6 +8958,7 @@ try {
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
     try {
+      ensureAuditFields(member);
       var data = {};
       data['members.' + member.id] = member;
       data['memberIds'] = arrayUnion(member.id);
@@ -8935,8 +9097,11 @@ try {
     }
 
     // Build a new gathering object matching DATA schema
+    var flockForGathering = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+    var createdAt = nowISO();
     var newId = 'g' + Date.now();
-    var newG = {
+    var newG = ensureAuditFields({
+      gathering_id: flockForGathering ? nextEntityInt(flockForGathering, 'gathering') : undefined,
       id:       newId,
       name:     name,
       month:    monthStr,
@@ -8960,7 +9125,10 @@ try {
       expenses: [],
       photos:   [],
       _createdAt: Date.now(),
-    };
+      created_at: createdAt,
+      updated_at: createdAt,
+      deleted_at: null
+    }, createdAt);
 
     // Add to DATA
     if (!DATA.gatherings) DATA.gatherings = [];
@@ -9025,8 +9193,11 @@ try {
     }
     document.getElementById('idea-title-err').style.display = 'none';
     var desc = document.getElementById('idea-desc-input').value.trim();
-    var newIdea = {
+    var flockForIdea = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+    var createdAt = nowISO();
+    var newIdea = ensureAuditFields({
       id: 'idea_'+Date.now().toString(36),
+      idea_id: flockForIdea ? nextEntityInt(flockForIdea, 'idea') : undefined,
       icon: selIdeaEmoji,
       title: title,
       sub: desc || 'Added by '+DATA.me.name,
@@ -9034,8 +9205,11 @@ try {
       pct: 12,
       voted: true,
       addedBy: DATA.me.id,
-      _createdAt: Date.now()
-    };
+      _createdAt: Date.now(),
+      created_at: createdAt,
+      updated_at: createdAt,
+      deleted_at: null
+    }, createdAt);
     DATA.ideas.unshift(newIdea);
     saveFlockState();
     document.getElementById('idea-overlay').classList.add('hidden');
@@ -9099,6 +9273,8 @@ try {
 
     var h = window.__firestoreHelpers;
     var flock = FLOCKS[currentFlockId];
+    normalizeKinverlySchema(flock);
+    touchEntity(flock);
     var safeGatherings = (flock.gatherings || []).map(function(item) {
       var copy = Object.assign({}, item);
       if (copy.photos && copy.photos.length > 0) {
@@ -9294,8 +9470,11 @@ try {
     // Wire duplicate button
     document.getElementById('ge-duplicate-btn').addEventListener('click', function(){
       var newId = 'g_' + Date.now().toString(36);
-      var dup = {
+      var flockForDup = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+      var createdAt = nowISO();
+      var dup = ensureAuditFields({
         id: newId,
+        gathering_id: flockForDup ? nextEntityInt(flockForDup, 'gathering') : undefined,
         name: g.name + ' (copy)',
         month: g.month || '',
         day: 0,
@@ -9321,8 +9500,11 @@ try {
         expenses: [],
         photos: [],
         chat: [],
-        _createdAt: Date.now()
-      };
+        _createdAt: Date.now(),
+        created_at: createdAt,
+        updated_at: createdAt,
+        deleted_at: null
+      }, createdAt);
       DATA.gatherings.unshift(dup);
       saveFlockState();
       document.getElementById('gather-edit-overlay').classList.add('hidden');
@@ -9343,8 +9525,7 @@ try {
     });
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
       var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
-      if (idx >= 0) DATA.gatherings.splice(idx, 1);
-      if (rsvpData[g.id]) delete rsvpData[g.id];
+      if (idx >= 0) { DATA.gatherings[idx].deleted_at = nowISO(); DATA.gatherings[idx].updated_at = DATA.gatherings[idx].deleted_at; }
       saveFlockState();
       document.getElementById('gather-edit-overlay').classList.add('hidden');
       showPage('gatherings');
@@ -9378,6 +9559,7 @@ try {
       liveG.host     = host || '';
       liveG.status   = selStatus;
       liveG.updatedAt = Date.now();
+      liveG.updated_at = nowISO();
       liveG.updatedBy = DATA.me.id;
 
       if (selStatus === 'completed') liveG.themePill = 'pill-gray';
