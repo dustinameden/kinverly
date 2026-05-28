@@ -1617,6 +1617,29 @@ img,svg{display:block}
 .wiz-btn-back{padding:14px 20px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:inherit}
 .wiz-btn-skip{padding:14px;border-radius:14px;background:transparent;color:var(--text3);font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;text-decoration:underline}
 
+
+/* ═══════════════════════════════════════════════
+   HOME LIVE STATE + DENSITY CLEANUP
+═══════════════════════════════════════════════ */
+.home-live-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:13px;margin-bottom:14px;box-shadow:var(--shadow)}
+.home-live-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.home-live-title{font-size:12px;font-weight:900;color:var(--text1);display:flex;align-items:center;gap:7px;line-height:1.25}
+.home-live-pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(59,138,74,.45);animation:livePulse 1.8s infinite;flex-shrink:0}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(59,138,74,.45)}70%{box-shadow:0 0 0 8px rgba(59,138,74,0)}100%{box-shadow:0 0 0 0 rgba(59,138,74,0)}}
+.home-live-link{border:none;background:#ede8ff;color:var(--brand);font-size:11px;font-weight:900;padding:6px 10px;border-radius:20px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.home-live-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
+.home-live-stat{background:var(--surface2);border-radius:12px;padding:9px 6px;text-align:center;min-width:0}
+.home-live-num{font-size:20px;font-weight:300;color:var(--text1);line-height:1}
+.home-live-lbl{font-size:9px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.home-live-note{display:flex;align-items:center;gap:8px;background:#fbf8e8;border-radius:12px;padding:9px 10px;font-size:12px;font-weight:700;color:var(--amber);line-height:1.35}
+.home-live-note.empty{background:var(--surface2);color:var(--text2)}
+.home-quiet-title{margin-top:14px!important;margin-bottom:8px!important}
+.home-see-more{width:100%;border:none;background:transparent;color:var(--brand);font-size:12px;font-weight:900;padding:8px;cursor:pointer;font-family:inherit}
+.todo-item.primary{border-color:rgba(61,43,110,.25)!important;box-shadow:0 2px 8px rgba(61,43,110,.06)}
+.activity-feed.compact .activity-item{padding:9px 12px}
+#home-invite-card.home-invite-compact > div{padding:12px!important}
+#home-invite-card.home-invite-compact div[style*="font-size:24px"]{font-size:18px!important;margin-bottom:8px!important}
+
 </style>
 </head>
 <body>
@@ -1677,13 +1700,15 @@ img,svg{display:block}
 
       <div id="whats-new-banner" style="display:none"></div>
 
-      <div class="section-title">The flock</div>
+      <div id="home-live-panel"></div>
+
+      <div class="section-title home-quiet-title">The flock</div>
       <div class="flock-row" id="flock-row"></div>
 
-      <div class="section-title">Your to-do</div>
+      <div class="section-title home-quiet-title">Your to-do</div>
       <div id="home-todos"></div>
 
-      <div class="section-title">Recent activity</div>
+      <div class="section-title home-quiet-title">Recent activity</div>
       <div class="activity-feed" id="activity-feed"></div>
 
       <div style="height:12px"></div>
@@ -2169,6 +2194,70 @@ function updateAlertCard() {
   }
 }
 
+
+function getPrimaryLiveGathering() {
+  var active = (DATA.gatherings || []).filter(function(g){ return g && g.status !== 'completed'; });
+  if (active.length === 0) return null;
+  active.sort(function(a,b){
+    var order = { next:0, planning:1, upcoming:2 };
+    return (order[a.status] || 9) - (order[b.status] || 9);
+  });
+  return active[0];
+}
+
+function getGatheringLiveState(g) {
+  if (!g) return null;
+  var tasks = g.tasks || [];
+  var members = [DATA.me].concat(DATA.members || []);
+  var pendingRsvps = members.filter(function(m){
+    var r = rsvpData[g.id] && rsvpData[g.id][m.id];
+    return !r || !r.status;
+  }).length;
+  var liveActors = {};
+  (DATA.activity || []).slice(0, 12).forEach(function(a){
+    if (!a || !a.member || a.member === 'group') return;
+    if ((a.text || '').indexOf(g.name) >= 0 || Date.now() - (a.ts || 0) < 10*60*1000) liveActors[a.member] = true;
+  });
+  if (DATA.me && DATA.me.id) liveActors[DATA.me.id] = true;
+  var last = (DATA.activity || []).find(function(a){ return a && a.member !== DATA.me.id; }) || (DATA.activity || [])[0];
+  return {
+    openTasks: tasks.filter(function(t){ return !t.done; }).length,
+    pendingRsvps: pendingRsvps,
+    liveCount: Math.max(1, Object.keys(liveActors).length),
+    lastActivity: last || null
+  };
+}
+
+function renderHomeLivePanel() {
+  var el = document.getElementById('home-live-panel');
+  if (!el) return;
+  var g = getPrimaryLiveGathering();
+  if (!g) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  var st = getGatheringLiveState(g);
+  el.style.display = '';
+  var actorName = '';
+  if (st.lastActivity && st.lastActivity.member && st.lastActivity.member !== 'group') {
+    var actor = getMember(st.lastActivity.member);
+    actorName = '<strong>' + escapeHtml((actor && actor.name) || DATA.me.name || 'Someone') + '</strong> ';
+  }
+  var lastText = st.lastActivity ? actorName + st.lastActivity.text : 'No live movement yet — start with RSVP, tasks, or chat.';
+  el.innerHTML =
+    '<div class="home-live-panel">' +
+      '<div class="home-live-head">' +
+        '<div class="home-live-title"><span class="home-live-pulse"></span>Live planning: ' + escapeHtml(g.name) + '</div>' +
+        '<button class="home-live-link" id="home-live-open">Open</button>' +
+      '</div>' +
+      '<div class="home-live-grid">' +
+        '<div class="home-live-stat"><div class="home-live-num">' + st.liveCount + '</div><div class="home-live-lbl">active</div></div>' +
+        '<div class="home-live-stat"><div class="home-live-num">' + st.pendingRsvps + '</div><div class="home-live-lbl">RSVPs</div></div>' +
+        '<div class="home-live-stat"><div class="home-live-num">' + st.openTasks + '</div><div class="home-live-lbl">tasks</div></div>' +
+      '</div>' +
+      '<div class="home-live-note' + (st.lastActivity ? '' : ' empty') + '"><span>' + (st.lastActivity ? (st.lastActivity.icon || '✨') : '👋') + '</span><div style="flex:1">' + lastText + '</div></div>' +
+    '</div>';
+  var btn = document.getElementById('home-live-open');
+  if (btn) btn.addEventListener('click', function(){ showPage('gatherings'); showDetail(g.id, 'overview'); });
+}
+
 function renderHome() {
   // Check for personal notifications (e.g. "You've been made an admin")
   var flock = FLOCKS[currentFlockId];
@@ -2277,16 +2366,16 @@ function renderHome() {
       if (todoTitle) todoTitle.style.display = '';
       todoEl.style.display = '';
       var todoHtml = '';
-      todos.slice(0, 5).forEach(function(t){
-        todoHtml += '<div class="todo-item" data-action="'+t.action+'" data-gid="'+(t.gId||'')+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:border-color .15s">' +
+      todos.slice(0, 3).forEach(function(t, idx){
+        todoHtml += '<div class="todo-item '+(idx===0?'primary':'')+'" data-action="'+t.action+'" data-gid="'+(t.gId||'')+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:border-color .15s">' +
           '<div style="font-size:18px;flex-shrink:0;width:28px;text-align:center">'+t.icon+'</div>' +
           '<div style="flex:1;font-size:12px;font-weight:600;color:var(--text1);line-height:1.4">'+t.text+'</div>' +
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>' +
         '</div>';
       });
       todoEl.innerHTML = todoHtml;
-      if (todos.length > 5) {
-        todoEl.innerHTML += '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px">+' + (todos.length - 5) + ' more</div>';
+      if (todos.length > 3) {
+        todoEl.innerHTML += '<button class="home-see-more" id="home-see-more-todos">+' + (todos.length - 3) + ' more — open Gatherings</button>';
       }
       // Wire to-do clicks — navigate to the specific tab
       todoEl.querySelectorAll('.todo-item').forEach(function(item){
@@ -2306,6 +2395,8 @@ function renderHome() {
         item.addEventListener('mouseover', function(){ item.style.borderColor = 'var(--brand2)'; });
         item.addEventListener('mouseout', function(){ item.style.borderColor = 'var(--border)'; });
       });
+      var moreTodos = document.getElementById('home-see-more-todos');
+      if (moreTodos) moreTodos.addEventListener('click', function(){ showPage('gatherings'); });
     }
   }
 
@@ -2327,7 +2418,8 @@ function renderHome() {
   } else {
   if (actTitle) actTitle.style.display = '';
   feed.style.display = '';
-  events.forEach(function(a){
+  feed.classList.add('compact');
+  events.slice(0,5).forEach(function(a){
     var m = a.member !== 'group' ? getMember(a.member) : null;
     var item = document.createElement('div');
     item.className = 'activity-item';
@@ -2339,6 +2431,13 @@ function renderHome() {
       '</div>';
     feed.appendChild(item);
   });
+  if (events.length > 5) {
+    var more = document.createElement('button');
+    more.className = 'home-see-more';
+    more.textContent = '+' + (events.length - 5) + ' more activity — open Gatherings';
+    more.addEventListener('click', function(){ showPage('gatherings'); });
+    feed.appendChild(more);
+  }
   } // end else (has events)
 
   // Update the dynamic alert card based on current flock state
@@ -2347,9 +2446,13 @@ function renderHome() {
   // Render "What's new" banner — recent activity since last visit
   renderWhatsNewBanner();
 
+  // Live gathering pulse — keep the home page focused on what is moving now
+  renderHomeLivePanel();
+
   // Render invite card at bottom of home
   var inviteCard = document.getElementById('home-invite-card');
   if (inviteCard) {
+    inviteCard.classList.add('home-invite-compact');
     if (currentFlockId && FLOCKS[currentFlockId]) {
       var invFlock = FLOCKS[currentFlockId];
       inviteCard.innerHTML =
@@ -4568,22 +4671,53 @@ function saveMemberChange(memberId, changes) {
   pushToFirebase();
 }
 
-function removeMemberFromFlock(memberId) {
+async function removeMemberFromFlock(memberId) {
   var flock = FLOCKS[currentFlockId];
   if (!flock) return 'Unknown';
+
   var memberName = (flock.members && flock.members[memberId]) ? flock.members[memberId].name : 'Unknown';
+
+  // Mark this member as intentionally removed so a stale Firestore snapshot
+  // cannot merge them back into local state while the delete write is in flight.
+  window._pendingRemovedMembers = window._pendingRemovedMembers || {};
+  window._pendingRemovedMembers[memberId] = Date.now();
+
   if (flock.members) delete flock.members[memberId];
-  var idx = (flock.memberIds||[]).indexOf(memberId);
-  if (idx >= 0) flock.memberIds.splice(idx, 1);
+  flock.memberIds = (flock.memberIds || []).filter(function(id){ return id !== memberId; });
   DATA.members = DATA.members.filter(function(m){ return m.id !== memberId; });
-  Object.keys(rsvpData).forEach(function(gId){
+
+  Object.keys(rsvpData || {}).forEach(function(gId){
     if (rsvpData[gId] && rsvpData[gId][memberId]) delete rsvpData[gId][memberId];
   });
-  (DATA.gatherings||[]).forEach(function(g){
+
+  (DATA.gatherings || []).forEach(function(g){
     if (g.attending) g.attending = g.attending.filter(function(a){ return a !== memberId; });
   });
+
   saveLocal();
-  pushToFirebase();
+
+  // Prefer atomic Firestore removal over full-document setDoc. A full sync can
+  // race with the realtime listener and accidentally re-save the removed member.
+  var h = window.__firestoreHelpers;
+  if (window.__db && h && h.updateDoc && h.deleteField && h.arrayRemove) {
+    try {
+      var updates = {};
+      updates['members.' + memberId] = h.deleteField();
+      updates.memberIds = h.arrayRemove(memberId);
+      updates.rsvpData = rsvpData || {};
+      updates.gatherings = (flock.gatherings || DATA.gatherings || []);
+      updates.activity = (flock.activity || DATA.activity || []).slice(0, 30);
+      if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
+
+      await h.updateDoc(h.doc(window.__db, 'flocks', currentFlockId), updates);
+    } catch(e) {
+      console.warn('[Kinverly] Atomic member removal failed; falling back to full sync:', e.message);
+      await syncFlockToFirebase();
+    }
+  } else if (typeof syncFlockToFirebase === 'function') {
+    await syncFlockToFirebase();
+  }
+
   return memberName;
 }
 
@@ -4659,7 +4793,7 @@ function openAdminPanel() {
 
     // Reset password
     body.querySelectorAll('.admin-reset-pw').forEach(function(btn){
-      btn.addEventListener('click', function(e){
+      btn.addEventListener('click', async function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
         var memberName = (flock.members[mid]||{}).name || 'this member';
@@ -4678,9 +4812,10 @@ function openAdminPanel() {
         var mid = btn.dataset.mid;
         var memberName = (flock.members[mid]||{}).name || 'this member';
         if (confirm('Remove ' + memberName + ' from the flock?')) {
-          var name = removeMemberFromFlock(mid);
+          btn.disabled = true;
+          var name = await removeMemberFromFlock(mid);
           logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(name) + '</strong> from the flock', '🚫');
-          saveFlockState();
+          await syncFlockToFirebase();
           openAdminPanel();
           renderHome();
           renderGatherings();
@@ -7871,7 +8006,7 @@ function renderFlockSchedule() {
 ═══════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion, orderBy }
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, serverTimestamp, query, where, arrayUnion, arrayRemove, deleteField, orderBy }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 var firebaseConfig = {
@@ -7896,7 +8031,7 @@ try {
   // ──────────────────────────────────────────────
 
   // Expose firestore helpers for flock operations
-  window.__firestoreHelpers = { collection, doc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion, orderBy, onSnapshot };
+  window.__firestoreHelpers = { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, serverTimestamp, arrayUnion, arrayRemove, deleteField, orderBy, onSnapshot };
 
   // ═══════════════════════════════════════════════
   //  REAL-TIME SYNC LISTENER
@@ -7922,6 +8057,11 @@ try {
         var localMembers = local.members || {};
         var merged = {};
         Object.keys(remote.members).forEach(function(mid) {
+          // If this device just removed a member, ignore stale snapshots that
+          // still contain that member for a short grace period.
+          var pendingAt = window._pendingRemovedMembers && window._pendingRemovedMembers[mid];
+          if (pendingAt && Date.now() - pendingAt < 15000) return;
+
           var rm = remote.members[mid];
           var lm = localMembers[mid];
           if (lm) {
@@ -7934,6 +8074,15 @@ try {
             merged[mid] = rm;
           }
         });
+
+        // Clean up expired pending-removal guards.
+        if (window._pendingRemovedMembers) {
+          Object.keys(window._pendingRemovedMembers).forEach(function(mid){
+            if (Date.now() - window._pendingRemovedMembers[mid] >= 15000) {
+              delete window._pendingRemovedMembers[mid];
+            }
+          });
+        }
         local.members = merged;
         local.memberIds = remote.memberIds || Object.keys(merged);
         DATA.members = Object.values(merged).filter(function(m){ return m && m.id !== myId; });
@@ -8041,8 +8190,15 @@ try {
 
       // ── ACTIVITY ──
       if (remote.activity && Array.isArray(remote.activity)) {
+        var newestRemote = remote.activity[0];
+        var newestLocal = (DATA.activity || [])[0];
+        var isNewRemoteActivity = newestRemote && newestRemote.ts && (!newestLocal || newestRemote.ts > (newestLocal.ts || 0));
         DATA.activity = remote.activity;
         local.activity = remote.activity;
+        if (!_isFirstSnapshot && isNewRemoteActivity && newestRemote.member !== myId) {
+          var actor = newestRemote.member && newestRemote.member !== 'group' ? getMember(newestRemote.member) : null;
+          toast('🔴 ' + (actor ? actor.name + ' updated the flock' : 'New flock update'));
+        }
       }
 
       // ── RSVP DATA: merge, but never overwrite my own entries ──
