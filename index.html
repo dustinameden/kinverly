@@ -2111,7 +2111,124 @@ function getMember(id) {
 }
 
 function getActiveFlockMembers() {
-  return [DATA.me].concat(DATA.members || []).filter(function(m){ return m && !m.deleted_at; });
+  // Single source of truth for active members in the CURRENT flock.
+  // Removed/archived members stay in data + exports, but never count toward live availability/RSVP denominators.
+  var flock = (typeof getCurrentFlock === 'function') ? getCurrentFlock() : null;
+  var seen = {};
+  var members = [];
+
+  function addMember(m) {
+    if (!m || m.deleted_at || m.membership_status === 'archived' || m.role === 'archived') return;
+    if (m.status && String(m.status).toLowerCase() === 'removed') return;
+    if (m.id === undefined || m.id === null || m.id === '') return;
+    var key = String(m.id);
+    if (seen[key]) return;
+    seen[key] = true;
+    members.push(m);
+  }
+
+  if (flock && flock.members && Object.keys(flock.members).length) {
+    Object.keys(flock.members).forEach(function(k){ addMember(flock.members[k]); });
+  } else {
+    addMember(DATA.me);
+    (DATA.members || []).forEach(addMember);
+  }
+
+  return members;
+}
+
+function getAllFlockMembersForHistory() {
+  var flock = (typeof getCurrentFlock === 'function') ? getCurrentFlock() : null;
+  if (flock && flock.members) return Object.values(flock.members).filter(Boolean);
+  return [DATA.me].concat(DATA.members || []).filter(Boolean);
+}
+
+function getRsvpForMember(gatheringId, memberId) {
+  if (!gatheringId || memberId === undefined || memberId === null) return null;
+  var bucket = (typeof rsvpData !== 'undefined' && rsvpData && rsvpData[gatheringId]) || {};
+  return bucket[memberId] || bucket[String(memberId)] || null;
+}
+
+function getProposedDateWindows(g) {
+  var out = [];
+  if (!g) return out;
+
+  if (Array.isArray(g.windows) && g.windows.length) {
+    g.windows.forEach(function(w, idx){
+      if (!w || w.deleted_at) return;
+      var dates = w.dates || w.label || w.date_label || '';
+      out.push({
+        id: w.id || idx + 1,
+        dates: dates,
+        label: w.label || (idx === 0 ? 'Proposed window' : 'Alternative window'),
+        status: w.status || (idx === 0 ? 'best' : 'partial'),
+        raw: w
+      });
+    });
+    return out;
+  }
+
+  if (Array.isArray(g.proposed_windows) && g.proposed_windows.length) {
+    g.proposed_windows.forEach(function(w, idx){
+      if (!w || w.deleted_at) return;
+      var dates = w.dates || w.date_label || ((w.start || '') + (w.end ? '–' + w.end : ''));
+      out.push({ id: w.id || idx + 1, dates: dates, label: w.label || 'Proposed window', status: w.status || (idx === 0 ? 'best' : 'partial'), raw: w });
+    });
+  }
+  return out;
+}
+
+function deriveGatheringState(g) {
+  g = g || {};
+  var activeMembers = getActiveFlockMembers();
+  var totalMembers = activeMembers.length;
+  var rsvps = (typeof rsvpData !== 'undefined' && rsvpData && rsvpData[g.id]) || {};
+  var planningMode = g.status === 'planning';
+
+  var submittedMembers = [];
+  var pendingAvailabilityMembers = [];
+  var repliedMembers = [];
+  var pendingReplyMembers = [];
+  var confirmedMembers = [];
+  var virtualMembers = [];
+  var declinedMembers = [];
+
+  activeMembers.forEach(function(m){
+    var r = getRsvpForMember(g.id, m.id);
+    if (r && r.availSubmitted) submittedMembers.push({ member:m, rsvp:r });
+    else pendingAvailabilityMembers.push({ member:m, rsvp:r });
+
+    if (r && r.status) repliedMembers.push({ member:m, rsvp:r });
+    else pendingReplyMembers.push({ member:m, rsvp:r });
+
+    if (r && r.status === 'yes') confirmedMembers.push({ member:m, rsvp:r });
+    if (r && r.status === 'virtual') virtualMembers.push({ member:m, rsvp:r });
+    if (r && r.status === 'no') declinedMembers.push({ member:m, rsvp:r });
+  });
+
+  var proposalWindows = getProposedDateWindows(g);
+  var recommendedWindow = proposalWindows.find(function(w){ return w.status === 'best' || /best|recommend/i.test(String(w.label || '')); }) || proposalWindows[0] || null;
+
+  return {
+    activeMembers: activeMembers,
+    totalMembers: totalMembers,
+    rsvps: rsvps,
+    planningMode: planningMode,
+    submittedMembers: submittedMembers,
+    submittedCount: submittedMembers.length,
+    pendingAvailabilityMembers: pendingAvailabilityMembers,
+    pendingAvailabilityCount: pendingAvailabilityMembers.length,
+    repliedMembers: repliedMembers,
+    repliedCount: repliedMembers.length,
+    pendingReplyMembers: pendingReplyMembers,
+    pendingReplyCount: pendingReplyMembers.length,
+    confirmedMembers: confirmedMembers,
+    virtualMembers: virtualMembers,
+    declinedMembers: declinedMembers,
+    attendingCount: confirmedMembers.length + virtualMembers.length,
+    proposalWindows: proposalWindows,
+    recommendedWindow: recommendedWindow
+  };
 }
 
 // ═══════════════════════════════════════════════
@@ -3566,46 +3683,41 @@ function renderGatheringsList() {
 // -- DECISION ENGINE ----------------------------------
 // Pure recommendation helper: reads the gathering + current flock data and returns display-ready output.
 function computeGatheringRecommendation(g) {
-  var allFlock = getActiveFlockMembers();
-  var totalMembers = Math.max(allFlock.length, 1);
-  var gRsvps = (rsvpData && rsvpData[g.id]) || {};
+  var state = deriveGatheringState(g);
+  var allFlock = state.activeMembers;
+  var totalMembers = Math.max(state.totalMembers, 1);
 
-  var yesCount = 0;
-  var virtualCount = 0;
-  var noCount = 0;
-  var submittedCount = 0;
+  var attendingCount = state.attendingCount;
+  var replyCount = state.repliedCount;
+  var submittedCount = state.submittedCount;
 
-  allFlock.forEach(function(m) {
-    var r = gRsvps[m.id];
-    if (!r) return;
-    if (r.status === 'yes') yesCount++;
-    if (r.status === 'virtual') virtualCount++;
-    if (r.status === 'no') noCount++;
-    if (r.availSubmitted) submittedCount++;
-  });
-
-  var attendingCount = yesCount + virtualCount;
-  var replyCount = attendingCount + noCount;
   var availabilityScore = Math.round((attendingCount / totalMembers) * 100);
   var replyScore = Math.round((replyCount / totalMembers) * 100);
 
-  var taskTotal = (g.tasks || []).length;
-  var taskDone = (g.tasks || []).filter(function(t){ return t.done || t.status === 'done'; }).length;
+  var taskTotal = (g.tasks || []).filter(function(t){ return !t.deleted_at; }).length;
+  var taskDone = (g.tasks || []).filter(function(t){ return !t.deleted_at && (t.done || t.status === 'done'); }).length;
   var taskScore = taskTotal ? Math.round((taskDone / taskTotal) * 100) : 100;
 
   var bestWindow = null;
   var windowScore = null;
+
   if (g.status === 'planning') {
-    var conflicts = computeConflicts(g.id, allFlock);
-    var months = gatheringMonths(g);
-    var allDays = buildDayList(months);
-    var topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 1) : [];
-    if (topWindows.length) {
-      var w = topWindows[0];
-      var availableSlots = Math.max(submittedCount * w.days.length - w.totalConflicts, 0);
-      var possibleSlots = Math.max(submittedCount * w.days.length, 1);
-      windowScore = Math.round((availableSlots / possibleSlots) * 100);
-      bestWindow = formatDateWindowRange(w);
+    // Prefer the date windows actually shown on the gathering. Do not recommend hidden fallback months.
+    if (state.recommendedWindow && state.recommendedWindow.dates) {
+      bestWindow = state.recommendedWindow.dates;
+      windowScore = submittedCount > 0 ? 100 : 0;
+    } else {
+      var conflicts = computeConflicts(g.id, allFlock);
+      var months = gatheringMonths(g);
+      var allDays = buildDayList(months);
+      var topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 1) : [];
+      if (topWindows.length) {
+        var w = topWindows[0];
+        var availableSlots = Math.max(submittedCount * w.days.length - w.totalConflicts, 0);
+        var possibleSlots = Math.max(submittedCount * w.days.length, 1);
+        windowScore = Math.round((availableSlots / possibleSlots) * 100);
+        bestWindow = formatDateWindowRange(w);
+      }
     }
   }
 
@@ -3621,9 +3733,9 @@ function computeGatheringRecommendation(g) {
   if (g.status === 'planning') {
     title = bestWindow ? ('Best window: ' + bestWindow) : 'Collect more availability';
     subtitle = bestWindow
-      ? 'This window has the fewest blocked dates from members who responded.'
+      ? 'This window has the fewest blocked dates from active members who submitted availability.'
       : 'Kinverly needs more submitted dates before it can confidently recommend a window.';
-    reasons.push({ text: submittedCount + '/' + totalMembers + ' shared dates', type: submittedCount >= Math.ceil(totalMembers * .7) ? 'good' : 'warn' });
+    reasons.push({ text: submittedCount + '/' + state.totalMembers + ' active members shared dates', type: submittedCount >= Math.ceil(state.totalMembers * .7) ? 'good' : 'warn' });
     if (bestWindow) reasons.push({ text: (windowScore || 0) + '% availability fit', type: (windowScore || 0) >= 75 ? 'good' : 'warn' });
   } else if (g.status === 'completed') {
     title = 'Gathering complete';
@@ -3635,8 +3747,8 @@ function computeGatheringRecommendation(g) {
     subtitle = availabilityScore >= 70
       ? 'This gathering is in good shape based on current RSVPs.'
       : 'Nudging pending members should improve the recommendation confidence.';
-    reasons.push({ text: attendingCount + '/' + totalMembers + ' attending', type: availabilityScore >= 70 ? 'good' : 'warn' });
-    reasons.push({ text: replyCount + '/' + totalMembers + ' replied', type: replyScore >= 80 ? 'good' : 'warn' });
+    reasons.push({ text: attendingCount + '/' + state.totalMembers + ' attending', type: availabilityScore >= 70 ? 'good' : 'warn' });
+    reasons.push({ text: replyCount + '/' + state.totalMembers + ' replied', type: replyScore >= 80 ? 'good' : 'warn' });
     if (taskTotal) reasons.push({ text: taskDone + '/' + taskTotal + ' tasks done', type: taskScore >= 80 ? 'good' : 'warn' });
   }
 
@@ -3763,16 +3875,12 @@ function renderDetail(g) {
 
 // ─── PLANNING TAB: availability + polls + tasks in one flow ─────────────
 function buildPlanningTab(g) {
-  var activeMembers = getActiveFlockMembers();
-  var totalMembers = activeMembers.length || 0;
-  var availSubmitted = activeMembers.filter(function(m){
-    return rsvpData[g.id] && rsvpData[g.id][m.id] && rsvpData[g.id][m.id].availSubmitted;
-  }).length;
+  var state = deriveGatheringState(g);
+  var activeMembers = state.activeMembers;
+  var totalMembers = state.totalMembers || 0;
+  var availSubmitted = state.submittedCount;
   var hasFinalDates = !!(g.status !== 'planning' && (g.date_label || g.month || g.day));
-  var replies = activeMembers.filter(function(m){
-    var r = rsvpData[g.id] && rsvpData[g.id][m.id];
-    return r && r.status;
-  }).length;
+  var replies = state.repliedCount;
   var tasks = (g.tasks || []).filter(function(t){ return !t.deleted_at; });
   var tasksDone = tasks.filter(function(t){ return t.done; }).length;
   var taskCount = tasks.filter(function(t){ return !t.done; }).length;
@@ -4324,24 +4432,34 @@ function findBestWindows(allDays, conflicts, submittedCount, windowSize, topN) {
 }
 
 function renderDateWindowPanel(g, panel) {
-  var allFlock = getActiveFlockMembers();
-  var flockCount = allFlock.length;
+  var state = deriveGatheringState(g);
+  var allFlock = state.activeMembers;
+  var flockCount = state.totalMembers;
 
   var conflicts = computeConflicts(g.id, allFlock);
 
-  var submitted = allFlock.filter(function(m) {
-    var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
-    return rd && rd.availSubmitted;
-  });
-  var submittedCount = submitted.length;
-  var pending = allFlock.filter(function(m) {
-    var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
-    return !rd || !rd.availSubmitted;
-  });
+  var submitted = state.submittedMembers.map(function(x){ return x.member; });
+  var submittedCount = state.submittedCount;
+  var pending = state.pendingAvailabilityMembers.map(function(x){ return x.member; });
 
   var months  = gatheringMonths(g);
   var allDays = buildDayList(months);
-  var topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 3) : [];
+  var topWindows = [];
+  if (state.proposalWindows.length) {
+    topWindows = state.proposalWindows.map(function(pw, idx){
+      return {
+        start: { key:'proposal-' + idx, abbr:'', d:'', label:pw.dates },
+        end: { key:'proposal-' + idx + '-end', abbr:'', d:'', label:pw.dates },
+        days: [],
+        totalConflicts: 0,
+        pct: 0,
+        display: pw.dates,
+        proposal: pw
+      };
+    });
+  } else {
+    topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 3) : [];
+  }
 
   // ── Heatmap ──
   var WDAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -4372,7 +4490,7 @@ function renderDateWindowPanel(g, panel) {
   }).join('');
 
   // ── Window chips ──
-  function fmtRange(w) { return formatDateWindowRange(w); }
+  function fmtRange(w) { return w && w.display ? w.display : formatDateWindowRange(w); }
   var chipLabels = ['Best window', 'Good alternative', 'Also works'];
   var chipClasses = ['dw-chip best', 'dw-chip alt', 'dw-chip ok'];
 
@@ -4381,7 +4499,7 @@ function renderDateWindowPanel(g, panel) {
         var conf = w.totalConflicts === 0
           ? '<span style="color:var(--green);font-weight:800">No conflicts ✓</span>'
           : w.totalConflicts + ' conflict' + (w.totalConflicts > 1 ? 's' : '');
-        return '<div class="' + chipClasses[i] + '" data-start="' + w.start.key + '" data-end="' + w.end.key + '">' +
+        return '<div class="' + chipClasses[i] + '" data-start="' + w.start.key + '" data-end="' + w.end.key + '" data-display="' + escapeHtml(fmtRange(w)) + '">' +
           '<div class="dw-chip-top"><div class="dw-chip-label">' + chipLabels[i] + '</div>' +
           '<div class="dw-chip-conf">' + conf + '</div></div>' +
           '<div class="dw-chip-range">' + fmtRange(w) + '</div>' +
@@ -4393,7 +4511,7 @@ function renderDateWindowPanel(g, panel) {
   // ── Who has responded ──
   var respHtml = allFlock.map(function(m) {
     if (!m) return '';
-    var rd  = rsvpData[g.id] && rsvpData[g.id][m.id];
+    var rd  = getRsvpForMember(g.id, m.id);
     var done = rd && rd.availSubmitted;
     var bc  = rd && rd.blockedDates ? rd.blockedDates.length : 0;
     return '<div class="dw-resp-row">' +
@@ -4440,7 +4558,7 @@ function renderDateWindowPanel(g, panel) {
 
     // Share button
     '<button class="dw-avail-btn" id="dw-avail-btn-' + g.id + '">' +
-      (rsvpData[g.id] && rsvpData[g.id][DATA.me.id] && rsvpData[g.id][DATA.me.id].availSubmitted
+      (getRsvpForMember(g.id, DATA.me.id) && getRsvpForMember(g.id, DATA.me.id).availSubmitted
         ? '✏️ Update my availability'
         : '📅 Share my availability') +
     '</button>' +
@@ -4731,9 +4849,9 @@ function buildStandardDetail(g) {
   // Quick-glance stats based on what matters NOW
   var statsHtml = '';
   if (g.status === 'planning') {
-    var responded = allFlock.filter(function(m){ return rsvpData[g.id] && rsvpData[g.id][m.id] && rsvpData[g.id][m.id].availSubmitted; }).length;
+    var state = deriveGatheringState(g);
     statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + responded + '/' + allFlock.length + '</div><div class="detail-stat-l">submitted availability</div></div>';
+      '<div class="detail-stat"><div class="detail-stat-n">' + state.submittedCount + '/' + state.totalMembers + '</div><div class="detail-stat-l">submitted availability</div></div>';
   } else if (g.status === 'completed') {
     statsHtml =
       '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attended</div></div>' +
@@ -4812,35 +4930,43 @@ function buildStandardDetail(g) {
 }
 
 function buildBeachDetail(g) {
-  var responded = (g.responses||[]).filter(function(r){ return r.status==='responded'; }).length;
-  var total = (g.responses||[]).length;
+  var state = deriveGatheringState(g);
+  var responded = state.submittedCount;
+  var total = state.totalMembers;
 
-  var windowsHTML = (g.windows||[]).map(function(w){
-    return '<div class="window-opt '+w.status+'"><div class="window-date">'+w.dates+'</div><div class="window-sub">'+w.label+'</div></div>';
-  }).join('');
+  var windowsHTML = state.proposalWindows.length
+    ? state.proposalWindows.map(function(w){
+        return '<div class="window-opt '+(w.status || 'partial')+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(w.label || '')+'</div></div>';
+      }).join('')
+    : '';
 
-  var responseRows = (g.responses||[]).map(function(r){
-    var m = getMember(r.id); if(!m) return '';
+  var responseRows = state.activeMembers.map(function(m){
+    var rd = getRsvpForMember(g.id, m.id);
+    var done = rd && rd.availSubmitted;
+    var blockedCount = rd && rd.blockedDates ? rd.blockedDates.length : 0;
     return '<div class="member-row">'+
       makeAv(m.animal,32)+
-      '<div class="member-info"><div class="member-name">'+m.name+'</div><div class="member-loc">'+m.location+'</div></div>'+
-      '<span class="pill '+(r.status==='responded'?'pill-green':'pill-amber')+'">'+r.status+'</span>'+
+      '<div class="member-info"><div class="member-name">'+escapeHtml(m.name || 'Member')+'</div><div class="member-loc">'+escapeHtml(m.location || '')+'</div></div>'+
+      (done
+        ? '<span class="pill pill-green">submitted' + (blockedCount ? ' · ' + blockedCount + ' blocked' : '') + '</span>'
+        : '<span class="pill pill-amber">waiting</span>')+
     '</div>';
   }).join('');
 
   return '<div class="detail-hero beach">'+
     '<div class="detail-eyebrow">✨ Collecting availability</div>'+
-    '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">'+ getGatheringDateDisplay(g) +' · '+(g.theme||'Trip')+' · '+(g.location||'Location TBD')+'</div>'+
+    '<div class="detail-title">'+escapeHtml(g.name || 'Gathering')+'</div>'+
+    '<div class="detail-sub">'+ getGatheringDateDisplay(g) +' · '+escapeHtml(g.theme||'Trip')+' · '+escapeHtml(g.location||'Location TBD')+'</div>'+
     '<div class="detail-stats">'+
       '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">submitted availability</div></div>'+
+      '<div class="detail-stat"><div class="detail-stat-n">'+state.pendingAvailabilityCount+'</div><div class="detail-stat-l">waiting</div></div>'+
     '</div>'+
     (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
   '</div>'+
   buildDecisionCard(g)+
   '<div class="collab-box">'+
     '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
-    '<div><div class="collab-title">Share your availability</div><div class="collab-sub">Updates live as more responses come in.</div></div>'+
+    '<div><div class="collab-title">Share your availability</div><div class="collab-sub">Updates live as active members respond.</div></div>'+
   '</div>'+
   '<div class="section-title">Mark your availability</div>'+
   '<button class="btn-primary" id="open-avail-btn" style="margin-bottom:12px">'+
