@@ -1858,7 +1858,7 @@ img,svg{display:block}
     <div class="page" id="page-myworld">
       <div class="myworld-hero">
         <div class="myworld-title">My World</div>
-        <div class="myworld-sub">A friendly home base for your tasks, messages, and family updates across every flock.</div>
+        <div class="myworld-sub">A friendly home base for your tasks, messages, and flock updates across every group.</div>
       </div>
       <div id="myworld-content"></div>
     </div>
@@ -1909,9 +1909,9 @@ img,svg{display:block}
       <div id="ideas-list"></div>
     </div>
 
-    <!-- FLOCK -->
+    <!-- FLOCKS -->
     <div class="page" id="page-flock">
-      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:14px">Family space</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:14px">Flocks</div>
       <div id="flock-page-content"></div>
     </div>
 
@@ -1940,7 +1940,7 @@ img,svg{display:block}
     </button>
     <button class="nav-btn" data-page="flock">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Family
+      Flocks
     </button>
     <button class="nav-btn" data-page="profile">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -2486,7 +2486,7 @@ function getCurrentMemberNameForContext() {
 }
 
 function getPageLabelForContext(name) {
-  var labels = {home:'Home', myworld:'My World', gatherings:'Gatherings', ideas:'Idea Bank', flock:'Family Space', profile:'Profile'};
+  var labels = {home:'Home', myworld:'My World', gatherings:'Gatherings', ideas:'Idea Bank', flock:'Flocks', profile:'Profile'};
   return labels[name] || 'Home';
 }
 
@@ -5255,7 +5255,7 @@ function renderFlockPage() {
     var state = deriveFamilyState(currentFlockId);
     var flock = state.flock;
     if (!flock) {
-      el.innerHTML = '<div class="card" style="text-align:center;padding:34px 20px"><div style="font-size:44px;margin-bottom:8px">👥</div><div style="font-size:16px;font-weight:900;color:var(--text1)">No family space yet</div><div style="font-size:13px;color:var(--text2);margin-top:4px">Create or join a flock to start planning together.</div></div>';
+      el.innerHTML = '<div class="card" style="text-align:center;padding:34px 20px"><div style="font-size:44px;margin-bottom:8px">👥</div><div style="font-size:16px;font-weight:900;color:var(--text1)">No flocks yet</div><div style="font-size:13px;color:var(--text2);margin-top:4px">Create or join a flock to start planning together.</div></div>';
       return;
     }
 
@@ -5267,9 +5267,9 @@ function renderFlockPage() {
 
     var heroHtml =
       '<div style="background:linear-gradient(135deg,#3D2B6E 0%,#5C4299 100%);border-radius:20px;padding:18px;margin-bottom:14px;color:#fff;overflow:hidden;position:relative">' +
-        '<div style="font-size:11px;font-weight:900;letter-spacing:.09em;color:rgba(240,192,48,.9);text-transform:uppercase;margin-bottom:6px">Family hub</div>' +
-        '<div style="font-family:\'Fredoka One\',cursive;font-size:24px;line-height:1.15;margin-bottom:4px">' + escapeHtml(flock.name || 'Family Space') + '</div>' +
-        '<div style="font-size:13px;color:rgba(255,255,255,.68);line-height:1.45">Members, organizers, invite code, and family history all in one place.</div>' +
+        '<div style="font-size:11px;font-weight:900;letter-spacing:.09em;color:rgba(240,192,48,.9);text-transform:uppercase;margin-bottom:6px">Flock hub</div>' +
+        '<div style="font-family:\'Fredoka One\',cursive;font-size:24px;line-height:1.15;margin-bottom:4px">' + escapeHtml(flock.name || 'My Flock') + '</div>' +
+        '<div style="font-size:13px;color:rgba(255,255,255,.68);line-height:1.45">Members, organizers, invite code, and flock history all in one place.</div>' +
       '</div>';
 
     var statsHtml =
@@ -5283,7 +5283,7 @@ function renderFlockPage() {
     var inviteHtml =
       '<div class="card" style="margin-bottom:14px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">' +
-          '<div><div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Invite code</div><div style="font-size:12px;color:var(--text2);margin-top:2px">Share this with family members.</div></div>' +
+          '<div><div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Invite code</div><div style="font-size:12px;color:var(--text2);margin-top:2px">Share this with flock members.</div></div>' +
           '<div style="font-family:monospace;font-size:20px;font-weight:900;color:var(--brand);letter-spacing:.12em">' + escapeHtml(flock.inviteCode || '---') + '</div>' +
         '</div>' +
         '<div style="display:flex;gap:8px">' +
@@ -5297,7 +5297,7 @@ function renderFlockPage() {
       (state.organizers.length ? state.organizers.map(renderMemberRowForFamily).join('') : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700">No organizers assigned yet.</div>') +
       '</div>';
 
-    var activeHtml = '<div class="section-title">Active family members (' + activeCount + ')</div>' +
+    var activeHtml = '<div class="section-title">Active flock members (' + activeCount + ')</div>' +
       '<div class="card" style="padding:0;overflow:hidden">' +
       (state.active_members.length ? state.active_members.map(renderMemberRowForFamily).join('') : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700">No active members yet.</div>') +
       '</div>';
@@ -5315,13 +5315,13 @@ function renderFlockPage() {
         '<div style="font-size:11px;color:var(--text3);line-height:1.4;margin:-6px 2px 14px">Removed members stay here for history, exports, and past gathering records. They do not count in live availability or attendance totals.</div>';
     }
 
-    var activityHtml = '<div class="section-title">Family timeline</div>';
+    var activityHtml = '<div class="section-title">Flock timeline</div>';
     if (state.recent_activity.length) {
       activityHtml += '<div class="activity-feed" style="margin-bottom:14px">' + state.recent_activity.map(function(a){
         return '<div class="activity-item"><div style="font-size:18px;width:24px;text-align:center">' + (a.icon || '✨') + '</div><div class="activity-text">' + (a.text || '') + '<div class="activity-time">' + escapeHtml(a.time || '') + '</div></div></div>';
       }).join('') + '</div>';
     } else {
-      activityHtml += '<div class="card" style="text-align:center;padding:22px;color:var(--text3);font-size:13px;font-weight:700">No family activity yet. Start by creating a gathering or inviting someone in.</div>';
+      activityHtml += '<div class="card" style="text-align:center;padding:22px;color:var(--text3);font-size:13px;font-weight:700">No flock activity yet. Start by creating a gathering or inviting someone in.</div>';
     }
 
     var adminHtml = can('manage_flock')
@@ -5355,7 +5355,7 @@ function renderFlockPage() {
 
     var shareBtn = document.getElementById('flock-share-code');
     if (shareBtn) shareBtn.addEventListener('click', function(){
-      var text = 'Join ' + (flock.name || 'my family') + ' on Kinverly!\n\nInvite code: ' + (flock.inviteCode || '') + '\n\nOpen the app and tap "I have an invite code" to join.';
+      var text = 'Join ' + (flock.name || 'my flock') + ' on Kinverly!\n\nInvite code: ' + (flock.inviteCode || '') + '\n\nOpen the app and tap "I have an invite code" to join.';
       if (navigator.share) navigator.share({ title:'Join ' + (flock.name || 'Kinverly'), text:text }).catch(function(){});
       else if (navigator.clipboard) { navigator.clipboard.writeText(text); toast('Invite copied'); }
     });
@@ -5374,8 +5374,8 @@ function renderFlockPage() {
       });
     });
   } catch (err) {
-    console.error('Family Space render failed', err);
-    el.innerHTML = '<div class="card" style="text-align:center;padding:28px 18px"><div style="font-size:38px;margin-bottom:8px">🛠️</div><div style="font-size:15px;font-weight:900;color:var(--text1)">Family Space needs a refresh</div><div style="font-size:13px;color:var(--text2);line-height:1.45;margin-top:5px">Something in this flock record is incomplete, so Kinverly protected the page instead of showing broken data.</div><button class="btn-primary" style="margin-top:14px" onclick="renderFlockPage()">Try again</button></div>';
+    console.error('Flocks page render failed', err);
+    el.innerHTML = '<div class="card" style="text-align:center;padding:28px 18px"><div style="font-size:38px;margin-bottom:8px">🛠️</div><div style="font-size:15px;font-weight:900;color:var(--text1)">Flocks are still loading</div><div style="font-size:13px;color:var(--text2);line-height:1.45;margin-top:5px">Some flock details are still being updated. You can keep using the app while Kinverly refreshes this space.</div><button class="btn-primary" style="margin-top:14px" onclick="renderFlockPage()">Try again</button></div>';
   }
 }
 
