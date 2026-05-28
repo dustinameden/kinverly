@@ -5522,7 +5522,7 @@ async function saveFlockToFirebase(flock, creator) {
       activity: flock.activity || []
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
+    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
   } catch(e) { console.warn('[Kinverly] Flock save offline:', e.message); }
 }
 
@@ -5561,7 +5561,7 @@ async function syncFlockToFirebase() {
       _notifications: (flock._notifications || []).slice(-20)
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data, {merge: true});
+    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
   } catch(e) {
     console.warn('[Kinverly] Sync offline:', e.message);
   }
@@ -8137,14 +8137,11 @@ try {
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
     try {
-      // Use setDoc with merge — works whether doc exists or not
       var data = {};
       data['members.' + member.id] = member;
       data['memberIds'] = arrayUnion(member.id);
       if (serverTimestamp) data.updatedAt = serverTimestamp();
       await setDoc(doc(db, 'flocks', flockId), data, {merge: true});
-      // Also do a full sync to push all flock data
-      if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
     } catch(e) { console.warn('[Kinverly] Member save error:', e.message); }
   };
 
