@@ -2402,7 +2402,8 @@ function normalizeKinverlySchema(flock) {
     m.flock_id = flock.id;
     reserveMax(meta, 'next_member_id', m.member_id);
   });
-  flock.memberIds = Object.keys(members).filter(function(k){ return members[k] && !members[k].deleted_at; });
+  normalizeRemovedMemberLogs(flock);
+  flock.memberIds = Object.keys(members).filter(function(k){ return members[k] && !isRemovedMemberRecord(members[k]); });
 
   (flock.gatherings || []).forEach(function(g){
     if (!g) return;
@@ -2607,6 +2608,75 @@ function applySoftDelete(entity, actorSummary) {
   entity.deleted_by = DATA.me && DATA.me.id ? DATA.me.id : '';
   if (actorSummary) entity.deleted_reason = actorSummary;
   return entity;
+}
+
+function markMemberRemoved(member, removedAt, removedBy, reason) {
+  if (!member) return member;
+  var ts = removedAt || nowISO();
+  member.deleted_at = member.deleted_at || ts;
+  member.removed_at = member.removed_at || member.deleted_at;
+  member.updated_at = ts;
+  member.removal_updated_at = ts;
+  member.deleted_by = removedBy || (DATA.me && DATA.me.id ? DATA.me.id : '');
+  member.removed_by = member.deleted_by;
+  member.deleted_reason = reason || member.deleted_reason || 'Removed from flock';
+  member.membership_status = 'removed';
+  member.status = 'removed';
+  member.role = normalizeRole(member.role || 'member') === 'owner' ? 'owner' : (member.role || 'member');
+  return member;
+}
+
+function isRemovedMemberRecord(member) {
+  return !!(member && (member.deleted_at || member.removed_at || member.membership_status === 'removed' || member.membership_status === 'archived' || String(member.status || '').toLowerCase() === 'removed'));
+}
+
+function mergeMemberWithTombstone(remoteMember, localMember) {
+  var rm = remoteMember || {};
+  var lm = localMember || null;
+  var merged = lm ? Object.assign({}, lm, rm, { pw: lm.pw || rm.pw || '' }) : Object.assign({}, rm);
+
+  // Once a member has been removed, do not let older local or remote snapshots
+  // resurrect them. The removal timestamp is the source of truth for active lists,
+  // exports, and membership history.
+  var rRemoved = isRemovedMemberRecord(rm);
+  var lRemoved = isRemovedMemberRecord(lm);
+  if (rRemoved || lRemoved) {
+    var removedAt = rm.deleted_at || rm.removed_at || (lm && (lm.deleted_at || lm.removed_at)) || nowISO();
+    var removedBy = rm.removed_by || rm.deleted_by || (lm && (lm.removed_by || lm.deleted_by)) || '';
+    markMemberRemoved(merged, removedAt, removedBy, rm.deleted_reason || (lm && lm.deleted_reason) || 'Removed from flock');
+  }
+  return merged;
+}
+
+function ensureRemovedMemberLog(flock, member) {
+  if (!flock || !member || !isRemovedMemberRecord(member)) return;
+  if (!flock.removedMembers) flock.removedMembers = {};
+  flock.removedMembers[member.id] = Object.assign({}, flock.removedMembers[member.id] || {}, {
+    id: member.id,
+    member_id: typeof member.member_id === 'number' ? member.member_id : '',
+    flock_id: typeof flock.id === 'number' ? flock.id : '',
+    name: member.name || '',
+    role: member.role || '',
+    status: 'removed',
+    removed_at: member.removed_at || member.deleted_at || '',
+    removal_updated_at: member.removal_updated_at || member.updated_at || member.removed_at || member.deleted_at || '',
+    removed_by: member.removed_by || member.deleted_by || '',
+    updated_at: member.updated_at || member.removal_updated_at || member.deleted_at || nowISO(),
+    deleted_at: member.deleted_at || member.removed_at || ''
+  });
+}
+
+function normalizeRemovedMemberLogs(flock) {
+  if (!flock) return flock;
+  if (!flock.removedMembers) flock.removedMembers = {};
+  Object.keys(flock.members || {}).forEach(function(mid){
+    var m = flock.members[mid];
+    if (isRemovedMemberRecord(m)) {
+      markMemberRemoved(m, m.deleted_at || m.removed_at || m.updated_at || nowISO(), m.removed_by || m.deleted_by || '', m.deleted_reason || 'Removed from flock');
+      ensureRemovedMemberLog(flock, m);
+    }
+  });
+  return flock;
 }
 </script>
 
@@ -7061,52 +7131,92 @@ function exportEventLogCsv() {
 
 async function removeMemberFromFlock(memberId) {
   var flock = FLOCKS[currentFlockId];
-  if (!flock) return 'Unknown';
+  if (!flock || !flock.members) return 'Unknown';
 
-  var memberName = (flock.members && flock.members[memberId]) ? flock.members[memberId].name : 'Unknown';
+  // Resolve across legacy key, numeric id, and member_id so old records can't escape removal.
+  var targetKey = memberId;
+  var target = flock.members[targetKey];
+  if (!target) {
+    Object.keys(flock.members || {}).some(function(k){
+      var m = flock.members[k];
+      if (!m) return false;
+      if (String(k) === String(memberId) || String(m.id) === String(memberId) || String(m.member_id) === String(memberId)) {
+        targetKey = k;
+        target = m;
+        return true;
+      }
+      return false;
+    });
+  }
+  if (!target) return 'Unknown';
 
-  // Mark this member as intentionally removed so a stale Firestore snapshot
-  // cannot merge them back into local state while the delete write is in flight.
+  var memberName = target.name || 'Unknown';
+  var removedAt = nowISO();
+  var beforeMember = safeCloneForEvent(target);
+
+  // Prevent stale Firestore/local snapshots from re-activating this member.
   window._pendingRemovedMembers = window._pendingRemovedMembers || {};
-  window._pendingRemovedMembers[memberId] = Date.now();
+  window._pendingRemovedMembers[targetKey] = Date.now();
+  if (target.id) window._pendingRemovedMembers[target.id] = Date.now();
+  if (target.member_id !== undefined) window._pendingRemovedMembers[String(target.member_id)] = Date.now();
 
-  var beforeMember = flock.members && flock.members[memberId] ? safeCloneForEvent(flock.members[memberId]) : null;
-  var deletedAt = nowISO();
-  if (flock.members && flock.members[memberId]) applySoftDelete(flock.members[memberId], 'Removed from flock');
-  flock.memberIds = (flock.memberIds || []).filter(function(id){ return id !== memberId; });
-  DATA.members = DATA.members.filter(function(m){ return m.id !== memberId; });
-  recordEvent('member.removed', 'member', memberId, beforeMember, flock.members ? flock.members[memberId] : null, memberName + ' was removed from the flock', '👋');
+  markMemberRemoved(target, removedAt, DATA.me && DATA.me.id ? DATA.me.id : '', 'Removed from flock');
+  flock.members[targetKey] = target;
+  ensureRemovedMemberLog(flock, target);
+  flock.memberIds = (flock.memberIds || []).filter(function(id){ return String(id) !== String(targetKey) && String(id) !== String(target.id) && String(id) !== String(target.member_id); });
+  DATA.members = DATA.members.filter(function(m){ return m && String(m.id) !== String(target.id || targetKey) && String(m.member_id) !== String(target.member_id); });
 
-  // Keep historical references intact. RSVP, attendance, tasks, chat, photos,
-  // and activity are intentionally NOT deleted so exports/database history remain complete.
-  // The UI should treat deleted_at as the removed timestamp and hide the member from
-  // active pickers/lists where appropriate.
+  recordEvent('member.removed', 'member', target.member_id || target.id || targetKey, beforeMember, target, memberName + ' was removed from the flock', '👋');
 
+  // Keep RSVP, attendance, tasks, chat, photos, and activity intact.
+  // The active UI filters by deleted_at/status, while exports/database preserve history.
   saveLocal();
 
-  // Prefer an atomic Firestore soft-delete over removing the member object.
-  // This preserves their history for exports/database audit records while hiding them from active lists.
   var h = window.__firestoreHelpers;
-  if (window.__db && h && h.updateDoc && h.deleteField && h.arrayRemove) {
+  if (window.__db && h && h.setDoc && h.arrayRemove) {
     try {
+      var docId = getFlockFirestoreDocId(currentFlockId, flock);
       var updates = {};
-      updates['members.' + memberId + '.deleted_at'] = deletedAt;
-      updates['members.' + memberId + '.updated_at'] = deletedAt;
-      updates.memberIds = h.arrayRemove(memberId);
-      updates.rsvpData = rsvpData || {};
-      updates.gatherings = (flock.gatherings || DATA.gatherings || []);
+      updates['members.' + targetKey] = target;
+      updates['removedMembers.' + targetKey] = flock.removedMembers[targetKey];
+      updates.memberIds = h.arrayRemove(targetKey);
       updates.activity = (flock.activity || DATA.activity || []).slice(0, 30);
+      updates.events = (flock.events || DATA.events || []).slice(0, 500);
+      updates.updated_at = removedAt;
       if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
+      await h.setDoc(h.doc(window.__db, 'flocks', docId), updates, { merge: true });
 
-      await h.updateDoc(h.doc(window.__db, 'flocks', currentFlockId), updates);
+      // Also keep a lightweight users table membership history. This makes the
+      // removal durable even if an older flock snapshot exists somewhere.
+      if (h.doc && h.setDoc && target.id) {
+        var userPatch = {
+          id: target.id,
+          name: target.name || '',
+          updated_at: removedAt
+        };
+        userPatch['flocks'] = {};
+        userPatch.flocks[docId] = {
+          flock_key: docId,
+          flock_id: typeof flock.id === 'number' ? flock.id : '',
+          member_id: typeof target.member_id === 'number' ? target.member_id : '',
+          status: 'removed',
+          removed_at: target.removed_at || target.deleted_at || removedAt,
+          removal_updated_at: removedAt,
+          removed_by: DATA.me && DATA.me.id ? DATA.me.id : '',
+          updated_at: removedAt
+        };
+        await h.setDoc(h.doc(window.__db, 'users', target.id), userPatch, { merge: true });
+      }
     } catch(e) {
-      console.warn('[Kinverly] Atomic member removal failed; falling back to full sync:', e.message);
+      console.warn('[Kinverly] Atomic member soft-removal failed; falling back to full sync:', e.message);
       await syncFlockToFirebase();
     }
-  } else if (typeof syncFlockToFirebase === 'function') {
+  } else {
     await syncFlockToFirebase();
   }
 
+  renderFlockPage();
+  renderHome();
   return memberName;
 }
 
@@ -8010,6 +8120,9 @@ function switchToFlock(flockId) {
   try {
     localStorage.setItem('kinverly_current_flock', currentFlockId);
   } catch(e){}
+  if (typeof window.__attachFlockListener === 'function') {
+    window.__attachFlockListener(currentFlockId);
+  }
 
   renderHome();
   renderGatherings();
@@ -8078,9 +8191,17 @@ function joinFlockByCode(code, callback) {
       var q = h.query(h.collection(window.__db, 'flocks'), h.where('inviteCode', '==', norm));
       h.getDocs(q).then(function(snap) {
         if (snap.empty) { callback('Code not found. Double-check and try again.'); return; }
-        var d = snap.docs[0].data();
-        FLOCKS[d.id] = d;
-        addMeToFlock(d.id); // addMeToFlock already saves
+        var docSnap = snap.docs[0];
+        var d = docSnap.data();
+        // IMPORTANT: keep the Firestore document id as the local flock key.
+        // Numeric flock.id is only an analytics id; using it as the key makes
+        // different users listen/write to different Firestore documents.
+        var realDocId = docSnap.id;
+        d.firestore_id = realDocId;
+        d.storage_key = realDocId;
+        d.uid = d.uid || realDocId;
+        FLOCKS[realDocId] = d;
+        addMeToFlock(realDocId); // addMeToFlock already saves
         callback(null, d);
       }).catch(function() { callback('Could not connect. Check your internet.'); });
     } else { callback('Code not found. Double-check and try again.'); }
@@ -8104,6 +8225,10 @@ function addMeToFlock(flockId) {
 
   normalizeKinverlySchema(flock);
   var existingAudit = flock.members[DATA.me.id] || {};
+  if (isRemovedMemberRecord(existingAudit)) {
+    toast('This profile was removed from this flock. Ask an organizer to restore access.');
+    return;
+  }
   var joinAt = nowISO();
   var me = ensureAuditFields({
     id:DATA.me.id,
@@ -8153,14 +8278,22 @@ async function saveFlockToFirebase(flock, creator) {
     var h = window.__firestoreHelpers;
     normalizeKinverlySchema(flock);
     // Save full flock data — not just metadata
+    var docId = getFlockFirestoreDocId(null, flock);
+    flock.firestore_id = docId;
+    flock.storage_key = docId;
+    flock.uid = flock.uid || docId;
     var data = {
       id: flock.id,
+      firestore_id: docId,
+      storage_key: docId,
+      uid: flock.uid,
       name: flock.name,
       emoji: flock.emoji,
       inviteCode: flock.inviteCode,
       createdBy: flock.createdBy,
       memberIds: flock.memberIds || [],
       members: flock.members || {},
+      removedMembers: flock.removedMembers || {},
       gatherings: flock.gatherings || [],
       ideas: flock.ideas || [],
       activity: flock.activity || [],
@@ -8170,7 +8303,7 @@ async function saveFlockToFirebase(flock, creator) {
       deleted_at: flock.deleted_at || null
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
+    await h.setDoc(h.doc(window.__db, 'flocks', docId), data, { merge: true });
     markLastSyncedAt(Date.now());
   } catch(e) { console.warn('[Kinverly] Flock save offline:', e.message); }
 }
@@ -8183,6 +8316,7 @@ async function syncFlockToFirebase() {
     var h = window.__firestoreHelpers;
     var flock = FLOCKS[currentFlockId];
     normalizeKinverlySchema(flock);
+    normalizeRemovedMemberLogs(flock);
     touchEntity(flock);
     var safeGatherings = (flock.gatherings || []).map(function(g) {
       var copy = Object.assign({}, g);
@@ -8197,14 +8331,22 @@ async function syncFlockToFirebase() {
       return copy;
     });
 
+    var docId = getFlockFirestoreDocId(currentFlockId, flock);
+    flock.firestore_id = docId;
+    flock.storage_key = docId;
+    flock.uid = flock.uid || docId;
     var data = {
       id: flock.id,
+      firestore_id: docId,
+      storage_key: docId,
+      uid: flock.uid,
       name: flock.name,
       emoji: flock.emoji,
       inviteCode: flock.inviteCode,
       createdBy: flock.createdBy,
       memberIds: flock.memberIds || [],
       members: flock.members || {},
+      removedMembers: flock.removedMembers || {},
       gatherings: safeGatherings,
       ideas: flock.ideas || [],
       activity: (flock.activity || []).slice(0, 30),
@@ -8217,7 +8359,7 @@ async function syncFlockToFirebase() {
       _notifications: (flock._notifications || []).slice(-20)
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
+    await h.setDoc(h.doc(window.__db, 'flocks', docId), data, { merge: true });
     markLastSyncedAt(Date.now());
   } catch(e) {
     console.warn('[Kinverly] Sync offline:', e.message);
@@ -10740,18 +10882,57 @@ try {
   //  Local-only items (not yet synced) are preserved.
   //  Your own RSVP data is never overwritten by remote.
   // ═══════════════════════════════════════════════
-  if (window._currentFlockListener) window._currentFlockListener();
-  var flockId = window.currentFlockId || localStorage.getItem('kinverly_current_flock');
-  if (flockId) {
+  window.__attachFlockListener = function(flockIdOrKey) {
+    if (window._currentFlockListener) {
+      window._currentFlockListener();
+      window._currentFlockListener = null;
+    }
+
+    var flockKey = resolveFlockKey(flockIdOrKey || window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
+    if (!flockKey || !window.FLOCKS[flockKey]) return;
+
+    var docId = getFlockFirestoreDocId(flockKey, window.FLOCKS[flockKey]);
+    if (!docId) return;
+
+    // Repair older local records that were accidentally keyed by numeric flock.id.
+    // Those clients would listen to /flocks/1 while the real shared flock is
+    // /flocks/flock_xxx. Use inviteCode to rediscover the true document id.
+    var currentLocalFlock = window.FLOCKS[flockKey];
+    var looksNumericDoc = /^\d+$/.test(String(docId));
+    if (looksNumericDoc && currentLocalFlock && currentLocalFlock.inviteCode && getDocs && query && where && collection) {
+      var repairQuery = query(collection(db, 'flocks'), where('inviteCode', '==', currentLocalFlock.inviteCode));
+      getDocs(repairQuery).then(function(repairSnap){
+        if (repairSnap.empty) return;
+        var realDoc = repairSnap.docs[0];
+        var realDocId = realDoc.id;
+        if (!realDocId || realDocId === docId) return;
+        var remoteData = realDoc.data() || {};
+        var repaired = Object.assign({}, remoteData, currentLocalFlock);
+        repaired.firestore_id = realDocId;
+        repaired.storage_key = realDocId;
+        repaired.uid = repaired.uid || realDocId;
+        window.FLOCKS[realDocId] = repaired;
+        if (realDocId !== flockKey) delete window.FLOCKS[flockKey];
+        window.currentFlockId = realDocId;
+        currentFlockId = realDocId;
+        try {
+          localStorage.setItem('kinverly_current_flock', realDocId);
+          localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
+        } catch(_repairStoreErr) {}
+        window.__attachFlockListener(realDocId);
+      }).catch(function(err){ console.warn('[Kinverly] Flock identity repair failed:', err && err.message); });
+      return;
+    }
+
     var _isFirstSnapshot = true;
 
-    window._currentFlockListener = onSnapshot(doc(db, 'flocks', flockId), function(snap) {
+    window._currentFlockListener = onSnapshot(doc(db, 'flocks', docId), function(snap) {
       if (!snap.exists()) return;
 
       var remote = snap.data();
       var myId = DATA.me.id;
-      if (!window.FLOCKS[flockId]) window.FLOCKS[flockId] = {};
-      var local = window.FLOCKS[flockId];
+      if (!window.FLOCKS[flockKey]) window.FLOCKS[flockKey] = {};
+      var local = window.FLOCKS[flockKey];
 
       // ── MEMBERS: remote is authoritative for who's in the flock ──
       if (remote.members) {
@@ -10765,14 +10946,15 @@ try {
 
           var rm = remote.members[mid];
           var lm = localMembers[mid];
-          if (lm) {
-            // Remote wins for: role (admin decides), name, animal, location, stats, prefs
-            // Local wins for: pw (user's own device is authority for their password)
-            merged[mid] = Object.assign({}, rm, {
-              pw: lm.pw || rm.pw || ''
-            });
-          } else {
-            merged[mid] = rm;
+          merged[mid] = mergeMemberWithTombstone(rm, lm);
+          if (isRemovedMemberRecord(merged[mid])) ensureRemovedMemberLog(local, merged[mid]);
+        });
+
+        // Preserve local removal tombstones even when older remote snapshots do not contain them.
+        Object.keys(localMembers || {}).forEach(function(mid){
+          if (!merged[mid] && isRemovedMemberRecord(localMembers[mid])) {
+            merged[mid] = localMembers[mid];
+            ensureRemovedMemberLog(local, merged[mid]);
           }
         });
 
@@ -10785,8 +10967,8 @@ try {
           });
         }
         local.members = merged;
-        local.memberIds = remote.memberIds || Object.keys(merged);
-        DATA.members = Object.values(merged).filter(function(m){ return m && !m.deleted_at && m.id !== myId; });
+        local.memberIds = Object.keys(merged).filter(function(mid){ return merged[mid] && !isRemovedMemberRecord(merged[mid]); });
+        DATA.members = Object.values(merged).filter(function(m){ return m && !isRemovedMemberRecord(m) && m.id !== myId; });
 
         // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
         if (merged[myId]) {
@@ -10797,8 +10979,9 @@ try {
           }
         }
 
-        // Detect if I was REMOVED from the flock
-        if (myId && !merged[myId] && Object.keys(merged).length > 0) {
+        // Detect if I was REMOVED from the flock. A removed member may still
+        // exist in the database as a historical record, so check deleted_at/status too.
+        if (myId && ((!merged[myId] && Object.keys(merged).length > 0) || isRemovedMemberRecord(merged[myId]))) {
           // Set flag FIRST — prevents any save/sync from re-adding us
           window._kickedFromFlock = true;
 
@@ -10809,7 +10992,7 @@ try {
           // Stop the listener
           if (window._currentFlockListener) { window._currentFlockListener(); window._currentFlockListener = null; }
           // Remove this flock from local data
-          delete window.FLOCKS[flockId];
+          delete window.FLOCKS[flockKey];
           localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
           // Switch to another flock or show onboarding
           var remaining = Object.keys(window.FLOCKS);
@@ -10923,6 +11106,9 @@ try {
         });
       }
 
+      if (remote.removedMembers) local.removedMembers = Object.assign({}, local.removedMembers || {}, remote.removedMembers || {});
+      normalizeRemovedMemberLogs(local);
+
       // ── METADATA ──
       if (remote.name) local.name = remote.name;
       if (remote.emoji) local.emoji = remote.emoji;
@@ -10959,9 +11145,8 @@ try {
       // (init already rendered from localStorage which is now updated)
       if (_isFirstSnapshot) {
         _isFirstSnapshot = false;
-        // Still re-render profile in case role changed
-        renderProfile();
-        return;
+        // First remote snapshot may contain edits made on another device before
+        // this browser opened the page, so render it too.
       }
 
       // Re-render ALL views so every user sees changes
@@ -11000,17 +11185,27 @@ try {
         }
       }
     });
-  }
+  };
+
+  window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
 
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
     try {
       ensureAuditFields(member);
+      var flockKey = resolveFlockKey(flockId);
+      var flockObj = flockKey && window.FLOCKS ? window.FLOCKS[flockKey] : null;
+      var existing = flockObj && flockObj.members ? flockObj.members[member.id] : null;
+      if (isRemovedMemberRecord(existing) || isRemovedMemberRecord(member)) {
+        member = mergeMemberWithTombstone(member, existing);
+        ensureRemovedMemberLog(flockObj, member);
+      }
       var data = {};
       data['members.' + member.id] = member;
-      data['memberIds'] = arrayUnion(member.id);
+      if (!isRemovedMemberRecord(member)) data['memberIds'] = arrayUnion(member.id);
       if (serverTimestamp) data.updatedAt = serverTimestamp();
-      await setDoc(doc(db, 'flocks', flockId), data, {merge: true});
+      var docId = getFlockFirestoreDocId(flockId, flockObj);
+      await setDoc(doc(db, 'flocks', docId), data, {merge: true});
     } catch(e) { console.warn('[Kinverly] Member save error:', e.message); }
   };
 
@@ -11024,8 +11219,9 @@ try {
     window.__saveMemberToFlock(p.flockId, p.member);
   }
 
-  // Do an immediate full sync on connect
-  if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
+  // Do not immediately push localStorage on connect. Wait for the first remote
+  // snapshot so stale clients cannot resurrect removed members or overwrite
+  // gathering edits made by another user. User actions still call saveFlockState().
 } catch(e) {
   console.warn('[Kinverly] Firebase offline:', e.message);
 }
@@ -11336,13 +11532,24 @@ try {
       return copy;
     });
 
+    var docId = getFlockFirestoreDocId(currentFlockId, flock);
+    flock.firestore_id = docId;
+    flock.storage_key = docId;
+    flock.uid = flock.uid || docId;
+
     var updates = {
+      id: flock.id,
+      firestore_id: docId,
+      storage_key: docId,
+      uid: flock.uid,
+      inviteCode: flock.inviteCode,
+      updated_at: nowISO(),
       gatherings: safeGatherings,
       activity: (flock.activity || DATA.activity || []).slice(0, 30),
       rsvpData: rsvpData || {}
     };
     if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
-    await h.updateDoc(h.doc(window.__db, 'flocks', currentFlockId), updates);
+    await h.setDoc(h.doc(window.__db, 'flocks', docId), updates, { merge: true });
   }
 
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
