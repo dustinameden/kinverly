@@ -5150,118 +5150,233 @@ function renderFairness() {
   return;
 }
 
-// -- FLOCK PAGE ----------------------------------
+// -- FAMILY SPACE / FLOCK PAGE ---------------------
+function getMemberNumericId(m, fallbackIndex) {
+  if (!m) return fallbackIndex || 0;
+  var raw = m.member_id != null ? m.member_id : m.id;
+  var n = parseInt(raw, 10);
+  return isNaN(n) ? (fallbackIndex || 0) : n;
+}
+
+function isActiveMember(m) {
+  return !!(m && !m.deleted_at && normalizeRole(m.role || 'member') !== 'archived');
+}
+
+function getMemberDisplayStatus(m) {
+  if (!m) return 'Unknown';
+  if (m.deleted_at) return 'Removed ' + formatLocalTimestamp(m.deleted_at);
+  if (normalizeRole(m.role || 'member') === 'archived') return 'Archived';
+  return 'Active';
+}
+
+function getRoleBadgeHtml(role) {
+  role = normalizeRole(role || 'member');
+  if (role === 'owner') return '<span style="background:var(--gold);color:#1E1433;font-size:9px;font-weight:900;padding:3px 8px;border-radius:20px">Owner</span>';
+  if (role === 'organizer') return '<span style="background:#ede8ff;color:var(--brand);font-size:9px;font-weight:900;padding:3px 8px;border-radius:20px">Organizer</span>';
+  if (role === 'guest') return '<span style="background:var(--blue-bg);color:var(--blue);font-size:9px;font-weight:900;padding:3px 8px;border-radius:20px">Guest</span>';
+  if (role === 'archived') return '<span style="background:var(--surface2);color:var(--text3);font-size:9px;font-weight:900;padding:3px 8px;border-radius:20px">Archived</span>';
+  return '<span style="background:var(--green-bg);color:var(--green);font-size:9px;font-weight:900;padding:3px 8px;border-radius:20px">Member</span>';
+}
+
+function deriveFamilyState(flockId) {
+  var flock = FLOCKS && flockId ? FLOCKS[flockId] : null;
+  if (!flock) {
+    return { flock:null, all_members:[], active_members:[], archived_members:[], organizers:[], multi_flock_members:[], gatherings:[], active_gatherings:[], recent_activity:[] };
+  }
+
+  var allMembers = Object.keys(flock.members || {}).map(function(key, idx){
+    var m = flock.members[key] || {};
+    if (!m.id) m.id = key;
+    if (m.member_id == null) m.member_id = getMemberNumericId(m, idx + 1);
+    return m;
+  }).sort(function(a,b){
+    var ar = normalizeRole(a.role || 'member');
+    var br = normalizeRole(b.role || 'member');
+    var rank = {owner:1, organizer:2, member:3, guest:4, archived:5};
+    return (rank[ar] || 9) - (rank[br] || 9) || String(a.name || '').localeCompare(String(b.name || ''));
+  });
+
+  var activeMembers = allMembers.filter(isActiveMember);
+  var archivedMembers = allMembers.filter(function(m){ return !isActiveMember(m); });
+  var organizers = activeMembers.filter(function(m){
+    var role = normalizeRole(m.role || 'member');
+    return role === 'owner' || role === 'organizer';
+  });
+
+  var multi = activeMembers.filter(function(m){
+    var count = 0;
+    Object.keys(FLOCKS || {}).forEach(function(fid){
+      var f = FLOCKS[fid];
+      if (f && f.members && f.members[m.id] && !f.members[m.id].deleted_at) count++;
+    });
+    m._flock_count = count;
+    return count > 1;
+  });
+
+  var gatherings = (flock.gatherings || DATA.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+  var activeGatherings = gatherings.filter(function(g){ return g.status !== 'completed' && g.status !== 'archived'; });
+  var recentActivity = (flock.activity || DATA.activity || []).slice(0, 6);
+
+  return {
+    flock: flock,
+    all_members: allMembers,
+    active_members: activeMembers,
+    archived_members: archivedMembers,
+    organizers: organizers,
+    multi_flock_members: multi,
+    gatherings: gatherings,
+    active_gatherings: activeGatherings,
+    recent_activity: recentActivity
+  };
+}
+
+function renderMemberRowForFamily(m, opts) {
+  opts = opts || {};
+  var name = escapeHtml(m.name || 'Unknown member');
+  var location = escapeHtml(m.location || 'Location not set');
+  var status = getMemberDisplayStatus(m);
+  var muted = !isActiveMember(m);
+  var flockCount = m._flock_count && m._flock_count > 1 ? '<span style="font-size:10px;font-weight:800;color:var(--brand);background:#ede8ff;padding:3px 7px;border-radius:20px">' + m._flock_count + ' flocks</span>' : '';
+  return '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);opacity:' + (muted ? '.65' : '1') + '">' +
+    makeAv(m.animal || 'bear', 40) +
+    '<div style="flex:1;min-width:0">' +
+      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:14px;font-weight:800;color:var(--text1)">' + name + '</span>' + (m.id === DATA.me.id ? '<span style="font-size:10px;color:var(--text3);font-weight:800">you</span>' : '') + flockCount + '</div>' +
+      '<div style="font-size:11px;color:var(--text2);margin-top:1px">' + location + ' · ' + escapeHtml(status) + '</div>' +
+    '</div>' +
+    getRoleBadgeHtml(m.role || 'member') +
+  '</div>';
+}
+
 function renderFlockPage() {
   var el = document.getElementById('flock-page-content');
   if (!el) return;
-  var flock = FLOCKS[currentFlockId];
-  if (!flock) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)"><div style="font-size:48px;margin-bottom:12px">👥</div><div style="font-size:14px;font-weight:700">No flock yet</div></div>';
-    return;
-  }
 
-  var allMembers = flock.members ? Object.values(flock.members) : [];
-  var memberCount = allMembers.length;
-
-  // Invite code card
-  var inviteHtml =
-    '<div style="background:linear-gradient(135deg,#3D2B6E 0%,#5a3fb8 100%);border-radius:16px;padding:18px;margin-bottom:16px;color:#fff">' +
-      '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:rgba(240,192,48,.9);text-transform:uppercase;margin-bottom:8px">Invite code</div>' +
-      '<div style="display:flex;align-items:center;gap:12px">' +
-        '<div style="font-size:28px;font-weight:300;letter-spacing:.15em;font-family:monospace;flex:1">' + (flock.inviteCode || '---') + '</div>' +
-        '<button id="flock-copy-code" style="padding:8px 16px;border-radius:10px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Copy</button>' +
-        '<button id="flock-share-code" style="padding:8px 16px;border-radius:10px;background:var(--gold);border:none;color:#1E1433;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Share</button>' +
-      '</div>' +
-      '<div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:8px">Share this code with family members so they can join your flock</div>' +
-    '</div>';
-
-  // Members list
-  var membersHtml = '<div class="card" style="padding:0;overflow:hidden">';
-  allMembers.forEach(function(m, i){
-    var isMe = m.id === DATA.me.id;
-    var role = m.role || 'member';
-    var roleBadge = normalizeRole(role) === 'owner' ? '<span style="background:var(--gold);color:#1E1433;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Owner</span>'
-                  : normalizeRole(role) === 'organizer' ? '<span style="background:#ede8ff;color:var(--brand);font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Organizer</span>'
-                  : '';
-    membersHtml += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px' + (i < allMembers.length - 1 ? ';border-bottom:1px solid var(--border)' : '') + '">' +
-      makeAv(m.animal||'bear', 38) +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:14px;font-weight:700;color:var(--text1)">' + escapeHtml(m.name) + (isMe ? ' <span style="color:var(--text3);font-weight:500">(you)</span>' : '') + '</div>' +
-        '<div style="font-size:11px;color:var(--text3)">' + (m.location||'') + '</div>' +
-      '</div>' +
-      roleBadge +
-    '</div>';
-  });
-  membersHtml += '</div>';
-
-  // Flock stats
-  var gatheringCount = DATA.gatherings.length;
-  var ideaCount = DATA.ideas.length;
-  var statsHtml =
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">' +
-      '<div class="card" style="margin:0;text-align:center;padding:14px 8px"><div style="font-size:22px;font-weight:300;color:var(--brand)">' + memberCount + '</div><div style="font-size:11px;font-weight:700;color:var(--text2)">Members</div></div>' +
-      '<div class="card" style="margin:0;text-align:center;padding:14px 8px"><div style="font-size:22px;font-weight:300;color:var(--brand)">' + gatheringCount + '</div><div style="font-size:11px;font-weight:700;color:var(--text2)">Gatherings</div></div>' +
-      '<div class="card" style="margin:0;text-align:center;padding:14px 8px"><div style="font-size:22px;font-weight:300;color:var(--brand)">' + ideaCount + '</div><div style="font-size:11px;font-weight:700;color:var(--text2)">Ideas</div></div>' +
-    '</div>';
-
-  // Admin button
-  var adminHtml = isFlockAdmin()
-    ? '<button id="flock-admin-btn" style="width:100%;padding:13px;border-radius:14px;background:var(--surface);border:1.5px solid var(--brand);color:var(--brand);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:12px">🛡️ Flock Organizer</button>'
-    : '';
-
-  // Flock switcher
-  var flockKeys = Object.keys(FLOCKS);
-  var switcherHtml = '';
-  if (flockKeys.length > 1) {
-    switcherHtml = '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:16px">Your flocks</div>';
-    flockKeys.forEach(function(fId){
-      var f = FLOCKS[fId];
-      var isCurrent = fId === currentFlockId;
-      switcherHtml += '<div class="flock-switch-row" data-fid="' + fId + '" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:' + (isCurrent ? '#ede8ff' : 'var(--surface)') + ';border:1.5px solid ' + (isCurrent ? 'var(--brand)' : 'var(--border)') + ';border-radius:12px;margin-bottom:6px;cursor:pointer">' +
-        '<div style="font-size:20px">' + (f.emoji === 'HOME' ? '🏠' : (f.emoji || '👥')) + '</div>' +
-        '<div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--text1)">' + escapeHtml(f.name) + '</div>' +
-        '<div style="font-size:11px;color:var(--text3)">' + (f.memberIds ? f.memberIds.length : 0) + ' members</div></div>' +
-        (isCurrent ? '<span style="font-size:10px;font-weight:800;color:var(--brand)">Active</span>' : '') +
-      '</div>';
-    });
-  }
-
-  el.innerHTML = inviteHtml + statsHtml +
-    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + memberCount + ')</div>' +
-    membersHtml + '<div style="height:12px"></div>' +
-    adminHtml + switcherHtml;
-
-  // Wire buttons
-  var copyBtn = document.getElementById('flock-copy-code');
-  if (copyBtn) copyBtn.addEventListener('click', function(){
-    if (navigator.clipboard) navigator.clipboard.writeText(flock.inviteCode || '');
-    toast('Invite code copied!');
-  });
-
-  var shareBtn = document.getElementById('flock-share-code');
-  if (shareBtn) shareBtn.addEventListener('click', function(){
-    var text = 'Join ' + flock.name + ' on Kinverly!\n\nInvite code: ' + (flock.inviteCode || '') + '\n\nOpen the app and tap "I have an invite code" to join.';
-    if (navigator.share) {
-      navigator.share({ title: 'Join ' + flock.name, text: text }).catch(function(){});
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      toast('Invite copied to clipboard!');
+  try {
+    var state = deriveFamilyState(currentFlockId);
+    var flock = state.flock;
+    if (!flock) {
+      el.innerHTML = '<div class="card" style="text-align:center;padding:34px 20px"><div style="font-size:44px;margin-bottom:8px">👥</div><div style="font-size:16px;font-weight:900;color:var(--text1)">No family space yet</div><div style="font-size:13px;color:var(--text2);margin-top:4px">Create or join a flock to start planning together.</div></div>';
+      return;
     }
-  });
 
-  var adminBtn = document.getElementById('flock-admin-btn');
-  if (adminBtn) adminBtn.addEventListener('click', openAdminPanel);
+    var activeCount = state.active_members.length;
+    var archivedCount = state.archived_members.length;
+    var gatheringCount = state.gatherings.length;
+    var activeGatheringCount = state.active_gatherings.length;
+    var organizerCount = state.organizers.length;
 
-  // Wire flock switcher
-  el.querySelectorAll('.flock-switch-row').forEach(function(row){
-    row.addEventListener('click', function(){
-      var fId = row.dataset.fid;
-      if (fId && fId !== currentFlockId) {
-        switchToFlock(fId);
-        renderFlockPage();
-      }
+    var heroHtml =
+      '<div style="background:linear-gradient(135deg,#3D2B6E 0%,#5C4299 100%);border-radius:20px;padding:18px;margin-bottom:14px;color:#fff;overflow:hidden;position:relative">' +
+        '<div style="font-size:11px;font-weight:900;letter-spacing:.09em;color:rgba(240,192,48,.9);text-transform:uppercase;margin-bottom:6px">Family hub</div>' +
+        '<div style="font-family:\'Fredoka One\',cursive;font-size:24px;line-height:1.15;margin-bottom:4px">' + escapeHtml(flock.name || 'Family Space') + '</div>' +
+        '<div style="font-size:13px;color:rgba(255,255,255,.68);line-height:1.45">Members, organizers, invite code, and family history all in one place.</div>' +
+      '</div>';
+
+    var statsHtml =
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px">' +
+        '<div class="card" style="margin:0;text-align:center;padding:12px 6px"><div style="font-size:21px;font-weight:300;color:var(--brand)">' + activeCount + '</div><div style="font-size:10px;font-weight:800;color:var(--text2)">Active</div></div>' +
+        '<div class="card" style="margin:0;text-align:center;padding:12px 6px"><div style="font-size:21px;font-weight:300;color:var(--brand)">' + organizerCount + '</div><div style="font-size:10px;font-weight:800;color:var(--text2)">Organizers</div></div>' +
+        '<div class="card" style="margin:0;text-align:center;padding:12px 6px"><div style="font-size:21px;font-weight:300;color:var(--brand)">' + activeGatheringCount + '</div><div style="font-size:10px;font-weight:800;color:var(--text2)">Planning</div></div>' +
+        '<div class="card" style="margin:0;text-align:center;padding:12px 6px"><div style="font-size:21px;font-weight:300;color:var(--brand)">' + archivedCount + '</div><div style="font-size:10px;font-weight:800;color:var(--text2)">Removed</div></div>' +
+      '</div>';
+
+    var inviteHtml =
+      '<div class="card" style="margin-bottom:14px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">' +
+          '<div><div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Invite code</div><div style="font-size:12px;color:var(--text2);margin-top:2px">Share this with family members.</div></div>' +
+          '<div style="font-family:monospace;font-size:20px;font-weight:900;color:var(--brand);letter-spacing:.12em">' + escapeHtml(flock.inviteCode || '---') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="flock-copy-code" class="btn-secondary" style="margin:0;flex:1;padding:10px">Copy code</button>' +
+          '<button id="flock-share-code" class="btn-primary" style="margin:0;flex:1;padding:10px">Share invite</button>' +
+        '</div>' +
+      '</div>';
+
+    var organizersHtml = '<div class="section-title">Organizers</div>' +
+      '<div class="card" style="padding:0;overflow:hidden">' +
+      (state.organizers.length ? state.organizers.map(renderMemberRowForFamily).join('') : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700">No organizers assigned yet.</div>') +
+      '</div>';
+
+    var activeHtml = '<div class="section-title">Active family members (' + activeCount + ')</div>' +
+      '<div class="card" style="padding:0;overflow:hidden">' +
+      (state.active_members.length ? state.active_members.map(renderMemberRowForFamily).join('') : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700">No active members yet.</div>') +
+      '</div>';
+
+    var multiHtml = '';
+    if (state.multi_flock_members.length) {
+      multiHtml = '<div class="section-title">In multiple flocks</div>' +
+        '<div class="card" style="padding:0;overflow:hidden">' + state.multi_flock_members.map(renderMemberRowForFamily).join('') + '</div>';
+    }
+
+    var archivedHtml = '';
+    if (state.archived_members.length) {
+      archivedHtml = '<div class="section-title">Removed / archived members</div>' +
+        '<div class="card" style="padding:0;overflow:hidden">' + state.archived_members.map(renderMemberRowForFamily).join('') + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);line-height:1.4;margin:-6px 2px 14px">Removed members stay here for history, exports, and past gathering records. They do not count in live availability or attendance totals.</div>';
+    }
+
+    var activityHtml = '<div class="section-title">Family timeline</div>';
+    if (state.recent_activity.length) {
+      activityHtml += '<div class="activity-feed" style="margin-bottom:14px">' + state.recent_activity.map(function(a){
+        return '<div class="activity-item"><div style="font-size:18px;width:24px;text-align:center">' + (a.icon || '✨') + '</div><div class="activity-text">' + (a.text || '') + '<div class="activity-time">' + escapeHtml(a.time || '') + '</div></div></div>';
+      }).join('') + '</div>';
+    } else {
+      activityHtml += '<div class="card" style="text-align:center;padding:22px;color:var(--text3);font-size:13px;font-weight:700">No family activity yet. Start by creating a gathering or inviting someone in.</div>';
+    }
+
+    var adminHtml = can('manage_flock')
+      ? '<button id="flock-admin-btn" class="btn-secondary" style="margin:0 0 14px;border-color:var(--brand);color:var(--brand)">🛡️ Flock Organizer</button>'
+      : '';
+
+    var switcherHtml = '';
+    var flockKeys = Object.keys(FLOCKS || {});
+    if (flockKeys.length > 1) {
+      switcherHtml = '<div class="section-title">Your flocks</div>';
+      flockKeys.forEach(function(fId){
+        var f = FLOCKS[fId];
+        if (!f) return;
+        var isCurrent = fId === currentFlockId;
+        var count = Object.keys(f.members || {}).filter(function(mid){ return isActiveMember(f.members[mid]); }).length;
+        switcherHtml += '<div class="flock-switch-row" data-fid="' + escapeHtml(fId) + '" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:' + (isCurrent ? '#ede8ff' : 'var(--surface)') + ';border:1.5px solid ' + (isCurrent ? 'var(--brand)' : 'var(--border)') + ';border-radius:12px;margin-bottom:7px;cursor:pointer">' +
+          '<div style="font-size:20px">' + (f.emoji === 'HOME' ? '🏠' : (f.emoji || '👥')) + '</div>' +
+          '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:var(--text1)">' + escapeHtml(f.name || 'Flock') + '</div><div style="font-size:11px;color:var(--text3)">' + count + ' active members</div></div>' +
+          (isCurrent ? '<span style="font-size:10px;font-weight:900;color:var(--brand)">Current</span>' : '') +
+        '</div>';
+      });
+    }
+
+    el.innerHTML = heroHtml + statsHtml + inviteHtml + adminHtml + organizersHtml + activeHtml + multiHtml + archivedHtml + activityHtml + switcherHtml;
+
+    var copyBtn = document.getElementById('flock-copy-code');
+    if (copyBtn) copyBtn.addEventListener('click', function(){
+      if (navigator.clipboard) navigator.clipboard.writeText(flock.inviteCode || '');
+      toast('Invite code copied');
     });
-  });
+
+    var shareBtn = document.getElementById('flock-share-code');
+    if (shareBtn) shareBtn.addEventListener('click', function(){
+      var text = 'Join ' + (flock.name || 'my family') + ' on Kinverly!\n\nInvite code: ' + (flock.inviteCode || '') + '\n\nOpen the app and tap "I have an invite code" to join.';
+      if (navigator.share) navigator.share({ title:'Join ' + (flock.name || 'Kinverly'), text:text }).catch(function(){});
+      else if (navigator.clipboard) { navigator.clipboard.writeText(text); toast('Invite copied'); }
+    });
+
+    var adminBtn = document.getElementById('flock-admin-btn');
+    if (adminBtn) adminBtn.addEventListener('click', openAdminPanel);
+
+    el.querySelectorAll('.flock-switch-row').forEach(function(row){
+      row.addEventListener('click', function(){
+        var fId = row.dataset.fid;
+        if (fId && fId !== currentFlockId) {
+          switchToFlock(fId);
+          showPage('flock');
+          renderFlockPage();
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Family Space render failed', err);
+    el.innerHTML = '<div class="card" style="text-align:center;padding:28px 18px"><div style="font-size:38px;margin-bottom:8px">🛠️</div><div style="font-size:15px;font-weight:900;color:var(--text1)">Family Space needs a refresh</div><div style="font-size:13px;color:var(--text2);line-height:1.45;margin-top:5px">Something in this flock record is incomplete, so Kinverly protected the page instead of showing broken data.</div><button class="btn-primary" style="margin-top:14px" onclick="renderFlockPage()">Try again</button></div>';
+  }
 }
 
 // -- PROFILE -------------------------------------
