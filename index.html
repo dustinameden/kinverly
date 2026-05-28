@@ -3855,9 +3855,10 @@ function renderGatherings() {
   renderFlockSchedule();
 
   // Dynamic subtitle
-  var total = DATA.gatherings.length;
-  var active = DATA.gatherings.filter(function(g){ return g.status !== 'completed'; }).length;
-  var completed = DATA.gatherings.filter(function(g){ return g.status === 'completed'; }).length;
+  var liveGatherings = DATA.gatherings.filter(function(g){ return g && !g.deleted_at && g.status !== 'archived'; });
+  var total = liveGatherings.length;
+  var active = liveGatherings.filter(function(g){ return g.status !== 'completed'; }).length;
+  var completed = liveGatherings.filter(function(g){ return g.status === 'completed'; }).length;
   var subEl = document.getElementById('gatherings-subtitle');
   if (subEl) {
     if (total === 0) {
@@ -3890,6 +3891,7 @@ function renderGatheringsList() {
   list.innerHTML = '';
 
   var filtered = DATA.gatherings.filter(function(g){
+    if (g.deleted_at || g.status === 'archived') return false;
     if (_gatheringsFilter === 'active') return g.status !== 'completed';
     if (_gatheringsFilter === 'completed') return g.status === 'completed';
     return true;
@@ -6737,7 +6739,10 @@ function normalizeGatheringForExport(g) {
     deleted_at: g.deleted_at || null,
     flock_id: getNumericFlockIdForExport(),
     title: g.name || g.title || '',
-    status: g.status || '',
+    status: (g.deleted_at || g.status === 'archived') ? 'archived' : (g.status || ''),
+    lifecycle_status: g.status || '',
+    archived: !!(g.deleted_at || g.status === 'archived'),
+    archived_at: g.archived_at || g.deleted_at || '',
     type: g.type || '',
     location: g.location || '',
     month: g.month || '',
@@ -6796,7 +6801,13 @@ function normalizeGatheringForExport(g) {
 function buildExportPayload(scope, gatheringId) {
   var flock = FLOCKS[currentFlockId] || {};
   var gatherings = (DATA.gatherings || []).slice();
-  if (scope === 'one' && gatheringId) gatherings = gatherings.filter(function(g){ return g.id === gatheringId; });
+  if (scope === 'one' && gatheringId) {
+    gatherings = gatherings.filter(function(g){ return g.id === gatheringId; });
+  } else {
+    // A "Save all" export should reflect the LIVE flock: archived (soft-deleted)
+    // gatherings are not active and must not be reported as such.
+    gatherings = gatherings.filter(function(g){ return g && !g.deleted_at && g.status !== 'archived'; });
+  }
 
   return {
     exportedAt: nowISO(),
@@ -11564,16 +11575,22 @@ try {
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
       var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
       if (idx >= 0) {
-        var beforeDelete = safeCloneForEvent(DATA.gatherings[idx]);
-        applySoftDelete(DATA.gatherings[idx], 'Deleted from edit sheet');
-        recordEvent('gathering.deleted', 'gathering', DATA.gatherings[idx].id, beforeDelete, DATA.gatherings[idx], 'Deleted gathering ' + (DATA.gatherings[idx].name || ''), '🗑️');
+        var gObj = DATA.gatherings[idx];
+        var beforeDelete = safeCloneForEvent(gObj);
+        applySoftDelete(gObj, 'Archived from edit sheet');
+        gObj.status = 'archived';
+        gObj.archived_at = nowISO();
+        recordEvent('gathering.archived', 'gathering', gObj.id, beforeDelete, gObj, 'Archived gathering ' + (gObj.name || ''), '🗄️');
+        if (typeof logActivity === 'function') logActivity(DATA.me.id, 'archived <strong>' + escapeHtml(gObj.name || 'a gathering') + '</strong>', '🗄️');
+        // Drop it from the live list so it leaves active views + exports at once.
+        DATA.gatherings.splice(idx, 1);
       }
       saveFlockState();
       document.getElementById('gather-edit-overlay').classList.add('hidden');
       showPage('gatherings');
       renderGatherings();
       renderHome();
-      toast('Gathering deleted');
+      toast('Gathering archived');
     });
 
     // Wire save
