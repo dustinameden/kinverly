@@ -2018,7 +2018,7 @@ img,svg{display:block}
 
       <div class="avail-review-section-title">3. Confirm for this gathering</div>
       <div class="avail-review-note">These answers only update this gathering. Your unavailable times stay saved in My Calendar.</div>
-      <button type="button" class="btn-primary" id="avail-submit" style="margin-top:4px">Confirm availability</button>
+      <button type="button" class="btn-primary" id="avail-submit" onclick="if(window.confirmAvailabilityReview){window.confirmAvailabilityReview();}" style="margin-top:4px">Confirm availability</button>
       <button class="avail-link-btn" id="avail-manage-calendar">Manage full calendar in My World</button>
     </div>
   </div>
@@ -2198,10 +2198,71 @@ function getAllFlockMembersForHistory() {
   return [DATA.me].concat(DATA.members || []).filter(Boolean);
 }
 
+function getMemberIdentityKeys(memberOrId) {
+  var keys = [];
+  function add(v) {
+    if (v === undefined || v === null || v === '') return;
+    var sv = String(v);
+    if (keys.indexOf(v) < 0) keys.push(v);
+    if (keys.indexOf(sv) < 0) keys.push(sv);
+  }
+  if (memberOrId && typeof memberOrId === 'object') {
+    add(memberOrId.id);
+    add(memberOrId.member_id);
+    add(memberOrId.legacy_id);
+    add(memberOrId.user_id);
+    add(memberOrId.uid);
+    add(memberOrId.firebase_uid);
+    add(memberOrId.profile_id);
+  } else {
+    add(memberOrId);
+  }
+  return keys;
+}
+
+function getCurrentMemberRecord() {
+  var active = (typeof getActiveFlockMembers === 'function') ? getActiveFlockMembers() : [];
+  var me = DATA && DATA.me ? DATA.me : {};
+  var meKeys = getMemberIdentityKeys(me).map(String);
+
+  var found = active.find(function(m){
+    return getMemberIdentityKeys(m).some(function(k){ return meKeys.indexOf(String(k)) >= 0; });
+  });
+  if (found) return found;
+
+  // Legacy fallback: older local profiles sometimes only match by name.
+  if (me.name) {
+    var nm = String(me.name).trim().toLowerCase();
+    found = active.find(function(m){ return String(m.name || '').trim().toLowerCase() === nm; });
+    if (found) return found;
+  }
+
+  return me;
+}
+
+function getCurrentMemberId() {
+  var rec = getCurrentMemberRecord() || DATA.me || {};
+  return rec.id !== undefined && rec.id !== null ? rec.id : DATA.me.id;
+}
+
 function getRsvpForMember(gatheringId, memberId) {
   if (!gatheringId || memberId === undefined || memberId === null) return null;
   var bucket = (typeof rsvpData !== 'undefined' && rsvpData && rsvpData[gatheringId]) || {};
-  return bucket[memberId] || bucket[String(memberId)] || null;
+  var keys = getMemberIdentityKeys(memberId);
+
+  // If we were passed a numeric canonical id, also compare against the active member record
+  // so legacy RSVP entries keyed by old string ids still resolve.
+  var active = (typeof getActiveFlockMembers === 'function') ? getActiveFlockMembers() : [];
+  var member = active.find(function(m){
+    return getMemberIdentityKeys(m).some(function(k){ return String(k) === String(memberId); });
+  });
+  if (member) keys = keys.concat(getMemberIdentityKeys(member));
+
+  for (var i = 0; i < keys.length; i++) {
+    if (bucket[keys[i]]) return bucket[keys[i]];
+    if (bucket[String(keys[i])]) return bucket[String(keys[i])];
+  }
+  return null;
 }
 
 function getProposedDateWindows(g) {
@@ -3466,7 +3527,7 @@ function renderHome() {
   // Check for availability not submitted on planning gatherings
   (DATA.gatherings||[]).forEach(function(g){
     if (g.status !== 'planning') return;
-    var myR = rsvpData[g.id] && rsvpData[g.id][DATA.me.id];
+    var myR = getRsvpForMember(g.id, getCurrentMemberId());
     if (!myR || !myR.availSubmitted) {
       todos.push({icon:'📅', text:'Share your dates for <strong>'+escapeHtml(g.name)+'</strong>', action:'detail', gId:g.id, priority:1});
     }
@@ -4079,7 +4140,7 @@ function buildPlanningTab(g) {
 
   var steps = '';
   if (planningMode) {
-    steps += step(1, 'Share blackout dates', availSubmitted + '/' + totalMembers + ' submitted availability', availSubmitted ? 'done' : 'active');
+    steps += step(1, 'Review availability', availSubmitted + '/' + totalMembers + ' confirmed availability', availSubmitted ? 'done' : 'active');
     steps += step(2, 'Choose final dates', hasFinalDates ? getGatheringDateDisplay(g) : 'Use the recommended window below', availSubmitted ? 'active' : '');
     steps += step(3, 'Confirm attendance', 'RSVP opens once dates are finalized', '');
     steps += step(4, 'Plan who brings what', taskCount ? taskCount + ' open task' + (taskCount === 1 ? '' : 's') : 'No open tasks yet', '');
@@ -4740,7 +4801,7 @@ function renderDateWindowPanel(g, panel) {
     '<button class="dw-avail-btn" id="dw-avail-btn-' + g.id + '">' +
       (getRsvpForMember(g.id, DATA.me.id) && getRsvpForMember(g.id, DATA.me.id).availSubmitted
         ? '✏️ Update my availability'
-        : '📅 Share my availability') +
+        : '📅 Review my availability') +
     '</button>' +
 
     '</div>';
@@ -4836,7 +4897,7 @@ function wireDetailButtons(g) {
   // Wire beach availability button
   var availBtn = document.getElementById('open-avail-btn');
   if (availBtn) {
-    availBtn.addEventListener('click', function(){ openAvailModal(); });
+    availBtn.addEventListener('click', function(){ openAvailModal(g); });
   }
 
   // Wire RSVP button
@@ -5882,9 +5943,19 @@ if (availManageCalendarBtn) availManageCalendarBtn.addEventListener('click', fun
   }, 150);
 });
 function confirmAvailabilityReview() {
+  if (window._availabilityConfirming) return;
+  window._availabilityConfirming = true;
+  setTimeout(function(){ window._availabilityConfirming = false; }, 700);
   var g = window._availGathering || window._currentDetailGathering || null;
   if (!g || !g.id) {
     toast('Open a gathering first, then review availability.');
+    return;
+  }
+
+  var currentMember = getCurrentMemberRecord();
+  var memberId = getCurrentMemberId();
+  if (memberId === undefined || memberId === null || memberId === '') {
+    toast('Could not identify your member profile.');
     return;
   }
 
@@ -5894,42 +5965,70 @@ function confirmAvailabilityReview() {
   });
 
   if (!rsvpData[g.id]) rsvpData[g.id] = {};
-  if (!rsvpData[g.id][DATA.me.id]) rsvpData[g.id][DATA.me.id] = { status: 'yes' };
 
   var stamp = nowISO();
   var blocked = Object.keys(blockedDates).filter(function(k){ return blockedDates[k]; });
-  var mine = rsvpData[g.id][DATA.me.id];
+  var existing = getRsvpForMember(g.id, memberId) || getRsvpForMember(g.id, DATA.me.id) || { status: 'yes' };
+  var mine = Object.assign({}, existing);
+  mine.id = memberId;
+  mine.member_id = memberId;
   mine.status = mine.status || 'yes';
   mine.blockedDates = blocked;
+  mine.blocked_dates = blocked;
   mine.windowAnswers = Object.assign({}, availabilityWindowAnswers);
   mine.window_answers = Object.assign({}, availabilityWindowAnswers);
   mine.availSubmitted = true;
+  mine.availability_submitted = true;
   mine.availability_reviewed_at = stamp;
   mine.updated_at = stamp;
+  if (!mine.created_at) mine.created_at = stamp;
+
+  // Save under the canonical numeric member id. Also keep legacy aliases so older UI
+  // paths and older Firebase records do not appear disconnected.
+  var identityKeys = getMemberIdentityKeys(currentMember).concat(getMemberIdentityKeys(DATA.me));
+  identityKeys.push(memberId);
+  identityKeys.forEach(function(k){
+    if (k === undefined || k === null || k === '') return;
+    rsvpData[g.id][k] = mine;
+    rsvpData[g.id][String(k)] = mine;
+  });
 
   if (!Array.isArray(g.responses)) g.responses = [];
-  var resp = g.responses.find(function(r){ return String(r.id) === String(DATA.me.id); });
+  var resp = g.responses.find(function(r){
+    return getMemberIdentityKeys(r).some(function(k){ return identityKeys.map(String).indexOf(String(k)) >= 0; });
+  });
   if (resp) {
+    resp.id = memberId;
+    resp.member_id = memberId;
     resp.status = 'responded';
     resp.availSubmitted = true;
+    resp.availability_submitted = true;
     resp.updated_at = stamp;
   } else {
-    g.responses.push({ id: DATA.me.id, status: 'responded', availSubmitted: true, created_at: stamp, updated_at: stamp, deleted_at: null });
+    g.responses.push({ id: memberId, member_id: memberId, status: 'responded', availSubmitted: true, availability_submitted: true, created_at: stamp, updated_at: stamp, deleted_at: null });
   }
   touchEntity(g);
 
-  logActivity(DATA.me.id, 'reviewed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
+  logActivity(memberId, 'confirmed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
   if (typeof recordEvent === 'function') {
-    recordEvent('availability.reviewed', 'gathering', g.id, null, {
+    recordEvent('availability.confirmed', 'gathering', g.id, null, {
       gathering_id: g.id,
-      member_id: DATA.me.id,
+      member_id: memberId,
       blocked_dates: blocked,
       window_answers: Object.assign({}, availabilityWindowAnswers)
     });
   }
 
   saveLocal();
-  pushToFirebase();
+  if (typeof saveFlockState === 'function') saveFlockState();
+  if (typeof pushToFirebase === 'function') {
+    try {
+      var maybePromise = pushToFirebase();
+      if (maybePromise && typeof maybePromise.catch === 'function') maybePromise.catch(function(err){ console.warn('Availability sync failed', err); });
+    } catch (err) {
+      console.warn('Availability sync failed', err);
+    }
+  }
 
   var ov = document.getElementById('avail-overlay');
   if (ov) ov.classList.add('hidden');
@@ -5941,8 +6040,10 @@ function confirmAvailabilityReview() {
   if (panel) renderDateWindowPanel(g, panel);
   if (typeof renderGatheringDetail === 'function') renderGatheringDetail(g);
   if (typeof renderHome === 'function') renderHome();
+  if (typeof renderMyWorld === 'function') renderMyWorld();
 }
 
+window.confirmAvailabilityReview = confirmAvailabilityReview;
 var availSubmitEl = document.getElementById('avail-submit');
 if (availSubmitEl) availSubmitEl.addEventListener('click', function(e){
   e.preventDefault();
