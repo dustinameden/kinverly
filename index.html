@@ -4807,20 +4807,26 @@ function openAdminPanel() {
 
     // Remove
     body.querySelectorAll('.admin-remove').forEach(function(btn){
-      btn.addEventListener('click', function(e){
+      btn.addEventListener('click', async function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
         var memberName = (flock.members[mid]||{}).name || 'this member';
         if (confirm('Remove ' + memberName + ' from the flock?')) {
           btn.disabled = true;
-          var name = await removeMemberFromFlock(mid);
-          logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(name) + '</strong> from the flock', '🚫');
-          await syncFlockToFirebase();
-          openAdminPanel();
-          renderHome();
-          renderGatherings();
-          renderFlockPage();
-          toast(name + ' removed');
+          try {
+            var name = await removeMemberFromFlock(mid);
+            logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(name) + '</strong> from the flock', '🚫');
+            await syncFlockToFirebase();
+            openAdminPanel();
+            renderHome();
+            renderGatherings();
+            renderFlockPage();
+            toast(name + ' removed');
+          } catch (err) {
+            console.error('Failed to remove member', err);
+            toast('Could not remove member. Try again.');
+            btn.disabled = false;
+          }
         }
       });
     });
