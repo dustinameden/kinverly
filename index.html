@@ -659,6 +659,21 @@ img,svg{display:block}
 .leg-dot.avail{background:#ede8ff;border:1.5px solid var(--brand)}
 .leg-dot.blocked{background:var(--red-bg);border:1.5px solid var(--red)}
 
+.avail-review-card{
+  background:var(--surface2);border:1px solid var(--border);border-radius:14px;
+  padding:12px 14px;margin-bottom:12px;
+}
+.avail-review-title{font-size:13px;font-weight:900;color:var(--text1);margin-bottom:4px}
+.avail-review-sub{font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:8px}
+.avail-conflict-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.avail-conflict-row{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text1);font-weight:700;line-height:1.35}
+.avail-conflict-row span{color:var(--text2);font-weight:600}
+.avail-mini-btn{
+  width:100%;padding:10px 12px;border-radius:12px;background:#fff;color:var(--brand);
+  border:1.5px solid var(--border);font-size:13px;font-weight:900;cursor:pointer;margin-top:8px;
+}
+.avail-link-btn{width:100%;border:none;background:transparent;color:var(--text2);font-size:12px;font-weight:800;text-decoration:underline;text-underline-offset:3px;margin-top:10px;cursor:pointer}
+
 /* ═══════════════════════════════════════════════
    LOGIN SCREEN
 ═══════════════════════════════════════════════ */
@@ -1962,18 +1977,25 @@ img,svg{display:block}
 <div class="overlay hidden" id="avail-overlay">
   <div class="sheet">
     <div class="sheet-header">
-      <div class="sheet-title">Your availability</div>
+      <div class="sheet-title">Review my availability</div>
       <button class="sheet-close" id="avail-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="sheet-body">
-      <div id="avail-gathering-label" style="font-size:13px;color:var(--text2);margin-bottom:4px;font-weight:600"></div>
-      <div style="font-size:14px;color:var(--text1);font-weight:700;margin-bottom:14px">Tap the dates you <u>can't</u> make it</div>
+      <div id="avail-gathering-label" style="font-size:13px;color:var(--text2);margin-bottom:8px;font-weight:700"></div>
+      <div class="avail-review-card">
+        <div class="avail-review-title">Your availability check</div>
+        <div class="avail-review-sub">Kinverly uses your My Calendar unavailable dates first. Review them here, make quick changes, then confirm for this gathering.</div>
+        <div id="avail-conflicts"></div>
+        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add another unavailable date</button>
+      </div>
+      <div style="font-size:13px;color:var(--text1);font-weight:800;margin:10px 0 8px">Tap dates below only if you need to adjust this gathering.</div>
       <div id="cal-content"></div>
       <div class="cal-legend">
-        <div class="leg-item"><div class="leg-dot avail"></div>Available</div>
-        <div class="leg-item"><div class="leg-dot blocked"></div>Can't make it</div>
+        <div class="leg-item"><div class="leg-dot avail"></div>Works for me</div>
+        <div class="leg-item"><div class="leg-dot blocked"></div>Unavailable</div>
       </div>
-      <button class="btn-primary" id="avail-submit" style="margin-top:16px">Submit my availability</button>
+      <button class="btn-primary" id="avail-submit" style="margin-top:16px">Confirm availability</button>
+      <button class="avail-link-btn" id="avail-manage-calendar">Manage full calendar in My World</button>
     </div>
   </div>
 </div>
@@ -3022,10 +3044,10 @@ function renderMyWorldCalendar() {
   var dim = new Date(y, m + 1, 0).getDate();
   var html = '<div class="mw-cal-card">' +
     '<div class="mw-cal-head"><div><div class="mw-cal-title">My calendar</div>' +
-    '<div class="mw-cal-sub">Your blackouts, confirmed gatherings, and possible dates across every flock.</div></div>' +
+    '<div class="mw-cal-sub">Your unavailable dates, personal plans, confirmed gatherings, and possible dates across every flock.</div></div>' +
     '<div class="mw-cal-nav"><button class="mw-cal-btn" id="mw-cal-prev">‹</button><div class="mw-cal-month">' + escapeHtml(monthName) + '</div><button class="mw-cal-btn" id="mw-cal-next">›</button></div></div>' +
     '<div class="mw-cal-legend">' +
-      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot blackout"></span>Blackout</span>' +
+      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot blackout"></span>Unavailable</span>' +
       '<span class="mw-cal-leg"><span class="mw-cal-leg-dot personal"></span>Personal</span>' +
       '<span class="mw-cal-leg"><span class="mw-cal-leg-dot confirmed"></span>Gathering</span>' +
       '<span class="mw-cal-leg"><span class="mw-cal-leg-dot recommended"></span>Recommended</span>' +
@@ -3045,9 +3067,9 @@ function renderMyWorldCalendar() {
     html += '</div>';
   }
   html += '</div><div id="mw-cal-details">' + renderMyWorldCalendarDetails(myWorldCalendarState.selectedKey, events) + '</div>' +
-    '<div class="mw-cal-actions"><button class="mw-cal-action-btn blackout" id="mw-cal-add-blackout">+ Blackout</button><button class="mw-cal-action-btn" id="mw-cal-add-event">+ Personal event</button></div>' +
-    '<button class="mw-cal-cta" id="mw-cal-share">Use these blackouts for a gathering</button>' +
-    '<div class="mw-cal-note">Blackouts you add here prefill the gathering blackout-date screen. You still confirm them inside each gathering before submitting availability.</div>' +
+    '<div class="mw-cal-actions"><button class="mw-cal-action-btn blackout" id="mw-cal-add-blackout">+ Unavailable</button><button class="mw-cal-action-btn" id="mw-cal-add-event">+ Personal event</button></div>' +
+    '<button class="mw-cal-cta" id="mw-cal-share">Use availability for a gathering</button>' +
+    '<div class="mw-cal-note">Unavailable dates you add here prefill each gathering availability check. You still confirm before sharing them with the flock.</div>' +
     '</div>';
   return html;
 }
@@ -5100,12 +5122,12 @@ function buildBeachDetail(g) {
   buildDecisionCard(g)+
   '<div class="collab-box">'+
     '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
-    '<div><div class="collab-title">Share your availability</div><div class="collab-sub">Updates live as active members respond.</div></div>'+
+    '<div><div class="collab-title">Review your availability</div><div class="collab-sub">My Calendar checks your unavailable dates first. Confirm them here for this gathering.</div></div>'+
   '</div>'+
-  '<div class="section-title">Mark your availability</div>'+
+  '<div class="section-title">Availability check</div>'+
   '<button class="btn-primary" id="open-avail-btn" style="margin-bottom:12px">'+
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
-    'Submit my blackout dates'+
+    'Review my availability'+
   '</button>'+
   '<div class="section-title">Responses</div>'+
   '<div class="card"><div>'+responseRows+'</div></div>'+
@@ -5643,10 +5665,55 @@ function openAvailModal(g) {
   }
   // Update sheet title
   var lbl = document.getElementById('avail-gathering-label');
-  if (lbl && ag) lbl.textContent = ag.name + (ag.month && ag.month!=='TBD' ? ' · ' + ag.month + (ag.day?' '+ag.day:'') : '');
+  if (lbl && ag) lbl.textContent = (ag.name || 'Gathering') + ' · Availability check';
+  renderAvailabilityReviewSummary(ag);
   buildCalendar(ag);
   document.getElementById('avail-overlay').classList.remove('hidden');
   setTimeout(function(){ var ao=document.getElementById('avail-overlay'); if(ao) ao.scrollTop=0; },50);
+}
+
+function formatPersonalEventDateRange(ev) {
+  if (!ev) return '';
+  var start = ev.start_date || '';
+  var end = ev.end_date || start;
+  if (!start) return 'Date TBD';
+  if (end && end !== start) return start + ' → ' + end;
+  return start;
+}
+function getPersonalUnavailableEventsForGathering(g) {
+  return getMemberPersonalCalendarEventsAcrossFlocks().filter(function(ev){
+    return ev && !ev.deleted_at && ev.is_blackout;
+  }).sort(function(a,b){ return String(a.start_date || '').localeCompare(String(b.start_date || '')); });
+}
+function renderAvailabilityReviewSummary(g) {
+  var box = document.getElementById('avail-conflicts');
+  if (!box) return;
+  var events = getPersonalUnavailableEventsForGathering(g);
+  if (!events.length) {
+    box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:0">No unavailable dates found in My Calendar yet. Add one here if something blocks this gathering.</div>';
+    return;
+  }
+  var rows = events.slice(0, 5).map(function(ev){
+    return '<div class="avail-conflict-row">🚫 <div>' + escapeHtml(formatPersonalEventDateRange(ev)) + '<br><span>' + escapeHtml(ev.title || 'Unavailable') + '</span></div></div>';
+  }).join('');
+  var more = events.length > 5 ? '<div class="avail-review-sub" style="margin:6px 0 0">+' + (events.length - 5) + ' more in My Calendar</div>' : '';
+  box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:2px">Found ' + events.length + ' unavailable calendar item' + (events.length === 1 ? '' : 's') + ':</div><div class="avail-conflict-list">' + rows + '</div>' + more;
+}
+function addUnavailableFromAvailabilityModal() {
+  var g = window._availGathering || window._currentDetailGathering || null;
+  var start = promptDateKey(isoDateKey(new Date()), 'Unavailable start date (YYYY-MM-DD)');
+  if (!start) return;
+  var end = promptDateKey(start, 'Unavailable end date (YYYY-MM-DD)');
+  if (!end) return;
+  var title = prompt('What should we call this unavailable time?', 'Busy / unavailable');
+  if (title === null) return;
+  var ev = createPersonalCalendarEvent({ title: title || 'Busy / unavailable', start_date: start, end_date: end, event_type: 'blackout', is_blackout: true });
+  if (!ev) return;
+  var suggested = getPersonalBlackoutDateKeysForGathering(g);
+  Object.keys(suggested).forEach(function(k){ blockedDates[k] = true; });
+  renderAvailabilityReviewSummary(g);
+  buildCalendar(g);
+  toast('Unavailable date added to My Calendar');
 }
 
 function buildCalendar(g) {
@@ -5654,7 +5721,7 @@ function buildCalendar(g) {
   var MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var MFULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var MMAP   = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  var html = '<div class="mw-cal-note" style="margin-bottom:10px">My Calendar blackout dates are preselected here. Tap any date to adjust, then confirm for this gathering.</div>';
+  var html = '<div class="mw-cal-note" style="margin-bottom:10px">Your My Calendar unavailable dates are preselected. Changes here apply to this gathering when you confirm.</div>';
 
   // Compute month range from gathering or default to next 2 months
   var now = new Date();
@@ -5706,6 +5773,17 @@ document.getElementById('avail-close').addEventListener('click', function(){
 document.getElementById('avail-overlay').addEventListener('click', function(e){
   if (e.target === this) this.classList.add('hidden');
 });
+var availAddUnavailableBtn = document.getElementById('avail-add-unavailable');
+if (availAddUnavailableBtn) availAddUnavailableBtn.addEventListener('click', addUnavailableFromAvailabilityModal);
+var availManageCalendarBtn = document.getElementById('avail-manage-calendar');
+if (availManageCalendarBtn) availManageCalendarBtn.addEventListener('click', function(){
+  document.getElementById('avail-overlay').classList.add('hidden');
+  if (typeof showPage === 'function') showPage('myworld');
+  setTimeout(function(){
+    var cal = document.getElementById('myworld-calendar');
+    if (cal && cal.scrollIntoView) cal.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 150);
+});
 document.getElementById('avail-submit').addEventListener('click', function(){
   // Save to rsvpData under the current gathering
   var g = window._availGathering;
@@ -5724,7 +5802,7 @@ document.getElementById('avail-submit').addEventListener('click', function(){
   }
   document.getElementById('avail-overlay').classList.add('hidden');
   var count = Object.values(blockedDates).filter(Boolean).length;
-  toast(count===0 ? '\u2705 All dates work for you!' : '\ud83d\udcc5 '+count+' date'+(count>1?'s':'')+' blocked — saved!');
+  toast(count===0 ? '\u2705 Availability confirmed — all dates work for you!' : '\ud83d\udcc5 Availability confirmed with '+count+' unavailable date'+(count>1?'s':'')+'.');
   // Re-render date window panel
   if (g) {
     var panel = document.getElementById('date-window-panel-'+g.id);
