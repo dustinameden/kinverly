@@ -1052,6 +1052,23 @@ img,svg{display:block}
 .gtab{flex-shrink:0;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text2);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s;white-space:nowrap}
 .gtab.active{color:var(--brand);border-bottom-color:var(--brand)}
 
+/* ── SIMPLIFIED PLANNING TAB ─────────────────── */
+.planning-flow-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.planning-flow-title{font-size:15px;font-weight:900;color:var(--text1);margin-bottom:4px}
+.planning-flow-sub{font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:12px}
+.planning-steps{display:flex;flex-direction:column;gap:8px}
+.planning-step{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:11px;background:var(--surface2);border:1px solid transparent}
+.planning-step.done{background:var(--green-bg);border-color:rgba(59,138,74,.18)}
+.planning-step.active{background:#ede8ff;border-color:rgba(61,43,110,.18)}
+.planning-step-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:var(--surface);color:var(--text2);flex-shrink:0}
+.planning-step.done .planning-step-num{background:var(--green);color:#fff}
+.planning-step.active .planning-step-num{background:var(--brand);color:#fff}
+.planning-step-body{flex:1;min-width:0}
+.planning-step-title{font-size:12.5px;font-weight:900;color:var(--text1)}
+.planning-step-sub{font-size:11px;color:var(--text2);margin-top:1px}
+.planning-block{margin-top:16px}
+.planning-empty{padding:18px 14px;border-radius:12px;background:var(--surface2);color:var(--text2);font-size:13px;text-align:center;line-height:1.45}
+
 /* ── PHOTO ALBUM ─────────────────────────────── */
 .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:14px}
 .photo-thumb{aspect-ratio:1;overflow:hidden;border-radius:6px;cursor:pointer;position:relative;background:var(--surface2)}
@@ -2290,6 +2307,8 @@ function recordEvent(eventType, entityType, entityId, beforeValue, afterValue, s
     event_type: eventType || 'unknown',
     actor_member_id: actorNumericId || '',
     actor_member_name: DATA.me && DATA.me.name ? DATA.me.name : '',
+    actor_role: getCurrentRole(),
+    actor_role_label: getRoleLabel(getCurrentRole()),
     entity_type: entityType || 'unknown',
     entity_id: getNumericEntityIdForExport(entityType, entityId) || entityId || '',
     entity_name: getEntityDisplayName(entityType, afterValue || beforeValue),
@@ -2942,6 +2961,9 @@ function logActivity(memberId, text, icon) {
     flock_id: flock && typeof flock.id === 'number' ? flock.id : getNumericFlockIdForExport(),
     member_id: getNumericMemberIdForExport(memberId),
     member: memberId,
+    actor_role: getCurrentRole(),
+    actor_role_label: getRoleLabel(getCurrentRole()),
+    actor_display: formatActorLine(memberId),
     text: text,
     time: timeStr,
     icon: icon || '✨',
@@ -3681,10 +3703,10 @@ function renderDetail(g) {
   var chatCount = (g.chat||[]).length;
   var photoCount = (g.photos||[]).length;
 
+  var planningBadge = taskCount + pollCount;
   var tabDefs = [
     {id:'overview', label:'Overview'},
-    {id:'tasks',    label:'Tasks' + (taskCount ? ' · ' + taskCount : '')},
-    {id:'polls',    label:'Polls' + (pollCount ? ' · ' + pollCount : '')},
+    {id:'planning', label:(g.status === 'planning' ? 'Planning' : 'Plans') + (planningBadge ? ' · ' + planningBadge : '')},
     {id:'chat',     label:'Chat' + (chatCount ? ' · ' + chatCount : '')},
     {id:'photos',   label:'Photos' + (photoCount ? ' · ' + photoCount : '')},
   ];
@@ -3693,6 +3715,7 @@ function renderDetail(g) {
   var requestedTab = window._openToTab || null;
   window._openToTab = null;
   var activeTab = requestedTab || 'overview';
+  if (activeTab === 'tasks' || activeTab === 'polls' || activeTab === 'availability') activeTab = 'planning';
   var contentArea = document.createElement('div');
   contentArea.id = 'gtab-content';
 
@@ -3712,11 +3735,9 @@ function renderDetail(g) {
     if (tabId === 'overview') {
       contentArea.innerHTML = liveG.beachMode ? buildBeachDetail(liveG) : buildStandardDetail(liveG);
       wireDetailButtons(liveG);
-    } else if (tabId === 'tasks') {
-      contentArea.innerHTML = buildTasksTab(liveG);
-      wireTaskButtons(liveG);
-    } else if (tabId === 'polls') {
-      contentArea.appendChild(renderPolls(liveG));
+    } else if (tabId === 'planning') {
+      contentArea.innerHTML = buildPlanningTab(liveG);
+      wirePlanningTab(liveG, contentArea);
     } else if (tabId === 'chat') {
       contentArea.appendChild(renderGatheringChat(liveG.id));
     } else if (tabId === 'photos') {
@@ -3738,6 +3759,75 @@ function renderDetail(g) {
 
   // Show requested tab (defaults to overview)
   showTab(activeTab);
+}
+
+// ─── PLANNING TAB: availability + polls + tasks in one flow ─────────────
+function buildPlanningTab(g) {
+  var activeMembers = getActiveFlockMembers();
+  var totalMembers = activeMembers.length || 0;
+  var availSubmitted = activeMembers.filter(function(m){
+    return rsvpData[g.id] && rsvpData[g.id][m.id] && rsvpData[g.id][m.id].availSubmitted;
+  }).length;
+  var hasFinalDates = !!(g.status !== 'planning' && (g.date_label || g.month || g.day));
+  var replies = activeMembers.filter(function(m){
+    var r = rsvpData[g.id] && rsvpData[g.id][m.id];
+    return r && r.status;
+  }).length;
+  var tasks = (g.tasks || []).filter(function(t){ return !t.deleted_at; });
+  var tasksDone = tasks.filter(function(t){ return t.done; }).length;
+  var taskCount = tasks.filter(function(t){ return !t.done; }).length;
+  var pollCount = (g.polls || []).length;
+  var planningMode = g.status === 'planning';
+
+  function step(num, title, sub, state) {
+    return '<div class="planning-step ' + state + '">' +
+      '<div class="planning-step-num">' + (state === 'done' ? '✓' : num) + '</div>' +
+      '<div class="planning-step-body">' +
+        '<div class="planning-step-title">' + title + '</div>' +
+        '<div class="planning-step-sub">' + sub + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  var steps = '';
+  if (planningMode) {
+    steps += step(1, 'Share blackout dates', availSubmitted + '/' + totalMembers + ' submitted availability', availSubmitted ? 'done' : 'active');
+    steps += step(2, 'Choose final dates', hasFinalDates ? getGatheringDateDisplay(g) : 'Use the recommended window below', availSubmitted ? 'active' : '');
+    steps += step(3, 'Confirm attendance', 'RSVP opens once dates are finalized', '');
+    steps += step(4, 'Plan who brings what', taskCount ? taskCount + ' open task' + (taskCount === 1 ? '' : 's') : 'No open tasks yet', '');
+  } else {
+    steps += step(1, 'Dates are set', getGatheringDateDisplay(g), 'done');
+    steps += step(2, 'Confirm attendance', replies + '/' + totalMembers + ' replied', replies >= totalMembers ? 'done' : 'active');
+    steps += step(3, 'Finish shared plans', tasksDone + '/' + tasks.length + ' tasks done', tasks.length && tasksDone >= tasks.length ? 'done' : 'active');
+  }
+
+  return '<div class="planning-flow-card">' +
+    '<div class="planning-flow-title">' + (planningMode ? 'We’re figuring this out' : 'We’re getting ready') + '</div>' +
+    '<div class="planning-flow-sub">Everything needed to move this gathering forward lives here: dates, votes, and shared responsibilities.</div>' +
+    '<div class="planning-steps">' + steps + '</div>' +
+  '</div>' +
+
+  (planningMode ? '<div class="planning-block"><div class="section-title">Choose final dates</div><div id="date-window-panel-'+g.id+'"></div></div>' : '') +
+
+  '<div class="planning-block"><div class="section-title">Polls' + (pollCount ? ' (' + pollCount + ')' : '') + '</div><div id="planning-polls-'+g.id+'"></div></div>' +
+
+  '<div class="planning-block"><div class="section-title">Shared tasks' + (taskCount ? ' (' + taskCount + ' open)' : '') + '</div>' +
+    '<div id="planning-tasks-'+g.id+'">' + buildTasksTab(g) + '</div>' +
+  '</div>';
+}
+
+function wirePlanningTab(g, contentArea) {
+  var datePanel = contentArea.querySelector('#date-window-panel-' + g.id);
+  if (datePanel) renderDateWindowPanel(g, datePanel);
+
+  var pollsMount = contentArea.querySelector('#planning-polls-' + g.id);
+  if (pollsMount) {
+    var pollsNode = renderPolls(g);
+    if (pollsNode && pollsNode.childNodes && pollsNode.childNodes.length) pollsMount.appendChild(pollsNode);
+    else pollsMount.innerHTML = '<div class="planning-empty">No polls yet. Add one when the flock needs to make a choice.</div>';
+  }
+
+  wireTaskButtons(g);
 }
 
 // ─── TASKS TAB ──────────────────────────────────────────────
@@ -4694,11 +4784,6 @@ function buildStandardDetail(g) {
       (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
     '</button>') +
 
-  (g.status === 'planning' ?
-    '<div class="section-title" style="margin-top:16px">Choose final dates</div>' +
-    '<div id="date-window-panel-'+g.id+'"></div>'
-  : '') +
-
   '<div class="section-title" style="margin-top:4px">Who\'s coming</div>' +
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
 
@@ -4706,11 +4791,9 @@ function buildStandardDetail(g) {
     '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">' + (g.status === 'planning' ? 'Nudge members missing availability' : 'Nudge the ' + noReply.length + ' who haven\'t replied') + '</button>'
   : '') +
 
-  (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '') +
-
   // Complete / Reopen button (host, creator, or admin only)
   (function(){
-    var canManage = g.host === DATA.me.id || isFlockAdmin();
+    var canManage = g.host === DATA.me.id || can('finalize_gathering') || can('edit_gathering');
     if (!canManage) return '';
     if (g.status === 'completed') {
       return '<button class="btn-secondary" id="reopen-gathering-btn" style="margin-top:16px;border-color:var(--brand);color:var(--brand)">' +
@@ -4971,8 +5054,8 @@ function renderFlockPage() {
   allMembers.forEach(function(m, i){
     var isMe = m.id === DATA.me.id;
     var role = m.role || 'member';
-    var roleBadge = role === 'creator' ? '<span style="background:var(--gold);color:#1E1433;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Creator</span>'
-                  : role === 'admin' ? '<span style="background:#ede8ff;color:var(--brand);font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Admin</span>'
+    var roleBadge = normalizeRole(role) === 'owner' ? '<span style="background:var(--gold);color:#1E1433;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Owner</span>'
+                  : normalizeRole(role) === 'organizer' ? '<span style="background:#ede8ff;color:var(--brand);font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px">Organizer</span>'
                   : '';
     membersHtml += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px' + (i < allMembers.length - 1 ? ';border-bottom:1px solid var(--border)' : '') + '">' +
       makeAv(m.animal||'bear', 38) +
@@ -4997,7 +5080,7 @@ function renderFlockPage() {
 
   // Admin button
   var adminHtml = isFlockAdmin()
-    ? '<button id="flock-admin-btn" style="width:100%;padding:13px;border-radius:14px;background:var(--surface);border:1.5px solid var(--brand);color:var(--brand);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:12px">🛡️ Admin panel</button>'
+    ? '<button id="flock-admin-btn" style="width:100%;padding:13px;border-radius:14px;background:var(--surface);border:1.5px solid var(--brand);color:var(--brand);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:12px">🛡️ Flock Organizer</button>'
     : '';
 
   // Flock switcher
@@ -5579,13 +5662,83 @@ document.getElementById('animal-overlay').addEventListener('click', function(e){
   if (e.target === this) this.classList.add('hidden');
 });
 
-// -- ADMIN & PASSWORD MANAGEMENT ------------------
+// -- ROLES, PERMISSIONS & PASSWORD MANAGEMENT ------------------
+var ROLE_PERMISSIONS = {
+  owner: [
+    'manage_flock', 'export_data', 'remove_member', 'manage_member_roles',
+    'create_gathering', 'edit_gathering', 'archive_gathering', 'finalize_gathering',
+    'manage_planning', 'manage_tasks', 'chat', 'rsvp', 'upload_photo', 'update_blackout_dates'
+  ],
+  organizer: [
+    'create_gathering', 'edit_gathering', 'finalize_gathering',
+    'manage_planning', 'manage_tasks', 'chat', 'rsvp', 'upload_photo', 'update_blackout_dates'
+  ],
+  member: [
+    'chat', 'rsvp', 'upload_photo', 'update_blackout_dates', 'claim_task', 'vote'
+  ],
+  guest: [
+    'chat', 'rsvp'
+  ],
+  archived: []
+};
+
+function normalizeRole(role) {
+  if (normalizeRole(role) === 'owner') return 'owner';
+  if (normalizeRole(role) === 'organizer') return 'organizer';
+  if (role === 'removed' || role === 'archived') return 'archived';
+  return role || 'member';
+}
+
+function getRoleLabel(role) {
+  role = normalizeRole(role);
+  if (role === 'owner') return 'Owner';
+  if (role === 'organizer') return 'Organizer';
+  if (role === 'guest') return 'Guest';
+  if (role === 'archived') return 'Archived Member';
+  return 'Member';
+}
+
+function getCurrentMemberRecord() {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  if (!flock || !DATA.me) return null;
+  return (flock.members && flock.members[DATA.me.id]) || DATA.me || null;
+}
+
+function getCurrentRole() {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  var me = getCurrentMemberRecord();
+  if (flock && DATA.me && flock.createdBy === DATA.me.id) return 'owner';
+  if (me && me.deleted_at) return 'archived';
+  return normalizeRole(me && me.role);
+}
+
+function can(action, memberId) {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  if (!flock || !DATA.me) return false;
+  var role = getCurrentRole();
+  if (role === 'archived') return false;
+  var allowed = ROLE_PERMISSIONS[role] || [];
+  return allowed.indexOf(action) !== -1;
+}
+
 function isFlockAdmin() {
-  if (!currentFlockId || !FLOCKS[currentFlockId]) return false;
-  var flock = FLOCKS[currentFlockId];
-  if (flock.createdBy === DATA.me.id) return true;
-  var myMember = flock.members && flock.members[DATA.me.id];
-  return myMember && (myMember.role === 'creator' || myMember.role === 'admin');
+  return can('manage_flock');
+}
+
+function getActorAttribution() {
+  return {
+    member_id: getNumericMemberIdForExport(DATA.me && DATA.me.id ? DATA.me.id : ''),
+    name: DATA.me && DATA.me.name ? DATA.me.name : 'Someone',
+    role: getCurrentRole(),
+    role_label: getRoleLabel(getCurrentRole())
+  };
+}
+
+function formatActorLine(memberId) {
+  var member = getMemberById(memberId) || (DATA.me && DATA.me.id === memberId ? DATA.me : null);
+  var name = member && member.name ? member.name : (DATA.me && DATA.me.id === memberId ? DATA.me.name : 'Someone');
+  var role = member && member.role ? member.role : (DATA.me && DATA.me.id === memberId ? getCurrentRole() : 'member');
+  return escapeHtml(name || 'Someone') + ' <span style="color:var(--text3);font-weight:700">(' + escapeHtml(getRoleLabel(role)) + ')</span>';
 }
 
 function openChangePassword() {
@@ -5896,6 +6049,8 @@ function buildExportPayload(scope, gatheringId) {
         member_id: getNumericMemberIdForExport(a.member || ''),
         memberId: a.member || '',
         memberName: getMemberNameForExport(a.member || ''),
+        actor_role: a.actor_role || '',
+        actor_role_label: a.actor_role_label || '',
         text: safeExportText(a.text || ''),
         icon: a.icon || '',
         time: a.time || '',
@@ -5912,6 +6067,8 @@ function buildExportPayload(scope, gatheringId) {
         event_type: ev.event_type || '',
         actor_member_id: typeof ev.actor_member_id === 'number' ? ev.actor_member_id : getNumericMemberIdForExport(ev.actor_member_id || ''),
         actor_member_name: ev.actor_member_name || getMemberNameForExport(ev.actor_member_id || ''),
+        actor_role: ev.actor_role || '',
+        actor_role_label: ev.actor_role_label || '',
         entity_type: ev.entity_type || '',
         entity_id: typeof ev.entity_id === 'number' ? ev.entity_id : getNumericEntityIdForExport(ev.entity_type, ev.entity_id) || ev.entity_id || '',
         entity_name: ev.entity_name || '',
@@ -6067,6 +6224,7 @@ function exportActivityLogCsv() {
     {key:'ts', label:'Timestamp'},
     {key:'time', label:'Relative Time'},
     {key:'memberName', label:'Member'},
+    {key:'actor_role_label', label:'Actor Role'},
     {key:'icon', label:'Icon'},
     {key:'text', label:'Activity'}
   ]);
@@ -6087,6 +6245,7 @@ function exportEventLogCsv() {
     {key:'event_type', label:'Event Type'},
     {key:'actor_member_id', label:'Actor Member ID'},
     {key:'actor_member_name', label:'Actor'},
+    {key:'actor_role_label', label:'Actor Role'},
     {key:'entity_type', label:'Entity Type'},
     {key:'entity_id', label:'Entity ID'},
     {key:'entity_name', label:'Entity'},
@@ -6150,6 +6309,7 @@ async function removeMemberFromFlock(memberId) {
 }
 
 function openAdminPanel() {
+  if (!can('manage_flock')) { toast('Only flock owners can open organizer tools'); return; }
   var body = document.getElementById('edit-body');
   var overlay = document.getElementById('edit-overlay');
   var titleEl = overlay.querySelector('.sheet-title');
@@ -6171,8 +6331,8 @@ function openAdminPanel() {
     var isRemoved = !!m.deleted_at;
     var role = m.role || 'member';
     var roleBadge = isRemoved ? '<span style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Removed</span>'
-                  : role === 'creator' ? '<span style="background:var(--gold);color:#1E1433;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Creator</span>'
-                  : role === 'admin' ? '<span style="background:#ede8ff;color:var(--brand);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Admin</span>'
+                  : normalizeRole(role) === 'owner' ? '<span style="background:var(--gold);color:#1E1433;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Owner</span>'
+                  : normalizeRole(role) === 'organizer' ? '<span style="background:#ede8ff;color:var(--brand);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Organizer</span>'
                   : '<span style="background:var(--surface2);color:var(--text3);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Member</span>';
     var subline = isRemoved
       ? 'Removed ' + escapeHtml(m.deleted_at || '') + ' &middot; kept for history/export'
@@ -6186,8 +6346,8 @@ function openAdminPanel() {
       '</div>' +
       roleBadge +
       (!isMe && !isRemoved ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:180px">' +
-        (role !== 'admin' && role !== 'creator' ? '<button class="admin-promote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make admin</button>' : '') +
-        (role === 'admin' ? '<button class="admin-demote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove admin</button>' : '') +
+        (normalizeRole(role) !== 'organizer' && normalizeRole(role) !== 'owner' ? '<button class="admin-promote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make organizer</button>' : '') +
+        (normalizeRole(role) === 'organizer' ? '<button class="admin-demote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove organizer</button>' : '') +
         '<button class="admin-reset-pw" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-family:inherit">Reset pw</button>' +
         '<button class="admin-remove" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit">Remove</button>' +
       '</div>' : '') +
@@ -6245,13 +6405,14 @@ function openAdminPanel() {
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
-        saveMemberChange(mid, {role: 'admin'});
-        logActivity(DATA.me.id, 'made <strong>' + escapeHtml((flock.members[mid]||{}).name||'someone') + '</strong> an admin 🛡️', '🛡️');
+        if (!can('manage_member_roles')) { toast('Only owners can change roles'); return; }
+        saveMemberChange(mid, {role: 'organizer'});
+        logActivity(DATA.me.id, 'made <strong>' + escapeHtml((flock.members[mid]||{}).name||'someone') + '</strong> an organizer 🛡️', '🛡️');
         if (!flock._notifications) flock._notifications = [];
-        flock._notifications.push({to:mid, text:'You\'ve been made an admin by '+DATA.me.name+'! You now have access to the Admin panel on the Flock page.', ts:Date.now(), read:false});
+        flock._notifications.push({to:mid, text:'You\'ve been made an organizer by '+DATA.me.name+'! You now have access to Flock Organizer tools.', ts:Date.now(), read:false});
         saveFlockState();
         openAdminPanel();
-        toast('Promoted to admin');
+        toast('Made organizer');
       });
     });
 
@@ -6261,9 +6422,9 @@ function openAdminPanel() {
         e.stopPropagation();
         var mid = btn.dataset.mid;
         saveMemberChange(mid, {role: 'member'});
-        logActivity(DATA.me.id, 'removed admin from <strong>' + escapeHtml((flock.members[mid]||{}).name||'someone') + '</strong>', '🛡️');
+        logActivity(DATA.me.id, 'removed organizer access from <strong>' + escapeHtml((flock.members[mid]||{}).name||'someone') + '</strong>', '🛡️');
         openAdminPanel();
-        toast('Removed admin role');
+        toast('Removed organizer access');
       });
     });
 
@@ -6290,6 +6451,7 @@ function openAdminPanel() {
         if (confirm('Remove ' + memberName + ' from the active flock? Their history will stay in exports and the database with a removed timestamp.')) {
           btn.disabled = true;
           try {
+            if (!can('remove_member')) { toast('Only owners can remove members'); return; }
             var name = await removeMemberFromFlock(mid);
             logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(name) + '</strong> from the flock', '🚫');
             await syncFlockToFirebase();
