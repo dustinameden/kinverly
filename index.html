@@ -2161,8 +2161,9 @@ var DATA = {
 };
 
 function getMember(id) {
-  if (id === DATA.me.id && isActiveMemberRecord(DATA.me)) return DATA.me;
-  return DATA.members.find(function(m){ return isActiveMemberRecord(m) && String(m.id) === String(id); }) || null;
+  var uid = getCanonicalUserId(id);
+  if ((id === DATA.me.id || uid === getCanonicalUserId(DATA.me)) && isActiveMemberRecord(DATA.me)) return DATA.me;
+  return DATA.members.find(function(m){ return isActiveMemberRecord(m) && (String(m.id) === String(id) || String(m.member_id) === String(id) || getCanonicalUserId(m) === uid); }) || null;
 }
 
 function getActiveFlockMembers() {
@@ -2174,8 +2175,10 @@ function getActiveFlockMembers() {
 
   function addMember(m) {
     if (!isActiveMemberRecord(m)) return;
-    if (m.id === undefined || m.id === null || m.id === '') return;
-    var key = String(m.id);
+    ensureMemberUserIdentity(m);
+    var uid = getCanonicalUserId(m);
+    if (!uid) return;
+    var key = String(uid);
     if (seen[key]) return;
     seen[key] = true;
     members.push(m);
@@ -2203,6 +2206,56 @@ function getRsvpForMember(gatheringId, memberId) {
   return bucket[memberId] || bucket[String(memberId)] || null;
 }
 
+
+// ═══════════════════════════════════════════════
+//  USER-LEVEL MEMBERSHIP IDENTITY
+//  All membership / visibility / nudge / availability decisions should resolve
+//  to user_id first. Numeric member_id remains analytics/export only.
+// ═══════════════════════════════════════════════
+function normalizeUserIdValue(v) {
+  if (v === undefined || v === null || v === '') return '';
+  return String(v).trim();
+}
+function getCanonicalUserId(memberOrId, fallbackKey) {
+  if (memberOrId && typeof memberOrId === 'object') {
+    return normalizeUserIdValue(
+      memberOrId.user_id ||
+      memberOrId.canonical_user_id ||
+      memberOrId.auth_uid ||
+      memberOrId.firebase_uid ||
+      memberOrId.uid ||
+      (memberOrId.email ? String(memberOrId.email).trim().toLowerCase() : '') ||
+      memberOrId.id ||
+      fallbackKey ||
+      memberOrId.memberKey ||
+      memberOrId.key ||
+      memberOrId.legacy_id ||
+      ''
+    );
+  }
+  return normalizeUserIdValue(memberOrId || fallbackKey || '');
+}
+function ensureMemberUserIdentity(member, fallbackKey) {
+  if (!member || typeof member !== 'object') return member;
+  var userId = getCanonicalUserId(member, fallbackKey);
+  if (userId) {
+    member.user_id = userId;
+    member.canonical_user_id = userId;
+  }
+  if (!Array.isArray(member.aliases)) member.aliases = [];
+  [fallbackKey, member.id, member.member_id, member.uid, member.firebase_uid, member.auth_uid, member.email, userId].forEach(function(v){
+    if (v === undefined || v === null || v === '') return;
+    var sv = String(v);
+    if (member.aliases.indexOf(sv) < 0) member.aliases.push(sv);
+  });
+  return member;
+}
+function sameUserIdentity(a, b) {
+  var au = getCanonicalUserId(a);
+  var bu = getCanonicalUserId(b);
+  return !!(au && bu && String(au) === String(bu));
+}
+
 function getMemberIdentityKeys(memberOrId) {
   var keys = [];
   function add(k) {
@@ -2212,6 +2265,9 @@ function getMemberIdentityKeys(memberOrId) {
     if (keys.indexOf(sk) < 0) keys.push(sk);
   }
   if (memberOrId && typeof memberOrId === 'object') {
+    add(memberOrId.user_id);
+    add(memberOrId.canonical_user_id);
+    add(getCanonicalUserId(memberOrId));
     add(memberOrId.id);
     add(memberOrId.member_id);
     add(memberOrId.uid);
@@ -2247,6 +2303,10 @@ function identityAliasList(member) {
     if (norm && aliases.indexOf(norm) < 0) aliases.push(norm);
   }
   if (!member) return aliases;
+  ensureMemberUserIdentity(member);
+  add(member.user_id);
+  add(member.canonical_user_id);
+  add(getCanonicalUserId(member));
   add(member.id);
   add(member.member_id);
   add(member.uid);
@@ -2267,6 +2327,8 @@ function weakNameAlias(member) {
 }
 function strongIdentityKey(member, fallbackKey) {
   if (!member) return String(fallbackKey || '');
+  ensureMemberUserIdentity(member, fallbackKey);
+  if (member.user_id) return 'user_id:' + String(member.user_id);
   if (member.uid) return 'uid:' + String(member.uid);
   if (member.firebase_uid) return 'uid:' + String(member.firebase_uid);
   if (member.auth_uid) return 'uid:' + String(member.auth_uid);
@@ -2340,7 +2402,7 @@ function memberMatchesRemovalAlias(member, removedAliases) {
     if (removedAliases[String(aliases[i])]) return true;
   }
   // Weak name match only applies if the member has no stronger stable identity.
-  var hasStrong = !!(member.uid || member.firebase_uid || member.auth_uid || member.email || member.member_id);
+  var hasStrong = !!(member.user_id || member.canonical_user_id || member.uid || member.firebase_uid || member.auth_uid || member.email || member.member_id);
   if (!hasStrong) {
     var wn = weakNameAlias(member);
     if (wn && removedAliases[wn]) return true;
@@ -2356,6 +2418,7 @@ function reconcileFlockMemberships(flock) {
   Object.keys(flock.members || {}).forEach(function(key){
     var m = flock.members[key];
     if (!m) return;
+    ensureMemberUserIdentity(m, key);
     if (!m.id) m.id = key;
     if (!Array.isArray(m.aliases)) m.aliases = [];
     if (m.aliases.indexOf(String(key)) < 0) m.aliases.push(String(key));
@@ -2370,7 +2433,7 @@ function reconcileFlockMemberships(flock) {
     var m = grouped[groupKey];
     if (!m) return;
     // Keep the display/storage id stable, but never use numeric flock_id as the storage key.
-    var storageId = m.id || m.uid || m.email || groupKey.replace(/^[^:]+:/, '');
+    var storageId = m.user_id || m.id || m.uid || m.email || groupKey.replace(/^[^:]+:/, '');
     storageId = String(storageId);
     m.id = storageId;
     if (isRemovedMemberRecord(m)) ensureRemovedMemberLog(flock, m);
@@ -2551,7 +2614,8 @@ function normalizeKinverlySchema(flock) {
     var m = members[k];
     if (!m) return;
     ensureAuditFields(m, flock.created_at);
-    if (!m.id) m.id = k;
+    ensureMemberUserIdentity(m, k);
+    if (!m.id) m.id = m.user_id || k;
     if (typeof m.member_id !== 'number') m.member_id = nextEntityInt(flock, 'member');
     if (!m.role) m.role = (m.id === flock.createdBy ? 'owner' : 'member');
     if (!m.membership_status) m.membership_status = m.deleted_at ? 'archived' : 'active';
@@ -2652,6 +2716,7 @@ function normalizeCurrentFlockSchema() {
 
 function normalizeAppState() {
   try {
+    ensureMemberUserIdentity(DATA.me, DATA.me && DATA.me.id);
     Object.keys(FLOCKS || {}).forEach(function(fid){ if (FLOCKS[fid]) normalizeKinverlySchema(FLOCKS[fid]); });
     var resolved = resolveFlockKey(currentFlockId);
     if (resolved) currentFlockId = resolved;
@@ -2711,11 +2776,25 @@ function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
 // ═══════════════════════════════════════════════
 function getActiveMembersForFlockRecord(flock) {
   if (!flock || !flock.members) return [];
-  return Object.keys(flock.members).map(function(k){ return flock.members[k]; }).filter(function(m){ return isActiveMemberRecord(m); });
+  reconcileFlockMemberships(flock);
+  var seen = {};
+  var out = [];
+  Object.keys(flock.members || {}).forEach(function(k){
+    var m = flock.members[k];
+    if (!m) return;
+    ensureMemberUserIdentity(m, k);
+    if (!isActiveMemberRecord(m)) return;
+    var uid = getCanonicalUserId(m, k);
+    if (!uid || seen[uid]) return;
+    seen[uid] = true;
+    out.push(m);
+  });
+  return out;
 }
 function memberAccessKey(m) {
   if (!m) return '';
-  return String(m.member_id !== undefined && m.member_id !== null && m.member_id !== '' ? m.member_id : (m.id || m.uid || m.email || ''));
+  // User-facing visibility/access decisions use user_id. member_id remains analytics-only.
+  return String(getCanonicalUserId(m) || m.id || m.uid || m.email || '');
 }
 function gatheringAccessRowId(g, m) {
   return String(g && (g.gathering_id || g.id || 'g')) + '_' + memberAccessKey(m);
@@ -2737,7 +2816,7 @@ function ensureGatheringSharedWithActiveMembers(g, flock, source) {
     if (g.gathering_member_ids.map(String).indexOf(String(accessId)) < 0) g.gathering_member_ids.push(accessId);
 
     var existing = g.gathering_members.find(function(row){
-      return row && (String(row.member_id) === String(accessId) || String(row.member_key) === String(m.id));
+      return row && (String(row.user_id || '') === String(accessId) || String(row.member_key) === String(m.id) || String(row.member_id) === String(m.member_id));
     });
     if (!existing) {
       existing = ensureAuditFields({
@@ -2746,7 +2825,9 @@ function ensureGatheringSharedWithActiveMembers(g, flock, source) {
         flock_key: flock.firestore_id || flock.storage_key || flock.uid || currentFlockId || '',
         gathering_id: g.gathering_id || g.id,
         gathering_key: g.id,
-        member_id: typeof m.member_id === 'number' ? m.member_id : accessId,
+        user_id: getCanonicalUserId(m),
+        user_id: uid,
+      member_id: typeof m.member_id === 'number' ? m.member_id : '',
         member_key: m.id,
         member_name: m.name || '',
         role: m.role || 'member',
@@ -2756,7 +2837,8 @@ function ensureGatheringSharedWithActiveMembers(g, flock, source) {
       }, g.created_at);
       g.gathering_members.push(existing);
     } else {
-      existing.member_id = typeof m.member_id === 'number' ? m.member_id : accessId;
+      existing.user_id = getCanonicalUserId(m);
+      existing.member_id = typeof m.member_id === 'number' ? m.member_id : '';
       existing.member_key = m.id;
       existing.member_name = m.name || existing.member_name || '';
       existing.role = m.role || existing.role || 'member';
@@ -2769,7 +2851,7 @@ function ensureGatheringSharedWithActiveMembers(g, flock, source) {
   // Historical rows stay for export, but inactive/removed members cannot be pending/nudged/visible-active.
   g.gathering_members.forEach(function(row){
     if (!row) return;
-    var key = String(row.member_id !== undefined && row.member_id !== null ? row.member_id : row.member_key || '');
+    var key = String(row.user_id || row.member_key || row.member_id || '');
     if (key && !activeKeys[key] && row.status !== 'removed') {
       row.status = 'removed';
       row.deleted_at = row.deleted_at || nowISO();
@@ -2793,11 +2875,15 @@ async function writeUserGatheringAccessRecords(g, flock, members, reason) {
   var docId = getFlockFirestoreDocId(currentFlockId, flock);
   var stamp = nowISO();
   await Promise.all((members || []).map(function(m){
-    if (!m || !m.id || !isActiveMemberRecord(m)) return Promise.resolve();
-    var patch = { id:m.id, name:m.name || '', updated_at:stamp, flocks:{}, gatherings:{} };
+    if (!m || !isActiveMemberRecord(m)) return Promise.resolve();
+    ensureMemberUserIdentity(m);
+    var uid = getCanonicalUserId(m);
+    if (!uid) return Promise.resolve();
+    var patch = { id:uid, user_id:uid, name:m.name || '', updated_at:stamp, flocks:{}, gatherings:{} };
     patch.flocks[docId] = {
       flock_key: docId,
       flock_id: typeof flock.id === 'number' ? flock.id : '',
+      user_id: uid,
       member_id: typeof m.member_id === 'number' ? m.member_id : '',
       status: 'active',
       role: m.role || 'member',
@@ -2813,7 +2899,7 @@ async function writeUserGatheringAccessRecords(g, flock, members, reason) {
       updated_at: stamp,
       deleted_at: null
     };
-    return h.setDoc(h.doc(window.__db, 'users', m.id), patch, { merge:true });
+    return h.setDoc(h.doc(window.__db, 'users', uid), patch, { merge:true });
   }));
 }
 async function shareGatheringWithActiveFlockMembers(gatheringId, reason) {
@@ -3898,10 +3984,14 @@ function renderHome() {
   // Flock row
   var row = document.getElementById('flock-row');
   row.innerHTML = '';
-  if (DATA.members.length === 0) {
+  var flockStateForHome = (typeof deriveFlockState === 'function') ? deriveFlockState(currentFlockId) : null;
+  var currentUserIdForHome = getCanonicalUserId(DATA.me);
+  var homeFlockMembers = (flockStateForHome && flockStateForHome.activeMembers ? flockStateForHome.activeMembers : DATA.members || [])
+    .filter(function(m){ return isActiveMemberRecord(m) && getCanonicalUserId(m) !== currentUserIdForHome; });
+  if (homeFlockMembers.length === 0) {
     row.innerHTML = '<div style="padding:12px 4px;font-size:13px;color:var(--text3);font-weight:600">Invite family to your flock to see them here!</div>';
   }
-  DATA.members.forEach(function(m){
+  homeFlockMembers.forEach(function(m){
     var chip = document.createElement('div');
     chip.className = 'flock-chip';
     chip.innerHTML =
@@ -7708,13 +7798,15 @@ async function removeMemberFromFlock(memberId) {
   if (!flock || !flock.members) return 'Unknown';
 
   // Resolve across legacy key, numeric id, and member_id so old records can't escape removal.
+  var targetUserId = getCanonicalUserId(memberId);
   var targetKey = memberId;
   var target = flock.members[targetKey];
   if (!target) {
     Object.keys(flock.members || {}).some(function(k){
       var m = flock.members[k];
       if (!m) return false;
-      if (String(k) === String(memberId) || String(m.id) === String(memberId) || String(m.member_id) === String(memberId)) {
+      ensureMemberUserIdentity(m, k);
+      if (String(k) === String(memberId) || String(m.id) === String(memberId) || String(m.member_id) === String(memberId) || String(getCanonicalUserId(m)) === String(targetUserId)) {
         targetKey = k;
         target = m;
         return true;
@@ -7732,13 +7824,25 @@ async function removeMemberFromFlock(memberId) {
   window._pendingRemovedMembers = window._pendingRemovedMembers || {};
   window._pendingRemovedMembers[targetKey] = Date.now();
   if (target.id) window._pendingRemovedMembers[target.id] = Date.now();
+  if (target.user_id) window._pendingRemovedMembers[target.user_id] = Date.now();
   if (target.member_id !== undefined) window._pendingRemovedMembers[String(target.member_id)] = Date.now();
 
-  markMemberRemoved(target, removedAt, DATA.me && DATA.me.id ? DATA.me.id : '', 'Removed from flock');
+  ensureMemberUserIdentity(target, targetKey);
+  markMemberRemoved(target, removedAt, getCanonicalUserId(DATA.me), 'Removed from flock');
   flock.members[targetKey] = target;
+  var removedUserId = getCanonicalUserId(target);
+  Object.keys(flock.members || {}).forEach(function(k){
+    var mm = flock.members[k];
+    if (!mm) return;
+    ensureMemberUserIdentity(mm, k);
+    if (removedUserId && getCanonicalUserId(mm) === removedUserId) {
+      markMemberRemoved(mm, removedAt, getCanonicalUserId(DATA.me), 'Removed from flock');
+      ensureRemovedMemberLog(flock, mm);
+    }
+  });
   ensureRemovedMemberLog(flock, target);
-  flock.memberIds = (flock.memberIds || []).filter(function(id){ return String(id) !== String(targetKey) && String(id) !== String(target.id) && String(id) !== String(target.member_id); });
-  DATA.members = DATA.members.filter(function(m){ return m && String(m.id) !== String(target.id || targetKey) && String(m.member_id) !== String(target.member_id); });
+  flock.memberIds = (flock.memberIds || []).filter(function(id){ return String(id) !== String(targetKey) && String(id) !== String(target.id) && String(id) !== String(target.user_id) && String(id) !== String(target.member_id); });
+  DATA.members = DATA.members.filter(function(m){ return m && getCanonicalUserId(m) !== getCanonicalUserId(target); });
 
   recordEvent('member.removed', 'member', target.member_id || target.id || targetKey, beforeMember, target, memberName + ' was removed from the flock', '👋');
 
@@ -7762,9 +7866,11 @@ async function removeMemberFromFlock(memberId) {
 
       // Also keep a lightweight users table membership history. This makes the
       // removal durable even if an older flock snapshot exists somewhere.
-      if (h.doc && h.setDoc && target.id) {
+      if (h.doc && h.setDoc && getCanonicalUserId(target)) {
+        var targetUserDocId = getCanonicalUserId(target);
         var userPatch = {
-          id: target.id,
+          id: targetUserDocId,
+          user_id: targetUserDocId,
           name: target.name || '',
           updated_at: removedAt
         };
@@ -7776,10 +7882,10 @@ async function removeMemberFromFlock(memberId) {
           status: 'removed',
           removed_at: target.removed_at || target.deleted_at || removedAt,
           removal_updated_at: removedAt,
-          removed_by: DATA.me && DATA.me.id ? DATA.me.id : '',
+          removed_by: getCanonicalUserId(DATA.me),
           updated_at: removedAt
         };
-        await h.setDoc(h.doc(window.__db, 'users', target.id), userPatch, { merge: true });
+        await h.setDoc(h.doc(window.__db, 'users', targetUserDocId), userPatch, { merge: true });
       }
     } catch(e) {
       console.warn('[Kinverly] Atomic member soft-removal failed; falling back to full sync:', e.message);
@@ -11697,7 +11803,7 @@ try {
         reconcileFlockMemberships(local);
         merged = local.members || {};
         local.memberIds = Object.keys(merged).filter(function(mid){ return isActiveMemberRecord(merged[mid]); });
-        DATA.members = Object.values(merged).filter(function(m){ return isActiveMemberRecord(m) && m.id !== myId; });
+        DATA.members = getActiveMembersForFlockRecord(local).filter(function(m){ return getCanonicalUserId(m) !== getCanonicalUserId(DATA.me); });
 
         // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
         if (merged[myId]) {
