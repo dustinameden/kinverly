@@ -2204,6 +2204,42 @@ function getRsvpForMember(gatheringId, memberId) {
   return bucket[memberId] || bucket[String(memberId)] || null;
 }
 
+function getMemberIdentityKeys(memberOrId) {
+  var keys = [];
+  function add(k) {
+    if (k === undefined || k === null || k === '') return;
+    if (keys.indexOf(k) < 0) keys.push(k);
+    var sk = String(k);
+    if (keys.indexOf(sk) < 0) keys.push(sk);
+  }
+  if (memberOrId && typeof memberOrId === 'object') {
+    add(memberOrId.id);
+    add(memberOrId.member_id);
+    add(memberOrId.uid);
+    add(memberOrId.memberKey);
+    add(memberOrId.key);
+  } else {
+    add(memberOrId);
+  }
+  return keys;
+}
+function getRsvpForMemberRecord(gatheringId, memberOrId) {
+  if (!gatheringId) return null;
+  var bucket = (typeof rsvpData !== 'undefined' && rsvpData && rsvpData[gatheringId]) || {};
+  var keys = getMemberIdentityKeys(memberOrId);
+  for (var i = 0; i < keys.length; i++) {
+    if (bucket[keys[i]]) return bucket[keys[i]];
+  }
+  return null;
+}
+function hasSubmittedAvailability(rsvp) {
+  return !!(rsvp && (rsvp.availSubmitted || rsvp.availability_submitted || rsvp.availability_reviewed_at));
+}
+function getCanonicalMemberId(memberOrId) {
+  if (memberOrId && typeof memberOrId === 'object') return memberOrId.member_id || memberOrId.id || memberOrId.uid || memberOrId.memberKey || '';
+  return memberOrId;
+}
+
 function getProposedDateWindows(g) {
   var out = [];
   if (!g) return out;
@@ -2249,8 +2285,8 @@ function deriveGatheringState(g) {
   var declinedMembers = [];
 
   activeMembers.forEach(function(m){
-    var r = getRsvpForMember(g.id, m.id);
-    if (r && r.availSubmitted) submittedMembers.push({ member:m, rsvp:r });
+    var r = getRsvpForMemberRecord(g.id, m);
+    if (hasSubmittedAvailability(r)) submittedMembers.push({ member:m, rsvp:r });
     else pendingAvailabilityMembers.push({ member:m, rsvp:r });
 
     if (r && r.status) repliedMembers.push({ member:m, rsvp:r });
@@ -2360,6 +2396,9 @@ function normalizeKinverlySchema(flock) {
     ensureAuditFields(m, flock.created_at);
     if (!m.id) m.id = k;
     if (typeof m.member_id !== 'number') m.member_id = nextEntityInt(flock, 'member');
+    if (!m.role) m.role = (m.id === flock.createdBy ? 'owner' : 'member');
+    if (!m.membership_status) m.membership_status = m.deleted_at ? 'archived' : 'active';
+    if (!('deleted_at' in m)) m.deleted_at = null;
     m.flock_id = flock.id;
     reserveMax(meta, 'next_member_id', m.member_id);
   });
@@ -2369,6 +2408,16 @@ function normalizeKinverlySchema(flock) {
     if (!g) return;
     ensureAuditFields(g, flock.created_at);
     if (typeof g.gathering_id !== 'number') g.gathering_id = nextEntityInt(flock, 'gathering');
+    if (!g.id) g.id = 'g_' + g.gathering_id;
+    if (!g.status) g.status = 'planning';
+    if (!Array.isArray(g.responses)) g.responses = [];
+    if (!Array.isArray(g.tasks)) g.tasks = [];
+    if (!Array.isArray(g.chat)) g.chat = [];
+    if (!Array.isArray(g.photos)) g.photos = [];
+    if (!Array.isArray(g.polls)) g.polls = [];
+    if (!Array.isArray(g.bringList)) g.bringList = [];
+    if (!Array.isArray(g.expenses)) g.expenses = [];
+    if (!Array.isArray(g.attending)) g.attending = [];
     g.flock_id = flock.id;
     reserveMax(meta, 'next_gathering_id', g.gathering_id);
     (g.tasks || []).forEach(function(t){
@@ -2438,6 +2487,55 @@ function normalizeCurrentFlockSchema() {
     DATA.activity = FLOCKS[currentFlockId].activity || DATA.activity || [];
     DATA.events = FLOCKS[currentFlockId].events || DATA.events || [];
   }
+}
+
+function normalizeAppState() {
+  try {
+    Object.keys(FLOCKS || {}).forEach(function(fid){ if (FLOCKS[fid]) normalizeKinverlySchema(FLOCKS[fid]); });
+    var resolved = resolveFlockKey(currentFlockId);
+    if (resolved) currentFlockId = resolved;
+    else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
+    normalizeCurrentFlockSchema();
+  } catch(e) {
+    console.warn('[Kinverly] normalizeAppState warning', e);
+  }
+}
+function deriveFlockState(flockId) {
+  var key = resolveFlockKey(flockId || currentFlockId);
+  var flock = key ? FLOCKS[key] : null;
+  if (!flock) return {flock:null, activeMembers:[], archivedMembers:[], gatherings:[], activeGatherings:[], planningGatherings:[], completedGatherings:[], activity:[], events:[]};
+  normalizeKinverlySchema(flock);
+  var allMembers = Object.values(flock.members || {}).filter(Boolean);
+  var activeMembers = allMembers.filter(function(m){ return m && !m.deleted_at && m.membership_status !== 'archived' && String(m.status || '').toLowerCase() !== 'removed'; });
+  var archivedMembers = allMembers.filter(function(m){ return m && (m.deleted_at || m.membership_status === 'archived' || String(m.status || '').toLowerCase() === 'removed'); });
+  var gatherings = (flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+  return {
+    flock: flock,
+    key: key,
+    allMembers: allMembers,
+    activeMembers: activeMembers,
+    archivedMembers: archivedMembers,
+    organizers: activeMembers.filter(function(m){ return ['owner','organizer','creator','admin'].indexOf(normalizeRole ? normalizeRole(m.role) : String(m.role||'member').toLowerCase()) >= 0; }),
+    gatherings: gatherings,
+    activeGatherings: gatherings.filter(function(g){ return g.status !== 'completed' && g.status !== 'archived'; }),
+    planningGatherings: gatherings.filter(function(g){ return g.status === 'planning'; }),
+    completedGatherings: gatherings.filter(function(g){ return g.status === 'completed'; }),
+    ideas: (flock.ideas || []).filter(function(i){ return i && !i.deleted_at; }),
+    activity: flock.activity || [],
+    events: flock.events || []
+  };
+}
+function deriveWorldState(memberId) {
+  var memberKeys = getMemberIdentityKeys(memberId || (DATA.me && DATA.me.id));
+  var flocks = [];
+  Object.keys(FLOCKS || {}).forEach(function(fid){
+    var fs = deriveFlockState(fid);
+    var belongs = fs.allMembers && fs.allMembers.some(function(m){ return getMemberIdentityKeys(m).some(function(k){ return memberKeys.indexOf(k) >= 0; }) && !m.deleted_at; });
+    if (belongs) flocks.push(fs);
+  });
+  var gatherings = [];
+  flocks.forEach(function(fs){ (fs.gatherings || []).forEach(function(g){ gatherings.push({flock:fs.flock, gathering:g}); }); });
+  return { member_id: memberId || (DATA.me && DATA.me.id), flocks: flocks, gatherings: gatherings };
 }
 function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
 function activeOnly(arr) { return (arr || []).filter(function(x){ return x && !x.deleted_at; }); }
@@ -2678,6 +2776,7 @@ document.getElementById('add-idea-btn').addEventListener('click', function(){
 
 // -- PAGE RENDER MAP -----------------------------
 function renderPage(name) {
+  normalizeCurrentFlockSchema();
   if (name === 'home')       renderHome();
   if (name === 'myworld')    renderMyWorld();
   if (name === 'gatherings') renderGatherings();
@@ -5811,8 +5910,8 @@ function getAvailabilityReviewWindows(g) {
 
 function getWindowAnswerForMember(g, member, win) {
   if (!g || !member || !win) return null;
-  var r = getRsvpForMember(g.id, member.id || member.member_id);
-  if (!r || !(r.availSubmitted || r.availability_submitted)) return null;
+  var r = getRsvpForMemberRecord(g.id, member);
+  if (!hasSubmittedAvailability(r)) return null;
   var answers = r.windowAnswers || r.window_answers || {};
   var raw = answers[win.id] || answers[String(win.id)];
   if (raw === 'works' || raw === 'partial' || raw === 'no') return raw;
@@ -5839,7 +5938,7 @@ function computeLiveWindowSummaries(g) {
       if (!ans) { counts.waiting++; return; }
       counts.submitted++;
       counts[ans] = (counts[ans] || 0) + 1;
-      var r = getRsvpForMember(g.id, m.id || m.member_id) || {};
+      var r = getRsvpForMemberRecord(g.id, m) || {};
       var blocked = r.blockedDates || r.blocked_dates || [];
       if (win.keys && win.keys.length) {
         counts.conflictDays += win.keys.filter(function(k){ return blocked.indexOf(k) >= 0; }).length;
@@ -7755,7 +7854,7 @@ function saveLocal() {
     if (window._kickedFromFlock) return;
 
     if (currentFlockId && FLOCKS[currentFlockId]) {
-      normalizeCurrentFlockSchema();
+      normalizeAppState();
       var _f = FLOCKS[currentFlockId];
 
       // Normalize gatherings
@@ -7869,7 +7968,8 @@ function loadFlockState() {
     var resolved = resolveFlockKey(currentFlockId);
     if (resolved) currentFlockId = resolved;
     else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
-  } catch(e) {}
+    normalizeAppState();
+  } catch(e) { console.warn('[Kinverly] loadFlockState warning', e); }
 }
 
 function getCurrentFlock() {
@@ -7887,20 +7987,21 @@ function switchToFlock(flockId) {
   currentFlockId = resolvedKey;
   var flock = FLOCKS[resolvedKey];
   normalizeKinverlySchema(flock);
+  var flockState = deriveFlockState(resolvedKey);
 
   var nameEl = document.getElementById('topbar-flock-name');
   if (nameEl) nameEl.textContent = flock.name;
 
   // Load members — exclude myself
   DATA.members = (flock.members && Object.keys(flock.members).length > 0)
-    ? Object.values(flock.members).filter(function(m){ return m && !m.deleted_at && m.id !== DATA.me.id; })
+    ? flockState.activeMembers.filter(function(m){ return m && m.id !== DATA.me.id; })
     : [];
 
   // Load flock data
-  DATA.gatherings = flock.gatherings || [];
-  DATA.ideas      = flock.ideas || [];
-  DATA.activity   = flock.activity || [];
-  DATA.events     = flock.events || [];
+  DATA.gatherings = flockState.gatherings || [];
+  DATA.ideas      = flockState.ideas || [];
+  DATA.activity   = flockState.activity || [];
+  DATA.events     = flockState.events || [];
 
   // Save currentFlockId to localStorage so refresh remembers which flock
   try {
@@ -10295,8 +10396,8 @@ function renderFlockSchedule() {
       '<div class="sched-gathering-list">' +
         planningGatherings.map(function(g) {
           var submitted = allFlock.filter(function(m) {
-            var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
-            return rd && rd.availSubmitted;
+            var rd = getRsvpForMemberRecord(g.id, m);
+            return hasSubmittedAvailability(rd);
           }).length;
           var pct = Math.round((submitted / allFlock.length) * 100);
           return '<div class="sched-g-row">' +
@@ -10376,6 +10477,7 @@ function renderFlockSchedule() {
 
   // Now restore the user session — DATA.members is populated so lookup works
   var isLoggedIn = restoreSession();
+  normalizeAppState();
 
   // Now that DATA.me.id is set, filter self out of DATA.members
   if (DATA.me.id) {
