@@ -3883,21 +3883,14 @@ function computeGatheringRecommendation(g) {
 
   if (g.status === 'planning') {
     // Prefer the date windows actually shown on the gathering. Do not recommend hidden fallback months.
-    if (state.recommendedWindow && state.recommendedWindow.dates) {
-      bestWindow = state.recommendedWindow.dates;
-      windowScore = submittedCount > 0 ? 100 : 0;
+    var liveSummaries = computeLiveWindowSummaries(g);
+    var liveBest = liveSummaries.find(function(w){ return w.isRecommended; });
+    if (liveBest) {
+      bestWindow = liveBest.dates;
+      windowScore = liveBest.score;
     } else {
-      var conflicts = computeConflicts(g.id, allFlock);
-      var months = gatheringMonths(g);
-      var allDays = buildDayList(months);
-      var topWindows = submittedCount > 0 ? findBestWindows(allDays, conflicts, submittedCount, 5, 1) : [];
-      if (topWindows.length) {
-        var w = topWindows[0];
-        var availableSlots = Math.max(submittedCount * w.days.length - w.totalConflicts, 0);
-        var possibleSlots = Math.max(submittedCount * w.days.length, 1);
-        windowScore = Math.round((availableSlots / possibleSlots) * 100);
-        bestWindow = formatDateWindowRange(w);
-      }
+      windowScore = 0;
+      bestWindow = null;
     }
   }
 
@@ -4626,15 +4619,15 @@ function renderDateWindowPanel(g, panel) {
   var allDays = buildDayList(months);
   var topWindows = [];
   if (state.proposalWindows.length) {
-    topWindows = state.proposalWindows.map(function(pw, idx){
+    topWindows = computeLiveWindowSummaries(g).map(function(pw, idx){
       return {
         start: { key:'proposal-' + idx, abbr:'', d:'', label:pw.dates },
         end: { key:'proposal-' + idx + '-end', abbr:'', d:'', label:pw.dates },
-        days: [],
-        totalConflicts: 0,
-        pct: 0,
+        days: (pw.keys || []).map(function(k){ return { key:k }; }),
+        totalConflicts: pw.counts ? pw.counts.conflictDays : 0,
+        pct: pw.score || 0,
         display: pw.dates,
-        proposal: pw
+        liveSummary: pw
       };
     });
   } else {
@@ -4676,11 +4669,13 @@ function renderDateWindowPanel(g, panel) {
 
   var chipsHtml = topWindows.length > 0
     ? topWindows.map(function(w, i) {
-        var conf = w.totalConflicts === 0
-          ? '<span style="color:var(--green);font-weight:800">No conflicts ✓</span>'
-          : w.totalConflicts + ' conflict' + (w.totalConflicts > 1 ? 's' : '');
+        var conf = w.liveSummary
+          ? escapeHtml(liveWindowSubtitle(w.liveSummary))
+          : (w.totalConflicts === 0
+            ? '<span style="color:var(--green);font-weight:800">No conflicts ✓</span>'
+            : w.totalConflicts + ' conflict' + (w.totalConflicts > 1 ? 's' : ''));
         return '<div class="' + chipClasses[i] + '" data-start="' + w.start.key + '" data-end="' + w.end.key + '" data-display="' + escapeHtml(fmtRange(w)) + '">' +
-          '<div class="dw-chip-top"><div class="dw-chip-label">' + chipLabels[i] + '</div>' +
+          '<div class="dw-chip-top"><div class="dw-chip-label">' + (w.liveSummary && w.liveSummary.isRecommended ? 'Recommended' : 'Option') + '</div>' +
           '<div class="dw-chip-conf">' + conf + '</div></div>' +
           '<div class="dw-chip-range">' + fmtRange(w) + '</div>' +
           '<div class="dw-chip-action">Organizer: finalize this window →</div>' +
@@ -5114,9 +5109,11 @@ function buildBeachDetail(g) {
   var responded = state.submittedCount;
   var total = state.totalMembers;
 
-  var windowsHTML = state.proposalWindows.length
-    ? state.proposalWindows.map(function(w){
-        return '<div class="window-opt '+(w.status || 'partial')+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(w.label || '')+'</div></div>';
+  var liveWindows = computeLiveWindowSummaries(g);
+  var windowsHTML = liveWindows.length
+    ? liveWindows.map(function(w){
+        var cls = w.isRecommended ? 'best' : (w.counts && w.counts.submitted ? 'partial' : 'blocked');
+        return '<div class="window-opt '+cls+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(liveWindowSubtitle(w))+'</div></div>';
       }).join('')
     : '';
 
@@ -5811,6 +5808,83 @@ function getAvailabilityReviewWindows(g) {
   }
   return out;
 }
+
+function getWindowAnswerForMember(g, member, win) {
+  if (!g || !member || !win) return null;
+  var r = getRsvpForMember(g.id, member.id || member.member_id);
+  if (!r || !(r.availSubmitted || r.availability_submitted)) return null;
+  var answers = r.windowAnswers || r.window_answers || {};
+  var raw = answers[win.id] || answers[String(win.id)];
+  if (raw === 'works' || raw === 'partial' || raw === 'no') return raw;
+
+  // Backfill old responses that only stored blocked dates.
+  var blocked = r.blockedDates || r.blocked_dates || [];
+  var keys = win.keys || [];
+  if (!keys.length) return 'works';
+  var conflictCount = keys.filter(function(k){ return blocked.indexOf(k) >= 0; }).length;
+  if (conflictCount === 0) return 'works';
+  if (conflictCount >= keys.length) return 'no';
+  return 'partial';
+}
+
+function computeLiveWindowSummaries(g) {
+  var state = deriveGatheringState(g);
+  var windows = getAvailabilityReviewWindows(g || {});
+  var out = [];
+
+  windows.forEach(function(win, idx){
+    var counts = { works:0, partial:0, no:0, submitted:0, waiting:0, conflictDays:0 };
+    state.activeMembers.forEach(function(m){
+      var ans = getWindowAnswerForMember(g, m, win);
+      if (!ans) { counts.waiting++; return; }
+      counts.submitted++;
+      counts[ans] = (counts[ans] || 0) + 1;
+      var r = getRsvpForMember(g.id, m.id || m.member_id) || {};
+      var blocked = r.blockedDates || r.blocked_dates || [];
+      if (win.keys && win.keys.length) {
+        counts.conflictDays += win.keys.filter(function(k){ return blocked.indexOf(k) >= 0; }).length;
+      }
+    });
+
+    var score = counts.submitted ? Math.round(((counts.works + (counts.partial * 0.5)) / counts.submitted) * 100) : 0;
+    var summary = 'Waiting for availability';
+    if (counts.submitted) {
+      var bits = [];
+      if (counts.works) bits.push(counts.works + ' work' + (counts.works === 1 ? 's' : ''));
+      if (counts.partial) bits.push(counts.partial + ' partial');
+      if (counts.no) bits.push(counts.no + ' no');
+      summary = bits.length ? bits.join(' · ') : 'No responses yet';
+    }
+
+    out.push({
+      id: win.id,
+      label: win.label,
+      dates: win.label,
+      keys: win.keys || [],
+      counts: counts,
+      score: score,
+      summary: summary,
+      isRecommended: false,
+      source: win.source || 'proposal',
+      index: idx
+    });
+  });
+
+  var best = null;
+  out.forEach(function(w){
+    if (!w.counts.submitted) return;
+    if (!best || w.score > best.score || (w.score === best.score && w.counts.conflictDays < best.counts.conflictDays)) best = w;
+  });
+  if (best) best.isRecommended = true;
+  return out;
+}
+
+function liveWindowSubtitle(summary) {
+  if (!summary || !summary.counts || !summary.counts.submitted) return 'Waiting for availability';
+  if (summary.isRecommended) return 'Recommended from ' + summary.counts.submitted + ' response' + (summary.counts.submitted === 1 ? '' : 's');
+  return summary.summary;
+}
+
 function defaultAnswerForWindow(win) {
   var keys = win.keys || [];
   if (!keys.length) return 'works';
