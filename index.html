@@ -1689,6 +1689,24 @@ img,svg{display:block}
 .xflock-empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700;margin-bottom:12px}
 .activity-deeplink{color:var(--brand);font-weight:800;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 
+/* ── CONTEXT BAR: helps people understand where they are ───────── */
+.context-bar{
+  position:sticky;top:58px;z-index:45;
+  max-width:430px;margin:0 auto;
+  background:rgba(255,255,255,.94);
+  border-bottom:1px solid var(--border);
+  padding:8px 14px;
+  backdrop-filter:blur(10px);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.context-crumbs{display:flex;align-items:center;gap:6px;min-width:0;flex:1;overflow:hidden;white-space:nowrap}
+.context-crumb{font-size:11px;font-weight:800;color:var(--brand);background:#ede8ff;border:none;border-radius:999px;padding:5px 8px;cursor:pointer;max-width:150px;overflow:hidden;text-overflow:ellipsis;font-family:inherit}
+.context-crumb.current{color:var(--text1);background:var(--surface2);cursor:default}
+.context-sep{font-size:11px;color:var(--text3);font-weight:800}
+.context-viewing{font-size:10px;color:var(--text2);font-weight:800;max-width:126px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.context-viewing strong{color:var(--text1)}
+@media (max-width:390px){.context-viewing{display:none}.context-crumb{max-width:120px}}
+
 </style>
 </head>
 <body>
@@ -1718,6 +1736,11 @@ img,svg{display:block}
       <div class="topbar-av" id="topbar-av"></div>
     </div>
   </header>
+
+  <div class="context-bar" id="context-bar">
+    <div class="context-crumbs" id="context-crumbs"></div>
+    <div class="context-viewing" id="context-viewing"></div>
+  </div>
 
   <div class="page-wrap">
     <!-- HOME -->
@@ -1769,7 +1792,7 @@ img,svg{display:block}
     <div class="page" id="page-myworld">
       <div class="myworld-hero">
         <div class="myworld-title">My World</div>
-        <div class="myworld-sub">Everything you owe, missed, or need to react to across every flock you belong to.</div>
+        <div class="myworld-sub">A friendly home base for your tasks, messages, and family updates across every flock.</div>
       </div>
       <div id="myworld-content"></div>
     </div>
@@ -1822,7 +1845,7 @@ img,svg{display:block}
 
     <!-- FLOCK -->
     <div class="page" id="page-flock">
-      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:14px">Your flock</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:26px;color:var(--text1);margin-bottom:14px">Family space</div>
       <div id="flock-page-content"></div>
     </div>
 
@@ -1839,7 +1862,7 @@ img,svg{display:block}
     </button>
     <button class="nav-btn" data-page="myworld">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
-      World
+      My World
     </button>
     <button class="nav-btn" data-page="gatherings">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1851,7 +1874,7 @@ img,svg{display:block}
     </button>
     <button class="nav-btn" data-page="flock">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Flock
+      Family
     </button>
     <button class="nav-btn" data-page="profile">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -2261,6 +2284,55 @@ function toast(msg) {
 var currentPage = 'home';
 var detailOpen = false;
 var scrollPositions = {};
+var currentDetailTab = null;
+
+function getCurrentFlockNameForContext() {
+  var f = FLOCKS && currentFlockId ? FLOCKS[currentFlockId] : null;
+  return f && f.name ? f.name : 'My Flock';
+}
+
+function getCurrentMemberNameForContext() {
+  if (DATA && DATA.me && DATA.me.name) return DATA.me.name;
+  return 'You';
+}
+
+function getPageLabelForContext(name) {
+  var labels = {home:'Home', myworld:'My World', gatherings:'Gatherings', ideas:'Idea Bank', flock:'Family Space', profile:'Profile'};
+  return labels[name] || 'Home';
+}
+
+function updateContextBar(opts) {
+  opts = opts || {};
+  var crumbEl = document.getElementById('context-crumbs');
+  var viewEl = document.getElementById('context-viewing');
+  if (!crumbEl || !viewEl) return;
+
+  var crumbs = [];
+  if (opts.world) {
+    crumbs.push({label:'My World', page:'myworld'});
+  } else {
+    crumbs.push({label:getCurrentFlockNameForContext(), page:'home'});
+    if (opts.page && opts.page !== 'home') crumbs.push({label:getPageLabelForContext(opts.page), page:opts.page});
+  }
+  if (opts.gathering) crumbs.push({label:opts.gathering.name || opts.gathering.title || 'Gathering', gatheringId:opts.gathering.id});
+  if (opts.tab) crumbs.push({label:getPageLabelForContext(opts.tab) === 'Home' ? String(opts.tab).charAt(0).toUpperCase()+String(opts.tab).slice(1) : getPageLabelForContext(opts.tab), current:true});
+  if (!opts.gathering && crumbs.length) crumbs[crumbs.length-1].current = true;
+
+  crumbEl.innerHTML = crumbs.map(function(c, i){
+    var sep = i ? '<span class="context-sep">›</span>' : '';
+    var cls = 'context-crumb' + (c.current ? ' current' : '');
+    return sep + '<button class="' + cls + '" data-page="' + escapeHtml(c.page || '') + '" data-gid="' + escapeHtml(c.gatheringId || '') + '">' + escapeHtml(c.label) + '</button>';
+  }).join('');
+  viewEl.innerHTML = '<strong>' + escapeHtml(getCurrentMemberNameForContext()) + '</strong> · ' + escapeHtml(opts.world ? 'all flocks' : getCurrentFlockNameForContext());
+
+  crumbEl.querySelectorAll('.context-crumb').forEach(function(btn){
+    if (btn.classList.contains('current')) return;
+    btn.addEventListener('click', function(){
+      if (btn.dataset.gid) { showPage('gatherings'); showDetail(btn.dataset.gid, 'overview'); return; }
+      if (btn.dataset.page) { showPage(btn.dataset.page); renderPage(btn.dataset.page); }
+    });
+  });
+}
 
 function showPage(name) {
   // Save scroll position of current page
@@ -2287,6 +2359,8 @@ function showPage(name) {
   document.querySelectorAll('.nav-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.page === name);
   });
+  currentDetailTab = null;
+  updateContextBar({page:name, world:name === 'myworld'});
 }
 
 function showDetail(gatheringId, openTab) {
@@ -2300,6 +2374,7 @@ function showDetail(gatheringId, openTab) {
   var pw = document.querySelector('.page-wrap');
   if (pw) scrollPositions['detail_prev'] = pw.scrollTop;
   if (pw) pw.scrollTop = 0;
+  updateContextBar({page:'gatherings', gathering:g, tab:openTab || 'overview'});
 }
 
 function closeDetail() {
@@ -2319,6 +2394,8 @@ function closeDetail() {
   detailOpen = false;
   var pw = document.querySelector('.page-wrap');
   if (pw && scrollPositions['gatherings']) pw.scrollTop = scrollPositions['gatherings'];
+  currentDetailTab = null;
+  updateContextBar({page:'gatherings'});
 }
 
 // Nav buttons
@@ -2332,6 +2409,8 @@ document.querySelectorAll('.nav-btn').forEach(function(btn){
 });
 
 // Topbar profile tap
+setTimeout(function(){ updateContextBar({page:currentPage}); }, 0);
+
 document.getElementById('topbar-av').addEventListener('click', function(){
   showPage('profile');
   renderProfile();
@@ -2489,7 +2568,7 @@ function renderMyWorld() {
       '<div class="xflock-meta">' + escapeHtml(t.flock) + ' · ' + escapeHtml(t.gathering) + '</div>' +
       '<div class="xflock-link">Open ' + escapeHtml(t.action) + ' →</div>' +
       '</div></div></div>';
-  }).join('') : '<div class="xflock-empty">✓ You are caught up across all flocks.</div>';
+  }).join('') : '<div class="xflock-empty">All clear — nothing needs you right now. Enjoy the quiet 🫶</div>';
 
   var acts = buildCrossFlockActivity(12);
   var actHtml = acts.length ? acts.map(function(a){
@@ -2500,7 +2579,7 @@ function renderMyWorld() {
       '<div class="xflock-meta">' + escapeHtml(a.flock) + (a.gathering ? ' · ' + escapeHtml(a.gathering) : '') + (a.time ? ' · ' + escapeHtml(a.time) : '') + '</div>' +
       (canOpen ? '<div class="xflock-link">Open referenced gathering/chat →</div>' : '<div class="xflock-link">Open flock →</div>') +
       '</div></div></div>';
-  }).join('') : '<div class="xflock-empty">No recent activity across your flocks yet.</div>';
+  }).join('') : '<div class="xflock-empty">No updates yet. When someone plans, chats, or changes a gathering, it will show up here.</div>';
 
   el.innerHTML = strip +
     '<div class="section-title">Your to-do across flocks</div>' + todoHtml +
@@ -2867,7 +2946,7 @@ function renderHome() {
     } else {
       if (actTitle) actTitle.style.display = '';
       feed.style.display = '';
-      feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet — start planning!</div>';
+      feed.innerHTML = '<div class="activity-item" style="justify-content:center;padding:20px;color:var(--text3);font-size:13px">No activity yet. Start the conversation or plan the first gathering 👋</div>';
     }
   } else {
   if (actTitle) actTitle.style.display = '';
@@ -3350,6 +3429,8 @@ function renderDetail(g) {
     window._currentDetailGathering = liveG;
 
     activeTab = tabId;
+    currentDetailTab = tabId;
+    updateContextBar({page:'gatherings', gathering:liveG, tab:tabId});
     tabs.querySelectorAll('.gtab').forEach(function(t){
       t.classList.toggle('active', t.dataset.tab === tabId);
     });
@@ -3549,7 +3630,7 @@ function renderTasksTabContent(g, wrap) {
 
   var emptyAll = total === 0
     ? '<div class="tasks-empty"><div style="font-size:36px;margin-bottom:8px">\u2705</div>'+
-      '<div style="font-size:15px;font-weight:700;color:var(--text2)">No tasks yet</div>'+
+      '<div style="font-size:15px;font-weight:700;color:var(--text2)">No tasks yet — add one small thing to help the flock.</div>'+
       '<div style="font-size:13px;color:var(--text3);margin-top:4px">Add the first thing that needs doing</div></div>'
     : '';
 
@@ -5770,17 +5851,17 @@ function openAdminPanel() {
 
   body.innerHTML =
     '<div style="padding:4px 0">'+
-      '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Manage members, roles, passwords, and exports for <strong>' + escapeHtml(flock.name) + '</strong>.</div>'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Family Organizer tools for <strong>' + escapeHtml(flock.name) + '</strong>.</div>'+
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:16px">'+
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">'+
           '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Admin exports</div>'+
           '<div style="font-size:10px;color:var(--text3);font-weight:700">Last synced: ' + escapeHtml(lastSyncedLabel) + '</div>'+
         '</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
-          '<button class="admin-export-csv" data-scope="all" style="padding:10px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Export all CSV</button>'+
-          '<button class="admin-export-json" data-scope="all" style="padding:10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Export all JSON</button>'+ 
-          (currentDetailId ? '<button class="admin-export-csv" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">This gathering CSV</button>' : '')+
-          (currentDetailId ? '<button class="admin-export-json" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">This gathering JSON</button>' : '')+
+          '<button class="admin-export-csv" data-scope="all" style="padding:10px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save all CSV</button>'+
+          '<button class="admin-export-json" data-scope="all" style="padding:10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save all JSON</button>'+ 
+          (currentDetailId ? '<button class="admin-export-csv" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save gathering CSV</button>' : '')+
+          (currentDetailId ? '<button class="admin-export-json" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save gathering JSON</button>' : '')+
         '</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
           '<button class="admin-export-members" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Member directory</button>'+
@@ -7073,7 +7154,7 @@ function showFlockSheet() {
         delRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin:-4px 0 8px 54px';
         var delBtn = document.createElement('button');
         delBtn.style.cssText = 'font-size:11px;font-weight:700;padding:4px 12px;border-radius:8px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit;transition:all .15s';
-        delBtn.textContent = 'Delete flock';
+        delBtn.textContent = 'Archive flock';
         delBtn.addEventListener('click', function(e) {
           e.stopPropagation();
           delBtn.style.display = 'none';
@@ -8060,7 +8141,7 @@ function renderPolls(g) {
       if (poll.createdBy === DATA.me.id) {
         var delBtn = document.createElement('button');
         delBtn.style.cssText = 'margin-top:8px;font-size:11px;font-weight:700;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;font-family:inherit;padding:0';
-        delBtn.textContent = 'Delete poll';
+        delBtn.textContent = 'Archive poll';
         delBtn.addEventListener('click', function(){
           var idx = g.polls.findIndex(function(p){ return p.id === poll.id; });
           if (idx >= 0) g.polls.splice(idx, 1);
@@ -9842,7 +9923,7 @@ try {
 
       // ── Delete ──
       '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">' +
-        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Delete this gathering</button>' +
+        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Archive this gathering</button>' +
       '</div>' +
       '<div id="ge-delete-confirm" style="display:none;margin-top:10px;background:var(--red-bg);border:1.5px solid var(--red);border-radius:14px;padding:16px">' +
         '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
