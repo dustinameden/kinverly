@@ -12252,6 +12252,50 @@ try {
     };
   }
 
+  async function getSharedFlockDocIdsForEdit(flock, primaryDocId) {
+    var ids = {};
+    if (primaryDocId) ids[String(primaryDocId)] = true;
+    if (flock) {
+      [flock.firestore_id, flock.storage_key, flock.uid, flock.firebase_id, flock.firestoreDocId].forEach(function(x){
+        if (x !== null && x !== undefined && String(x).trim() && !isProbablyNumericId(x)) ids[String(x)] = true;
+      });
+    }
+
+    // Legacy accounts may still be subscribed to a duplicate flock document that
+    // has the same inviteCode. Until every account is repaired, gathering edits
+    // must patch every matching shared flock doc so all users see the same details.
+    try {
+      var h = window.__firestoreHelpers || {};
+      if (window.__db && h.getDocs && h.query && h.where && h.collection && flock && flock.inviteCode) {
+        var q = h.query(h.collection(window.__db, 'flocks'), h.where('inviteCode', '==', flock.inviteCode));
+        var snap = await h.getDocs(q);
+        if (snap && snap.forEach) {
+          snap.forEach(function(docSnap){ if (docSnap && docSnap.id) ids[String(docSnap.id)] = true; });
+        } else if (snap && snap.docs) {
+          snap.docs.forEach(function(docSnap){ if (docSnap && docSnap.id) ids[String(docSnap.id)] = true; });
+        }
+      }
+    } catch(_docFindErr) {
+      console.warn('[Kinverly] Could not discover duplicate flock docs for edit fanout:', _docFindErr && _docFindErr.message);
+    }
+    return Object.keys(ids).filter(Boolean);
+  }
+
+  function patchGatheringIntoArrayForEdit(arr, editedGathering) {
+    var safeEdited = sanitizeGatheringForFirestore(editedGathering);
+    var list = Array.isArray(arr) ? arr.slice() : [];
+    var found = false;
+    list = list.map(function(item){
+      if (item && String(item.id) === String(editedGathering.id)) {
+        found = true;
+        return safeEdited;
+      }
+      return item;
+    });
+    if (!found) list.unshift(safeEdited);
+    return list;
+  }
+
   async function persistGatheringEdit(g) {
     saveLocal();
     markGatheringEditPending(g);
@@ -12265,76 +12309,108 @@ try {
     var flock = FLOCKS[currentFlockId];
     normalizeKinverlySchema(flock);
     touchEntity(flock);
-    var docId = getFlockFirestoreDocId(currentFlockId, flock);
-    flock.firestore_id = docId;
-    flock.storage_key = docId;
-    flock.uid = docId;
 
-    // Read current shared flock first, patch only this gathering into that array,
-    // then write the merged array back. This prevents User A from overwriting
-    // User B's current flock state with stale localStorage.
-    var remote = null;
-    if (h.getDoc && h.doc) {
-      try {
-        var snap = await h.getDoc(h.doc(window.__db, 'flocks', docId));
-        if (snap && snap.exists && snap.exists()) remote = snap.data() || null;
-      } catch(_readErr) {}
+    var primaryDocId = getFlockFirestoreDocId(currentFlockId, flock);
+    flock.firestore_id = primaryDocId;
+    flock.storage_key = primaryDocId;
+    flock.uid = primaryDocId;
+
+    var docIds = await getSharedFlockDocIdsForEdit(flock, primaryDocId);
+    if (!docIds.length) docIds = [primaryDocId];
+
+    var canonicalWrittenGatherings = null;
+    var canonicalMembers = null;
+    var canonicalMemberIds = null;
+    var canonicalDocId = primaryDocId;
+
+    for (var d = 0; d < docIds.length; d++) {
+      var docId = docIds[d];
+      if (!docId) continue;
+
+      var remote = null;
+      if (h.getDoc && h.doc) {
+        try {
+          var snap = await h.getDoc(h.doc(window.__db, 'flocks', docId));
+          if (snap && snap.exists && snap.exists()) remote = snap.data() || null;
+        } catch(_readErr) {}
+      }
+
+      var remoteGatherings = remote && Array.isArray(remote.gatherings) ? remote.gatherings : [];
+      var baseGatherings = patchGatheringIntoArrayForEdit(remoteGatherings.length ? remoteGatherings : (flock.gatherings || []), g);
+
+      // Preserve very recent local-only gatherings so creating one and then editing
+      // another does not accidentally drop the newly-created unsynced row.
+      (flock.gatherings || []).forEach(function(localG){
+        if (!localG || String(localG.id) === String(g.id)) return;
+        var exists = baseGatherings.some(function(x){ return x && String(x.id) === String(localG.id); });
+        if (!exists && Date.now() - (localG._createdAt || 0) < 15000) {
+          baseGatherings.push(sanitizeGatheringForFirestore(localG));
+        }
+      });
+
+      var remoteMembers = remote && remote.members ? remote.members : (flock.members || {});
+      var mergedMembers = mergeMembersByTombstone(remoteMembers, flock.members || {});
+      var tempFlockForMembers = Object.assign({}, flock, {
+        firestore_id: docId,
+        storage_key: docId,
+        uid: docId,
+        members: mergedMembers,
+        removedMembers: Object.assign({}, (remote && remote.removedMembers) || {}, flock.removedMembers || {})
+      });
+      reconcileFlockMemberships(tempFlockForMembers);
+      mergedMembers = tempFlockForMembers.members || mergedMembers;
+      var activeMemberIds = Object.keys(mergedMembers || {}).filter(function(mid){
+        return isActiveMemberRecord(mergedMembers[mid]);
+      });
+
+      var updates = {
+        id: flock.id,
+        firestore_id: docId,
+        storage_key: docId,
+        uid: docId,
+        inviteCode: flock.inviteCode || (remote && remote.inviteCode) || '',
+        name: flock.name || (remote && remote.name) || '',
+        emoji: flock.emoji || (remote && remote.emoji) || '',
+        createdBy: flock.createdBy || (remote && remote.createdBy) || '',
+        members: mergedMembers,
+        memberIds: activeMemberIds,
+        removedMembers: Object.assign({}, (remote && remote.removedMembers) || {}, flock.removedMembers || {}),
+        updated_at: nowISO(),
+        last_gathering_edit_at: nowISO(),
+        last_gathering_edit_id: g.id,
+        gatherings: baseGatherings,
+        activity: mergeArraysByIdNewest((remote && remote.activity) || [], flock.activity || DATA.activity || []).slice(0, 60),
+        events: mergeArraysByIdNewest((remote && remote.events) || [], flock.events || DATA.events || []).slice(0, 600),
+        rsvpData: Object.assign({}, (remote && remote.rsvpData) || {}, rsvpData || {})
+      };
+      if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
+
+      await h.setDoc(h.doc(window.__db, 'flocks', docId), updates, { merge: true });
+
+      if (String(docId) === String(primaryDocId)) {
+        canonicalWrittenGatherings = baseGatherings;
+        canonicalMembers = mergedMembers;
+        canonicalMemberIds = activeMemberIds;
+        canonicalDocId = docId;
+      }
     }
 
-    var baseGatherings = remote && Array.isArray(remote.gatherings) ? remote.gatherings.slice() : (flock.gatherings || []).slice();
-    var safeEdited = sanitizeGatheringForFirestore(g);
-    var found = false;
-    baseGatherings = baseGatherings.map(function(item){
-      if (item && String(item.id) === String(g.id)) {
-        found = true;
-        return safeEdited;
-      }
-      return item;
-    });
-    if (!found) baseGatherings.unshift(safeEdited);
-
-    // If another local gathering was created seconds ago and is not remote yet, keep it.
-    (flock.gatherings || []).forEach(function(localG){
-      if (!localG || String(localG.id) === String(g.id)) return;
-      var exists = baseGatherings.some(function(x){ return x && String(x.id) === String(localG.id); });
-      if (!exists && Date.now() - (localG._createdAt || 0) < 15000) baseGatherings.push(sanitizeGatheringForFirestore(localG));
-    });
-
-    var remoteMembers = remote && remote.members ? remote.members : (flock.members || {});
-    var mergedMembers = mergeMembersByTombstone(remoteMembers, flock.members || {});
-    var tempFlockForMembers = Object.assign({}, flock, { members: mergedMembers, removedMembers: Object.assign({}, (remote && remote.removedMembers) || {}, flock.removedMembers || {}) });
-    reconcileFlockMemberships(tempFlockForMembers);
-    mergedMembers = tempFlockForMembers.members || mergedMembers;
-    var activeMemberIds = Object.keys(mergedMembers || {}).filter(function(mid){
-      return isActiveMemberRecord(mergedMembers[mid]);
-    });
-
-    var updates = {
-      id: flock.id,
-      firestore_id: docId,
-      storage_key: docId,
-      uid: docId,
-      inviteCode: flock.inviteCode || (remote && remote.inviteCode) || '',
-      name: flock.name || (remote && remote.name) || '',
-      emoji: flock.emoji || (remote && remote.emoji) || '',
-      members: mergedMembers,
-      memberIds: activeMemberIds,
-      removedMembers: Object.assign({}, (remote && remote.removedMembers) || {}, flock.removedMembers || {}),
-      updated_at: nowISO(),
-      gatherings: baseGatherings,
-      activity: mergeArraysByIdNewest((remote && remote.activity) || [], flock.activity || DATA.activity || []).slice(0, 60),
-      events: mergeArraysByIdNewest((remote && remote.events) || [], flock.events || DATA.events || []).slice(0, 600),
-      rsvpData: Object.assign({}, (remote && remote.rsvpData) || {}, rsvpData || {})
-    };
-    if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
-    await h.setDoc(h.doc(window.__db, 'flocks', docId), updates, { merge: true });
-
-    // Keep local aligned with exactly what was written.
-    flock.gatherings = baseGatherings;
-    flock.members = mergedMembers;
-    flock.memberIds = activeMemberIds;
+    // Keep local aligned with the canonical doc we are listening to.
+    if (!canonicalWrittenGatherings) {
+      canonicalWrittenGatherings = patchGatheringIntoArrayForEdit(flock.gatherings || [], g);
+      canonicalMembers = flock.members || {};
+      canonicalMemberIds = Object.keys(canonicalMembers || {}).filter(function(mid){ return isActiveMemberRecord(canonicalMembers[mid]); });
+    }
+    flock.firestore_id = canonicalDocId;
+    flock.storage_key = canonicalDocId;
+    flock.uid = canonicalDocId;
+    flock.gatherings = canonicalWrittenGatherings;
+    flock.members = canonicalMembers;
+    flock.memberIds = canonicalMemberIds;
     FLOCKS[currentFlockId] = flock;
+    DATA.gatherings = (canonicalWrittenGatherings || []).filter(function(row){ return row && !row.deleted_at; });
     saveLocal();
+    markLastSyncedAt(Date.now());
   }
 
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -12424,7 +12500,7 @@ try {
       '</div>' +
 
       // ── Save ──
-      '<button class="gc-save-btn" id="ge-save-btn" style="margin-top:16px">Save changes</button>' +
+      '<button type="button" class="gc-save-btn" id="ge-save-btn" data-action="save-gathering-edit" style="margin-top:16px">Save changes</button>' +
 
       // ── Share & Duplicate ──
       '<div style="display:flex;gap:8px;margin-top:12px">' +
@@ -12655,6 +12731,112 @@ try {
   }
 
   window.openGatherEdit = openGatherEdit;
+
+  // Hardened edit-save path. The edit sheet is rebuilt often, so a direct
+  // button listener can be lost or can point at stale state after re-renders.
+  // This delegated capture handler always reads the live form + currently
+  // open gathering and saves through the canonical Firestore flock document.
+  async function saveGatheringEditFromSheet(saveBtn) {
+    saveBtn = saveBtn || document.getElementById('ge-save-btn');
+    var g = editingGathering || window._currentDetailGathering;
+    if (!g || !g.id) { toast('Open a gathering first'); return; }
+
+    var liveG = getGatheringById(g.id) || g;
+    var before = JSON.parse(JSON.stringify(liveG));
+
+    var nameEl  = document.getElementById('ge-name');
+    var locEl   = document.getElementById('ge-loc');
+    var monthEl = document.getElementById('ge-month');
+    var dayEl   = document.getElementById('ge-day');
+    var themeEl = document.getElementById('ge-theme');
+    var hostEl  = document.getElementById('ge-host');
+
+    if (!nameEl) { toast('Edit form is still loading'); return; }
+
+    var name = nameEl.value.trim();
+    if (!name) { nameEl.focus(); toast('Please enter a gathering name'); return; }
+
+    var monthI = monthEl ? parseInt(monthEl.value, 10) : NaN;
+    var dayV = dayEl ? (parseInt(dayEl.value, 10) || 0) : 0;
+
+    liveG.name = name;
+    liveG.location = locEl ? locEl.value.trim() : '';
+    liveG.month = (!isNaN(monthI) && MONTHS[monthI]) ? MONTHS[monthI] : (liveG.month || '');
+    liveG.day = dayV;
+    liveG.theme = themeEl ? themeEl.value.trim() : '';
+    liveG.hybrid = editDraftType === 'hybrid';
+    liveG.virtual = editDraftType === 'virtual';
+    liveG.host = hostEl ? (hostEl.value || '') : (liveG.host || '');
+    liveG.status = editDraftStatus || liveG.status || 'upcoming';
+    liveG.updatedAt = Date.now();
+    liveG.updated_at = nowISO();
+    liveG.updatedBy = DATA.me && DATA.me.id ? DATA.me.id : '';
+
+    if (liveG.status === 'completed') liveG.themePill = 'pill-gray';
+    else if (liveG.status === 'planning') liveG.themePill = 'pill-blue';
+    else if (liveG.status === 'next') liveG.themePill = 'pill-brand';
+    else liveG.themePill = liveG.themePill || 'pill-amber';
+
+    if (liveG.status === 'next') {
+      DATA.gatherings.forEach(function(other){
+        if (other && other.id !== liveG.id && other.status === 'next') {
+          other.status = 'upcoming';
+          other.updated_at = nowISO();
+          other.updatedAt = Date.now();
+        }
+      });
+    }
+
+    var changeText = describeGatheringChanges(before, liveG);
+    if (typeof logActivity === 'function') {
+      logActivity(DATA.me.id, changeText + ' for <strong>' + escapeHtml(name) + '</strong>', '✏️');
+    }
+    if (typeof recordEvent === 'function') {
+      recordEvent('gathering.updated', 'gathering', liveG.id, before, liveG, changeText + ' for ' + name, '✏️');
+    }
+
+    markGatheringEditPending(liveG);
+    window._currentDetailGathering = liveG;
+
+    var oldText = saveBtn ? saveBtn.textContent : '';
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving changes…';
+    }
+
+    try {
+      await persistGatheringEdit(liveG);
+      // Targeted edit persistence above already wrote the shared flock docs.
+      if (typeof renderDetail === 'function') renderDetail(liveG);
+      if (typeof renderGatherings === 'function' && document.getElementById('gatherings-list')) renderGatherings();
+      if (typeof renderHome === 'function') renderHome();
+      if (typeof renderMyWorld === 'function') renderMyWorld();
+      var overlay = document.getElementById('gather-edit-overlay');
+      if (overlay) overlay.classList.add('hidden');
+      editingGathering = null;
+      toast('Gathering saved ✓');
+    } catch (err) {
+      console.warn('[Kinverly] Hardened gathering edit save failed:', err);
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = oldText || 'Save changes';
+      }
+      toast('Could not save — try again');
+    }
+  }
+
+  var gatherEditOverlay = document.getElementById('gather-edit-overlay');
+  if (gatherEditOverlay && !gatherEditOverlay.dataset.hardenedSaveBound) {
+    gatherEditOverlay.dataset.hardenedSaveBound = '1';
+    gatherEditOverlay.addEventListener('click', function(e){
+      var btn = e.target && e.target.closest ? e.target.closest('#ge-save-btn') : null;
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      saveGatheringEditFromSheet(btn);
+    }, true);
+  }
 
   document.getElementById('gather-edit-close').addEventListener('click', function(){
     // Auto-save if there's an editing gathering
