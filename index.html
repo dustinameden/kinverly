@@ -10317,6 +10317,182 @@ function renderFlockSchedule() {
   updateCountdown();
   setInterval(updateCountdown, 60000);
 
+
+
+// HARDENED AVAILABILITY CONFIRM SAVE
+// This replaces the earlier handler with a simpler, single-path save that cannot silently fail.
+confirmAvailabilityReview = function(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (e && e.stopPropagation) e.stopPropagation();
+
+  var submitBtn = document.getElementById('avail-submit');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving availability…';
+  }
+
+  function finishButton() {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Confirm availability';
+    }
+  }
+
+  try {
+    var g = window._availGathering || window._currentDetailGathering || null;
+    if (g && g.id && typeof getLiveGathering === 'function') {
+      g = getLiveGathering(g.id) || g;
+    }
+    if (!g || !g.id) {
+      finishButton();
+      toast('Open a gathering first, then review availability.');
+      return false;
+    }
+
+    var me = DATA && DATA.me ? DATA.me : {};
+    var memberRecord = null;
+    try { if (typeof getCurrentMemberRecord === 'function') memberRecord = getCurrentMemberRecord(); } catch(_err) {}
+
+    var memberKeys = [];
+    function addKey(k) {
+      if (k === undefined || k === null || k === '') return;
+      if (memberKeys.indexOf(k) === -1) memberKeys.push(k);
+      var sk = String(k);
+      if (memberKeys.indexOf(sk) === -1) memberKeys.push(sk);
+    }
+    addKey(me.id);
+    if (memberRecord) {
+      addKey(memberRecord.id);
+      addKey(memberRecord.member_id);
+      addKey(memberRecord.uid);
+      addKey(memberRecord.memberKey);
+    }
+
+    if (!memberKeys.length) {
+      finishButton();
+      toast('Could not identify your member profile.');
+      return false;
+    }
+
+    var primaryMemberId = memberRecord && (memberRecord.id || memberRecord.member_id) ? (memberRecord.id || memberRecord.member_id) : me.id;
+    var stamp = typeof nowISO === 'function' ? nowISO() : new Date().toLocaleString();
+    var blocked = Object.keys(blockedDates || {}).filter(function(k){ return blockedDates[k]; });
+
+    var windows = [];
+    try { windows = typeof getAvailabilityReviewWindows === 'function' ? getAvailabilityReviewWindows(g) : []; } catch(_werr) { windows = []; }
+    windows.forEach(function(win){
+      if (!availabilityWindowAnswers[win.id]) {
+        availabilityWindowAnswers[win.id] = typeof defaultAnswerForWindow === 'function' ? defaultAnswerForWindow(win) : 'works';
+      }
+    });
+
+    if (typeof rsvpData === 'undefined' || !rsvpData) rsvpData = {};
+    if (!rsvpData[g.id]) rsvpData[g.id] = {};
+
+    var previous = {};
+    for (var i = 0; i < memberKeys.length; i++) {
+      if (rsvpData[g.id][memberKeys[i]]) { previous = rsvpData[g.id][memberKeys[i]]; break; }
+    }
+
+    var mine = Object.assign({}, previous, {
+      id: primaryMemberId,
+      member_id: primaryMemberId,
+      status: previous.status || 'responded',
+      blockedDates: blocked,
+      blocked_dates: blocked,
+      windowAnswers: Object.assign({}, availabilityWindowAnswers || {}),
+      window_answers: Object.assign({}, availabilityWindowAnswers || {}),
+      availSubmitted: true,
+      availability_submitted: true,
+      availability_reviewed_at: stamp,
+      updated_at: stamp,
+      updatedAt: Date.now(),
+      deleted_at: null
+    });
+    if (!mine.created_at) mine.created_at = stamp;
+
+    memberKeys.forEach(function(k){ rsvpData[g.id][k] = Object.assign({}, mine); });
+
+    if (!Array.isArray(g.responses)) g.responses = [];
+    var keyStrings = memberKeys.map(String);
+    var existing = g.responses.find(function(r){
+      if (!r) return false;
+      return keyStrings.indexOf(String(r.id)) >= 0 || keyStrings.indexOf(String(r.member_id)) >= 0;
+    });
+    if (existing) {
+      existing.id = primaryMemberId;
+      existing.member_id = primaryMemberId;
+      existing.status = 'responded';
+      existing.availSubmitted = true;
+      existing.availability_submitted = true;
+      existing.updated_at = stamp;
+      existing.updatedAt = Date.now();
+      existing.deleted_at = null;
+    } else {
+      g.responses.push({
+        id: primaryMemberId,
+        member_id: primaryMemberId,
+        status: 'responded',
+        availSubmitted: true,
+        availability_submitted: true,
+        created_at: stamp,
+        updated_at: stamp,
+        deleted_at: null
+      });
+    }
+
+    if (typeof touchEntity === 'function') touchEntity(g); else g.updated_at = stamp;
+    window._currentDetailGathering = g;
+    window._availGathering = g;
+
+    try {
+      if (typeof logActivity === 'function') {
+        logActivity(primaryMemberId, 'confirmed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
+      }
+    } catch(_logErr) {}
+
+    try {
+      if (typeof saveFlockState === 'function') saveFlockState();
+      else if (typeof saveLocal === 'function') saveLocal();
+      if (typeof pushToFirebase === 'function') pushToFirebase();
+    } catch(saveErr) {
+      console.warn('[Kinverly] availability save warning', saveErr);
+      try { if (typeof saveLocal === 'function') saveLocal(); } catch(_localErr) {}
+    }
+
+    var ov = document.getElementById('avail-overlay');
+    if (ov) ov.classList.add('hidden');
+
+    try { if (typeof renderDateWindowPanel === 'function') {
+      var panel = document.getElementById('date-window-panel-' + g.id);
+      if (panel) renderDateWindowPanel(g, panel);
+    }} catch(_pErr) {}
+    try { if (typeof renderGatheringDetail === 'function') renderGatheringDetail(g); } catch(_rdErr) {}
+    try { if (typeof renderDetail === 'function') renderDetail(g); } catch(_rd2Err) {}
+    try { if (typeof renderGatherings === 'function') renderGatherings(); } catch(_rgErr) {}
+    try { if (typeof renderHome === 'function') renderHome(); } catch(_rhErr) {}
+    try { if (typeof renderMyWorld === 'function') renderMyWorld(); } catch(_rwErr) {}
+
+    finishButton();
+    toast('Availability confirmed ✓');
+    return false;
+  } catch (err) {
+    console.error('[Kinverly] Confirm availability failed:', err);
+    finishButton();
+    toast('Availability could not save — check console for details.');
+    return false;
+  }
+};
+window.confirmAvailabilityReview = confirmAvailabilityReview;
+
+['click','pointerup','touchend'].forEach(function(evtName){
+  document.addEventListener(evtName, function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('#avail-submit') : null;
+    if (!btn) return;
+    confirmAvailabilityReview(e);
+  }, true);
+});
+
   // Decide what to show on startup
   setTimeout(function() {
     if (!isLoggedIn) {
