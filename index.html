@@ -1668,6 +1668,27 @@ img,svg{display:block}
 #home-invite-card.home-invite-compact > div{padding:12px!important}
 #home-invite-card.home-invite-compact div[style*="font-size:24px"]{font-size:18px!important;margin-bottom:8px!important}
 
+
+
+/* ── MY WORLD / CROSS-FLOCK DASHBOARD ───────────────── */
+.myworld-hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:var(--radius-lg);padding:18px;margin-bottom:14px;color:#fff}
+.myworld-title{font-family:'Fredoka One',cursive;font-size:26px;margin-bottom:4px}
+.myworld-sub{font-size:13px;color:rgba(255,255,255,.65);line-height:1.45}
+.myworld-flock-strip{display:flex;gap:8px;overflow-x:auto;margin:10px 0 14px;padding-bottom:4px;scrollbar-width:none}
+.myworld-flock-strip::-webkit-scrollbar{display:none}
+.myworld-flock-chip{flex-shrink:0;border:1.5px solid var(--border);background:var(--surface);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;color:var(--text1);cursor:pointer;display:flex;gap:6px;align-items:center}
+.myworld-flock-chip.active{border-color:var(--brand);background:#ede8ff;color:var(--brand)}
+.xflock-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,transform .1s}
+.xflock-card:hover{border-color:var(--brand2);transform:translateY(-1px)}
+.xflock-top{display:flex;align-items:flex-start;gap:10px}
+.xflock-icon{width:32px;height:32px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.xflock-body{flex:1;min-width:0}
+.xflock-title{font-size:13px;font-weight:800;color:var(--text1);line-height:1.35}
+.xflock-meta{font-size:11px;color:var(--text2);margin-top:2px;font-weight:700}
+.xflock-link{font-size:11px;font-weight:800;color:var(--brand);margin-top:6px;display:inline-flex;align-items:center;gap:3px}
+.xflock-empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700;margin-bottom:12px}
+.activity-deeplink{color:var(--brand);font-weight:800;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+
 </style>
 </head>
 <body>
@@ -1743,6 +1764,16 @@ img,svg{display:block}
       <div id="home-invite-card"></div>
     </div>
 
+
+    <!-- MY WORLD -->
+    <div class="page" id="page-myworld">
+      <div class="myworld-hero">
+        <div class="myworld-title">My World</div>
+        <div class="myworld-sub">Everything you owe, missed, or need to react to across every flock you belong to.</div>
+      </div>
+      <div id="myworld-content"></div>
+    </div>
+
     <!-- GATHERINGS -->
     <div class="page" id="page-gatherings">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -1805,6 +1836,10 @@ img,svg{display:block}
     <button class="nav-btn active" data-page="home">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
       Home
+    </button>
+    <button class="nav-btn" data-page="myworld">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
+      World
     </button>
     <button class="nav-btn" data-page="gatherings">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1977,7 +2012,8 @@ var DATA = {
     poolPerPerson:0,poolTotal:0,
     yearMiles:[]
   },
-  activity:[]
+  activity:[],
+  events:[]
 };
 
 function getMember(id) {
@@ -1988,30 +2024,46 @@ function getMember(id) {
 // ═══════════════════════════════════════════════
 //  SCHEMA HELPERS — INTEGER IDS + AUDIT FIELDS
 // ═══════════════════════════════════════════════
-function nowISO() { return new Date().toISOString(); }
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatLocalTimestamp(d) {
+  d = d instanceof Date ? d : new Date(d || Date.now());
+  if (isNaN(d.getTime())) d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+// Keep the legacy function name so existing code paths remain stable, but store local date/time strings.
+function nowISO() { return formatLocalTimestamp(new Date()); }
 function legacyTimeToISO(v) {
   if (!v) return null;
-  if (typeof v === 'string' && /T/.test(v)) return v;
-  if (typeof v === 'number') return new Date(v).toISOString();
+  if (typeof v === 'string') {
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v)) return v;
+    if (/T/.test(v)) return formatLocalTimestamp(new Date(v));
+    var parsed = new Date(v);
+    if (!isNaN(parsed.getTime())) return formatLocalTimestamp(parsed);
+    return v;
+  }
+  if (typeof v === 'number') return formatLocalTimestamp(new Date(v));
   return null;
 }
 function ensureAuditFields(obj, createdFallback) {
   if (!obj || typeof obj !== 'object') return obj;
-  var created = legacyTimeToISO(obj.created_at) || legacyTimeToISO(obj.createdAt) || legacyTimeToISO(obj._createdAt) || legacyTimeToISO(obj.ts) || createdFallback || nowISO();
-  obj.created_at = obj.created_at || created;
-  obj.updated_at = obj.updated_at || legacyTimeToISO(obj.updatedAt) || obj.created_at;
+  var created = legacyTimeToISO(obj.created_at) || legacyTimeToISO(obj.createdAt) || legacyTimeToISO(obj._createdAt) || legacyTimeToISO(obj.ts) || legacyTimeToISO(createdFallback) || nowISO();
+  obj.created_at = legacyTimeToISO(obj.created_at) || created;
+  obj.updated_at = legacyTimeToISO(obj.updated_at) || legacyTimeToISO(obj.updatedAt) || obj.created_at;
   if (!('deleted_at' in obj)) obj.deleted_at = null;
+  else obj.deleted_at = legacyTimeToISO(obj.deleted_at);
   return obj;
 }
 function ensureFlockMeta(flock) {
   if (!flock) return null;
   if (!flock.meta) flock.meta = {};
+  if (!flock.meta.next_flock_id) flock.meta.next_flock_id = 1;
   if (!flock.meta.next_member_id) flock.meta.next_member_id = 1;
   if (!flock.meta.next_gathering_id) flock.meta.next_gathering_id = 1;
   if (!flock.meta.next_task_id) flock.meta.next_task_id = 1;
   if (!flock.meta.next_message_id) flock.meta.next_message_id = 1;
   if (!flock.meta.next_photo_id) flock.meta.next_photo_id = 1;
   if (!flock.meta.next_activity_id) flock.meta.next_activity_id = 1;
+  if (!flock.meta.next_event_id) flock.meta.next_event_id = 1;
   if (!flock.meta.next_idea_id) flock.meta.next_idea_id = 1;
   return flock.meta;
 }
@@ -2030,6 +2082,12 @@ function normalizeKinverlySchema(flock) {
   if (!flock) return flock;
   var meta = ensureFlockMeta(flock);
   ensureAuditFields(flock);
+  if (typeof flock.id !== 'number') {
+    if (typeof flock.flock_id === 'number') flock.id = flock.flock_id;
+    else flock.id = nextEntityInt(flock, 'flock');
+  }
+  flock.flock_id = flock.id;
+  reserveMax(meta, 'next_flock_id', flock.id);
   var members = flock.members || {};
   Object.keys(members).forEach(function(k){
     var m = members[k];
@@ -2037,6 +2095,7 @@ function normalizeKinverlySchema(flock) {
     ensureAuditFields(m, flock.created_at);
     if (!m.id) m.id = k;
     if (typeof m.member_id !== 'number') m.member_id = nextEntityInt(flock, 'member');
+    m.flock_id = flock.id;
     reserveMax(meta, 'next_member_id', m.member_id);
   });
   flock.memberIds = Object.keys(members).filter(function(k){ return members[k] && !members[k].deleted_at; });
@@ -2045,10 +2104,13 @@ function normalizeKinverlySchema(flock) {
     if (!g) return;
     ensureAuditFields(g, flock.created_at);
     if (typeof g.gathering_id !== 'number') g.gathering_id = nextEntityInt(flock, 'gathering');
+    g.flock_id = flock.id;
     reserveMax(meta, 'next_gathering_id', g.gathering_id);
     (g.tasks || []).forEach(function(t){
       ensureAuditFields(t, g.created_at);
       if (typeof t.task_id !== 'number') t.task_id = nextEntityInt(flock, 'task');
+      t.flock_id = flock.id;
+      t.gathering_id = g.gathering_id;
       reserveMax(meta, 'next_task_id', t.task_id);
       if (t.done && !t.completed_at) t.completed_at = t.updated_at || nowISO();
       if (!('completed_at' in t)) t.completed_at = null;
@@ -2056,11 +2118,15 @@ function normalizeKinverlySchema(flock) {
     (g.chat || []).forEach(function(m){
       ensureAuditFields(m, g.created_at);
       if (typeof m.message_id !== 'number') m.message_id = nextEntityInt(flock, 'message');
+      m.flock_id = flock.id;
+      m.gathering_id = g.gathering_id;
       reserveMax(meta, 'next_message_id', m.message_id);
     });
     (g.photos || []).forEach(function(ph){
       ensureAuditFields(ph, g.created_at);
       if (typeof ph.photo_id !== 'number') ph.photo_id = nextEntityInt(flock, 'photo');
+      ph.flock_id = flock.id;
+      ph.gathering_id = g.gathering_id;
       reserveMax(meta, 'next_photo_id', ph.photo_id);
       if (!ph.uploaded_at) ph.uploaded_at = ph.created_at;
     });
@@ -2074,6 +2140,7 @@ function normalizeKinverlySchema(flock) {
   (flock.ideas || []).forEach(function(i){
     ensureAuditFields(i, flock.created_at);
     if (typeof i.idea_id !== 'number') i.idea_id = nextEntityInt(flock, 'idea');
+    i.flock_id = flock.id;
     reserveMax(meta, 'next_idea_id', i.idea_id);
   });
   flock.ideas = (flock.ideas || []).filter(function(i){ return i && !i.deleted_at; });
@@ -2081,7 +2148,20 @@ function normalizeKinverlySchema(flock) {
   (flock.activity || []).forEach(function(a){
     ensureAuditFields(a, flock.created_at);
     if (typeof a.activity_id !== 'number') a.activity_id = nextEntityInt(flock, 'activity');
+    a.id = a.activity_id;
+    a.flock_id = flock.id;
     reserveMax(meta, 'next_activity_id', a.activity_id);
+  });
+
+  if (!Array.isArray(flock.events)) flock.events = [];
+  flock.events.forEach(function(ev){
+    ensureAuditFields(ev, flock.created_at);
+    if (typeof ev.event_id !== 'number') ev.event_id = nextEntityInt(flock, 'event');
+    ev.id = ev.event_id;
+    ev.flock_id = flock.id;
+    reserveMax(meta, 'next_event_id', ev.event_id);
+    if (!ev.event_type) ev.event_type = 'unknown';
+    if (!ev.entity_type) ev.entity_type = 'unknown';
   });
   return flock;
 }
@@ -2091,10 +2171,78 @@ function normalizeCurrentFlockSchema() {
     DATA.gatherings = (FLOCKS[currentFlockId].gatherings || []).filter(function(g){ return g && !g.deleted_at; });
     DATA.ideas = (FLOCKS[currentFlockId].ideas || []).filter(function(i){ return i && !i.deleted_at; });
     DATA.activity = FLOCKS[currentFlockId].activity || DATA.activity || [];
+    DATA.events = FLOCKS[currentFlockId].events || DATA.events || [];
   }
 }
 function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
 function activeOnly(arr) { return (arr || []).filter(function(x){ return x && !x.deleted_at; }); }
+
+
+// ═══════════════════════════════════════════════
+//  EVENT LOG — TRACEABLE COLLABORATIVE CHANGES
+// ═══════════════════════════════════════════════
+function safeCloneForEvent(value) {
+  try {
+    return JSON.parse(JSON.stringify(value, function(key, val){
+      if (key === 'dataUrl' && typeof val === 'string' && val.length > 120) return '[image-data omitted]';
+      if (typeof val === 'string' && val.length > 4000) return val.slice(0, 4000) + '…';
+      return val;
+    }));
+  } catch(e) { return null; }
+}
+function getEntityDisplayName(entityType, entity) {
+  if (!entity) return '';
+  if (entityType === 'member') return entity.name || entity.id || '';
+  if (entityType === 'gathering') return entity.name || entity.title || entity.id || '';
+  if (entityType === 'task') return entity.title || entity.id || '';
+  if (entityType === 'message') return entity.text || entity.message || entity.id || '';
+  return entity.name || entity.title || entity.id || '';
+}
+function recordEvent(eventType, entityType, entityId, beforeValue, afterValue, summary, icon) {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  if (!flock) return null;
+  ensureFlockMeta(flock);
+  if (!Array.isArray(flock.events)) flock.events = [];
+  if (!Array.isArray(DATA.events)) DATA.events = flock.events;
+  var created = nowISO();
+  var nextEventId = nextEntityInt(flock, 'event');
+  var actorNumericId = (DATA.me && typeof DATA.me.member_id === 'number') ? DATA.me.member_id : getNumericMemberIdForExport(DATA.me && DATA.me.id ? DATA.me.id : '');
+  var ev = ensureAuditFields({
+    id: nextEventId,
+    event_id: nextEventId,
+    flock_id: flock.id,
+    event_type: eventType || 'unknown',
+    actor_member_id: actorNumericId || '',
+    actor_member_name: DATA.me && DATA.me.name ? DATA.me.name : '',
+    entity_type: entityType || 'unknown',
+    entity_id: getNumericEntityIdForExport(entityType, entityId) || entityId || '',
+    entity_name: getEntityDisplayName(entityType, afterValue || beforeValue),
+    before: safeCloneForEvent(beforeValue),
+    after: safeCloneForEvent(afterValue),
+    summary: summary || '',
+    icon: icon || '🧾',
+    created_at: created,
+    updated_at: created,
+    deleted_at: null
+  }, created);
+  flock.events.unshift(ev);
+  if (flock.events.length > 500) flock.events.length = 500;
+  DATA.events = flock.events;
+  return ev;
+}
+function getEventLog() {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  return flock && Array.isArray(flock.events) ? flock.events : (DATA.events || []);
+}
+function applySoftDelete(entity, actorSummary) {
+  if (!entity) return entity;
+  var ts = nowISO();
+  entity.deleted_at = ts;
+  entity.updated_at = ts;
+  entity.deleted_by = DATA.me && DATA.me.id ? DATA.me.id : '';
+  if (actorSummary) entity.deleted_reason = actorSummary;
+  return entity;
+}
 </script>
 
 <!-- ═══════════════════════════════════════════════
@@ -2208,10 +2356,162 @@ document.getElementById('add-idea-btn').addEventListener('click', function(){
 // -- PAGE RENDER MAP -----------------------------
 function renderPage(name) {
   if (name === 'home')       renderHome();
+  if (name === 'myworld')    renderMyWorld();
   if (name === 'gatherings') renderGatherings();
   if (name === 'ideas')      renderIdeas();
   if (name === 'flock')      renderFlockPage();
   if (name === 'profile')    renderProfile();
+}
+
+
+// -- MY WORLD / CROSS-FLOCK DASHBOARD -------------------
+function getMyFlockKeys() {
+  var keys = Object.keys(FLOCKS || {});
+  return keys.filter(function(fid){
+    var f = FLOCKS[fid];
+    if (!f || !f.members || !DATA.me || !DATA.me.id) return false;
+    var me = f.members[DATA.me.id];
+    return !!(me && !me.deleted_at);
+  });
+}
+
+function getFlockMemberFor(flock, memberId) {
+  if (!flock || !flock.members) return null;
+  return flock.members[memberId] || null;
+}
+
+function getFlockGatheringById(flock, gatheringId) {
+  return ((flock && flock.gatherings) || []).find(function(g){ return g && g.id === gatheringId && !g.deleted_at; }) || null;
+}
+
+function inferActivityGathering(flock, activity) {
+  if (!flock || !activity) return null;
+  if (activity.gathering_id) return getFlockGatheringById(flock, activity.gathering_id);
+  var txt = String(activity.text || '');
+  return ((flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; }).find(function(g){
+    return g.name && txt.indexOf(g.name) >= 0;
+  })) || null;
+}
+
+function openCrossFlockTarget(flockId, gatheringId, tabId) {
+  if (!flockId || !FLOCKS[flockId]) return;
+  if (flockId !== currentFlockId) switchToFlock(flockId);
+  showPage('gatherings');
+  renderGatherings();
+  if (gatheringId) {
+    setTimeout(function(){ showDetail(gatheringId, tabId || 'overview'); }, 0);
+  }
+}
+
+function buildCrossFlockTodos() {
+  var out = [];
+  getMyFlockKeys().forEach(function(fid){
+    var flock = FLOCKS[fid];
+    ((flock.gatherings || [])).forEach(function(g){
+      if (!g || g.deleted_at || g.status === 'completed') return;
+      var rsvpBucket = (typeof rsvpData !== 'undefined' && rsvpData[g.id]) || {};
+      var myR = rsvpBucket[DATA.me.id];
+      if (!myR || !myR.status) {
+        out.push({ fid:fid, gid:g.id, tab:'overview', action:'RSVP', icon:'🎉', priority:1, flock:flock.name, gathering:g.name, text:'RSVP to ' + g.name });
+      }
+      if (g.status === 'planning' && (!myR || !myR.availSubmitted)) {
+        out.push({ fid:fid, gid:g.id, tab:'overview', action:'Dates', icon:'📅', priority:1, flock:flock.name, gathering:g.name, text:'Share your dates for ' + g.name });
+      }
+      (g.tasks || []).forEach(function(t){
+        if (!t || t.deleted_at || t.done || t.status === 'done') return;
+        if (t.owner === DATA.me.id || t.claimedBy === DATA.me.id) {
+          out.push({ fid:fid, gid:g.id, tab:'tasks', action:'Task', icon:'📋', priority:2, flock:flock.name, gathering:g.name, text:'Complete task: ' + (t.title || 'Untitled task') });
+        }
+      });
+      (g.polls || []).forEach(function(p){
+        if (!p) return;
+        var voted = false;
+        (p.options || []).forEach(function(o){ if ((o.voters || []).indexOf(DATA.me.id) >= 0) voted = true; });
+        if (!voted) {
+          out.push({ fid:fid, gid:g.id, tab:'polls', action:'Poll', icon:'🗳️', priority:3, flock:flock.name, gathering:g.name, text:'Vote on poll: ' + (p.question || g.name) });
+        }
+      });
+      var unclaimed = (g.bringList || []).filter(function(b){ return b && !b.deleted_at && !b.claimedBy; }).length;
+      if (unclaimed) {
+        out.push({ fid:fid, gid:g.id, tab:'overview', action:'Bring', icon:'🎒', priority:4, flock:flock.name, gathering:g.name, text:unclaimed + ' unclaimed item' + (unclaimed === 1 ? '' : 's') + ' for ' + g.name });
+      }
+    });
+  });
+  out.sort(function(a,b){ return a.priority - b.priority; });
+  return out;
+}
+
+function buildCrossFlockActivity(limit) {
+  var out = [];
+  getMyFlockKeys().forEach(function(fid){
+    var flock = FLOCKS[fid];
+    ((flock.activity || [])).forEach(function(a){
+      if (!a || a.deleted_at) return;
+      var g = inferActivityGathering(flock, a);
+      var actor = a.member && a.member !== 'group' ? getFlockMemberFor(flock, a.member) : null;
+      out.push({
+        fid: fid,
+        gid: g ? g.id : null,
+        tab: g ? ((String(a.text || '').toLowerCase().indexOf('chat') >= 0 || String(a.text || '').toLowerCase().indexOf('message') >= 0) ? 'chat' : 'overview') : null,
+        sort: a.ts || Date.parse(a.created_at || '') || 0,
+        icon: a.icon || '✨',
+        flock: flock.name,
+        gathering: g ? g.name : '',
+        actor: actor ? actor.name : (a.member === 'group' ? 'The flock' : 'Someone'),
+        text: a.text || '',
+        time: a.time || a.created_at || ''
+      });
+    });
+  });
+  out.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
+  return out.slice(0, limit || 20);
+}
+
+function renderMyWorld() {
+  var el = document.getElementById('myworld-content');
+  if (!el) return;
+  var myFlocks = getMyFlockKeys();
+  if (!myFlocks.length) {
+    el.innerHTML = '<div class="xflock-empty">Join or create a flock to see your cross-flock dashboard.</div>';
+    return;
+  }
+
+  var strip = '<div class="myworld-flock-strip">' + myFlocks.map(function(fid){
+    var f = FLOCKS[fid];
+    return '<button class="myworld-flock-chip' + (fid === currentFlockId ? ' active' : '') + '" data-fid="' + escapeHtml(fid) + '"><span>' + escapeHtml(f.emoji === 'HOME' ? '🏠' : (f.emoji || '👥')) + '</span>' + escapeHtml(f.name || 'Flock') + '</button>';
+  }).join('') + '</div>';
+
+  var todos = buildCrossFlockTodos();
+  var todoHtml = todos.length ? todos.slice(0, 12).map(function(t){
+    return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(t.fid) + '" data-gid="' + escapeHtml(t.gid) + '" data-tab="' + escapeHtml(t.tab) + '">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + t.icon + '</div><div class="xflock-body">' +
+      '<div class="xflock-title">' + escapeHtml(t.text) + '</div>' +
+      '<div class="xflock-meta">' + escapeHtml(t.flock) + ' · ' + escapeHtml(t.gathering) + '</div>' +
+      '<div class="xflock-link">Open ' + escapeHtml(t.action) + ' →</div>' +
+      '</div></div></div>';
+  }).join('') : '<div class="xflock-empty">✓ You are caught up across all flocks.</div>';
+
+  var acts = buildCrossFlockActivity(12);
+  var actHtml = acts.length ? acts.map(function(a){
+    var canOpen = !!a.gid;
+    return '<div class="xflock-card xflock-activity" data-fid="' + escapeHtml(a.fid) + '" data-gid="' + escapeHtml(a.gid || '') + '" data-tab="' + escapeHtml(a.tab || 'overview') + '">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + escapeHtml(a.icon) + '</div><div class="xflock-body">' +
+      '<div class="xflock-title"><strong>' + escapeHtml(a.actor) + '</strong> ' + a.text + '</div>' +
+      '<div class="xflock-meta">' + escapeHtml(a.flock) + (a.gathering ? ' · ' + escapeHtml(a.gathering) : '') + (a.time ? ' · ' + escapeHtml(a.time) : '') + '</div>' +
+      (canOpen ? '<div class="xflock-link">Open referenced gathering/chat →</div>' : '<div class="xflock-link">Open flock →</div>') +
+      '</div></div></div>';
+  }).join('') : '<div class="xflock-empty">No recent activity across your flocks yet.</div>';
+
+  el.innerHTML = strip +
+    '<div class="section-title">Your to-do across flocks</div>' + todoHtml +
+    '<div class="section-title">Recent activity across flocks</div>' + actHtml;
+
+  el.querySelectorAll('.myworld-flock-chip').forEach(function(btn){
+    btn.addEventListener('click', function(){ switchToFlock(btn.dataset.fid); showPage('gatherings'); renderGatherings(); });
+  });
+  el.querySelectorAll('.xflock-card').forEach(function(card){
+    card.addEventListener('click', function(){ openCrossFlockTarget(card.dataset.fid, card.dataset.gid || null, card.dataset.tab || 'overview'); });
+  });
 }
 
 // -- HOME ----------------------------------------
@@ -2228,7 +2528,9 @@ function buildFlockActivity() {
         member: id,
         text: 'is going to <strong>'+g.name+'</strong>',
         time: g.month+' '+g.day,
-        sort: 1
+        sort: 1,
+        gId: g.id,
+        tab: 'overview'
       });
     });
 
@@ -2241,7 +2543,9 @@ function buildFlockActivity() {
         member: t.owner,
         text: 'completed &ldquo;'+t.title+'&rdquo;',
         time: g.name,
-        sort: 2
+        sort: 2,
+        gId: g.id,
+        tab: 'tasks'
       });
     });
   });
@@ -2264,7 +2568,7 @@ function buildFlockActivity() {
 
   // Prepend manually-logged activity (most recent first)
   var manual = (DATA.activity||[]).slice(0, 8).map(function(a){
-    return { member: a.member, text: a.text, time: a.time, sort: 0, icon: a.icon };
+    return { member: a.member, text: a.text, time: a.time, sort: 0, icon: a.icon, gId: a.gathering_id || null, tab: a.tab || 'overview' };
   });
   // Put manual events first, then derived events
   var combined = manual.concat(events);
@@ -2278,8 +2582,12 @@ function logActivity(memberId, text, icon) {
   var timeStr = 'Just now';
   var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
   var created = nowISO();
+  var nextActivityId = flock ? nextEntityInt(flock, 'activity') : undefined;
   DATA.activity.unshift(ensureAuditFields({
-    activity_id: flock ? nextEntityInt(flock, 'activity') : undefined,
+    id: nextActivityId,
+    activity_id: nextActivityId,
+    flock_id: flock && typeof flock.id === 'number' ? flock.id : getNumericFlockIdForExport(),
+    member_id: getNumericMemberIdForExport(memberId),
     member: memberId,
     text: text,
     time: timeStr,
@@ -2302,6 +2610,7 @@ function logActivity(memberId, text, icon) {
   });
   // Cap at 30
   if (DATA.activity.length > 30) DATA.activity.length = 30;
+  recordEvent('activity.logged', 'activity', DATA.activity[0] && DATA.activity[0].activity_id ? String(DATA.activity[0].activity_id) : '', null, DATA.activity[0], text, icon || '✨');
   saveLocal();
 }
 
@@ -2568,12 +2877,21 @@ function renderHome() {
     var m = a.member !== 'group' ? getMember(a.member) : null;
     var item = document.createElement('div');
     item.className = 'activity-item';
+    var linkedG = a.gId ? getLiveGathering(a.gId) : inferActivityGathering(FLOCKS[currentFlockId], a);
+    if (linkedG) {
+      item.style.cursor = 'pointer';
+      item.dataset.gid = linkedG.id;
+      item.dataset.tab = a.tab || 'overview';
+    }
     item.innerHTML =
       (m ? makeAv(m.animal, 32) : '<div style="width:32px;height:32px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">'+(a.icon||'✨')+'</div>')+
       '<div style="flex:1">'+
-        '<div class="activity-text">'+(m?'<strong>'+m.name+'</strong> ':'')+a.text+'</div>'+
+        '<div class="activity-text">'+(m?'<strong>'+m.name+'</strong> ':'')+a.text+(linkedG ? ' <span class="activity-deeplink">Open →</span>' : '')+'</div>'+
         '<div class="activity-time">'+a.time+'</div>'+
       '</div>';
+    if (linkedG) {
+      item.addEventListener('click', function(){ showPage('gatherings'); showDetail(item.dataset.gid, item.dataset.tab || 'overview'); });
+    }
     feed.appendChild(item);
   });
   if (events.length > 5) {
@@ -5020,6 +5338,36 @@ function getMemberNameForExport(memberId) {
   return m ? m.name : (memberId || '');
 }
 
+function getNumericFlockIdForExport() {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  if (!flock) return '';
+  normalizeKinverlySchema(flock);
+  return typeof flock.id === 'number' ? flock.id : (typeof flock.flock_id === 'number' ? flock.flock_id : '');
+}
+
+function getNumericMemberIdForExport(memberId) {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  var m = getMember(memberId) || (flock && flock.members && flock.members[memberId]);
+  if (!m && DATA.me && (DATA.me.id === memberId || DATA.me.member_id === memberId)) m = DATA.me;
+  return m && typeof m.member_id === 'number' ? m.member_id : (typeof memberId === 'number' ? memberId : '');
+}
+
+function getNumericGatheringIdForExport(gatheringId) {
+  var g = (DATA.gatherings || []).find(function(x){ return x && (x.id === gatheringId || x.gathering_id === gatheringId); });
+  return g && typeof g.gathering_id === 'number' ? g.gathering_id : (typeof gatheringId === 'number' ? gatheringId : '');
+}
+
+function getNumericTaskIdForExport(taskId, gathering) {
+  var t = gathering && (gathering.tasks || []).find(function(x){ return x && (x.id === taskId || x.task_id === taskId); });
+  return t && typeof t.task_id === 'number' ? t.task_id : (typeof taskId === 'number' ? taskId : '');
+}
+
+function getNumericEntityIdForExport(entityType, entityId) {
+  if (entityType === 'member') return getNumericMemberIdForExport(entityId);
+  if (entityType === 'gathering') return getNumericGatheringIdForExport(entityId);
+  return typeof entityId === 'number' ? entityId : '';
+}
+
 function normalizeGatheringForExport(g) {
   var rsvps = (rsvpData && rsvpData[g.id]) || {};
   var recommendation = null;
@@ -5028,7 +5376,11 @@ function normalizeGatheringForExport(g) {
   } catch(e) {}
 
   return {
-    id: g.id || '',
+    id: typeof g.gathering_id === 'number' ? g.gathering_id : '',
+    created_at: g.created_at || '',
+    updated_at: g.updated_at || '',
+    deleted_at: g.deleted_at || null,
+    flock_id: getNumericFlockIdForExport(),
     title: g.name || g.title || '',
     status: g.status || '',
     type: g.type || '',
@@ -5038,27 +5390,43 @@ function normalizeGatheringForExport(g) {
     date: g.date || g.startDate || '',
     endDate: g.endDate || '',
     details: g.details || g.description || g.notesText || '',
+    host_member_id: getNumericMemberIdForExport(g.host || ''),
     host: g.host || '',
     hostName: getMemberNameForExport(g.host),
+    attending_member_ids: (g.attending || []).map(getNumericMemberIdForExport),
     attendingIds: g.attending || [],
     attendingNames: (g.attending || []).map(getMemberNameForExport),
     tasks: (g.tasks || []).map(function(t){
       return Object.assign({}, t, {
+        id: typeof t.task_id === 'number' ? t.task_id : '',
+        created_at: t.created_at || '',
+        updated_at: t.updated_at || '',
+        deleted_at: t.deleted_at || null,
+        flock_id: getNumericFlockIdForExport(),
+        gathering_id: typeof g.gathering_id === 'number' ? g.gathering_id : '',
+        owner_member_id: getNumericMemberIdForExport(t.owner || t.assignedTo || ''),
         ownerName: getMemberNameForExport(t.owner || t.assignedTo || '')
       });
     }),
     rsvps: Object.keys(rsvps).map(function(memberId){
       return Object.assign({
+        member_id: getNumericMemberIdForExport(memberId),
         memberId: memberId,
         memberName: getMemberNameForExport(memberId)
       }, rsvps[memberId] || {});
     }),
     chat: (g.chat || []).map(function(c){
-      return Object.assign({}, c, { memberName: getMemberNameForExport(c.member || c.memberId || c.userId || '') });
+      return Object.assign({}, c, { id: typeof c.message_id === 'number' ? c.message_id : '', created_at: c.created_at || '', updated_at: c.updated_at || '', deleted_at: c.deleted_at || null, flock_id: getNumericFlockIdForExport(), gathering_id: typeof g.gathering_id === 'number' ? g.gathering_id : '', member_id: getNumericMemberIdForExport(c.member || c.memberId || c.userId || ''), memberName: getMemberNameForExport(c.member || c.memberId || c.userId || '') });
     }),
     photos: (g.photos || []).map(function(ph){
       return {
-        id: ph.id || '',
+        id: typeof ph.photo_id === 'number' ? ph.photo_id : '',
+        created_at: ph.created_at || ph.uploaded_at || '',
+        updated_at: ph.updated_at || ph.created_at || ph.uploaded_at || '',
+        deleted_at: ph.deleted_at || null,
+        flock_id: getNumericFlockIdForExport(),
+        gathering_id: typeof g.gathering_id === 'number' ? g.gathering_id : '',
+        uploader_member_id: getNumericMemberIdForExport(ph.uploader || ph.member || ''),
         uploader: ph.uploader || ph.member || '',
         uploaderName: getMemberNameForExport(ph.uploader || ph.member || ''),
         caption: ph.caption || '',
@@ -5076,19 +5444,26 @@ function buildExportPayload(scope, gatheringId) {
   if (scope === 'one' && gatheringId) gatherings = gatherings.filter(function(g){ return g.id === gatheringId; });
 
   return {
-    exportedAt: new Date().toISOString(),
-    lastSyncedAt: getLastSyncedAt() ? new Date(getLastSyncedAt()).toISOString() : null,
+    exportedAt: nowISO(),
+    lastSyncedAt: getLastSyncedAt() ? formatLocalTimestamp(new Date(getLastSyncedAt())) : null,
     scope: scope || 'all',
     flock: {
-      id: flock.id || currentFlockId || '',
+      id: getNumericFlockIdForExport(),
+      created_at: flock.created_at || '',
+      updated_at: flock.updated_at || '',
+      deleted_at: flock.deleted_at || null,
       name: flock.name || '',
       emoji: flock.emoji || '',
       inviteCode: flock.inviteCode || '',
-      createdBy: flock.createdBy || ''
+      createdBy: getNumericMemberIdForExport(flock.createdBy || '')
     },
     members: getAllFlockMembersForExport().map(function(m){
       return {
-        id: m.id || '',
+        id: typeof m.member_id === 'number' ? m.member_id : getNumericMemberIdForExport(m.id),
+        created_at: m.created_at || '',
+        updated_at: m.updated_at || '',
+        deleted_at: m.deleted_at || null,
+        flock_id: getNumericFlockIdForExport(),
         name: m.name || '',
         animal: m.animal || '',
         location: m.location || '',
@@ -5100,12 +5475,34 @@ function buildExportPayload(scope, gatheringId) {
     gatherings: gatherings.map(normalizeGatheringForExport),
     activity: (DATA.activity || []).map(function(a){
       return {
+        id: a.activity_id || a.id || '',
+        created_at: a.created_at || '',
+        updated_at: a.updated_at || '',
+        deleted_at: a.deleted_at || '',
+        flock_id: getNumericFlockIdForExport(),
+        member_id: getNumericMemberIdForExport(a.member || ''),
         memberId: a.member || '',
         memberName: getMemberNameForExport(a.member || ''),
         text: safeExportText(a.text || ''),
         icon: a.icon || '',
         time: a.time || '',
         ts: a.ts || ''
+      };
+    }),
+    eventLog: getEventLog().map(function(ev){
+      return {
+        id: ev.event_id || ev.id || '',
+        created_at: ev.created_at || '',
+        updated_at: ev.updated_at || '',
+        deleted_at: ev.deleted_at || '',
+        flock_id: getNumericFlockIdForExport(),
+        event_type: ev.event_type || '',
+        actor_member_id: typeof ev.actor_member_id === 'number' ? ev.actor_member_id : getNumericMemberIdForExport(ev.actor_member_id || ''),
+        actor_member_name: ev.actor_member_name || getMemberNameForExport(ev.actor_member_id || ''),
+        entity_type: ev.entity_type || '',
+        entity_id: typeof ev.entity_id === 'number' ? ev.entity_id : getNumericEntityIdForExport(ev.entity_type, ev.entity_id) || ev.entity_id || '',
+        entity_name: ev.entity_name || '',
+        summary: safeExportText(ev.summary || '')
       };
     })
   };
@@ -5122,6 +5519,10 @@ function buildGatheringSummaryRows(payload) {
       var completed = assigned.filter(function(t){ return !!t.done; });
       var messages = (g.chat || []).filter(function(c){ return (c.member || c.memberId || c.userId) === m.id; }).length;
       rows.push({
+        id: Number(String(g.id) + String(m.id).padStart(4, '0')) || '',
+        created_at: g.created_at || '',
+        updated_at: g.updated_at || '',
+        deleted_at: g.deleted_at || null,
         flock_id: payload.flock.id,
         flock_name: payload.flock.name,
         gathering_id: g.id,
@@ -5162,7 +5563,11 @@ function exportGatheringsCsv(scope, gatheringId) {
   var payload = buildExportPayload(scope || 'all', gatheringId || null);
   var rows = buildGatheringSummaryRows(payload);
   var columns = [
-    {key:'flock_id', label:'Flock ID'},
+    {key:'id', label:'id'},
+    {key:'created_at', label:'created_at'},
+    {key:'updated_at', label:'updated_at'},
+    {key:'deleted_at', label:'deleted_at'},
+    {key:'flock_id', label:'flock_id'},
     {key:'flock_name', label:'Flock'},
     {key:'gathering_id', label:'Gathering ID'},
     {key:'gathering_title', label:'Gathering'},
@@ -5195,7 +5600,11 @@ function exportMemberDirectoryCsv() {
   var payload = buildExportPayload('members', null);
   var rows = payload.members.map(function(m){
     return {
-      member_id: m.id,
+      id: m.id,
+      created_at: m.created_at || '',
+      updated_at: m.updated_at || '',
+      deleted_at: m.deleted_at || null,
+      flock_id: payload.flock.id,
       member_name: m.name,
       role: m.role,
       animal: m.animal,
@@ -5206,7 +5615,11 @@ function exportMemberDirectoryCsv() {
     };
   });
   var csv = buildCsv(rows, [
-    {key:'member_id', label:'Member ID'},
+    {key:'id', label:'id'},
+    {key:'created_at', label:'created_at'},
+    {key:'updated_at', label:'updated_at'},
+    {key:'deleted_at', label:'deleted_at'},
+    {key:'flock_id', label:'flock_id'},
     {key:'member_name', label:'Member'},
     {key:'role', label:'Role'},
     {key:'animal', label:'Animal'},
@@ -5224,6 +5637,12 @@ function exportMemberDirectoryCsv() {
 function exportActivityLogCsv() {
   var payload = buildExportPayload('activity', null);
   var csv = buildCsv(payload.activity || [], [
+    {key:'id', label:'id'},
+    {key:'created_at', label:'created_at'},
+    {key:'updated_at', label:'updated_at'},
+    {key:'deleted_at', label:'deleted_at'},
+    {key:'flock_id', label:'flock_id'},
+    {key:'member_id', label:'member_id'},
     {key:'ts', label:'Timestamp'},
     {key:'time', label:'Relative Time'},
     {key:'memberName', label:'Member'},
@@ -5234,6 +5653,28 @@ function exportActivityLogCsv() {
   logActivity(DATA.me.id, 'exported the activity log', '🧾');
   saveFlockState();
   toast('Activity log downloaded');
+}
+
+function exportEventLogCsv() {
+  var payload = buildExportPayload('events', null);
+  var csv = buildCsv(payload.eventLog || [], [
+    {key:'id', label:'id'},
+    {key:'created_at', label:'created_at'},
+    {key:'updated_at', label:'updated_at'},
+    {key:'deleted_at', label:'deleted_at'},
+    {key:'flock_id', label:'flock_id'},
+    {key:'event_type', label:'Event Type'},
+    {key:'actor_member_id', label:'Actor Member ID'},
+    {key:'actor_member_name', label:'Actor'},
+    {key:'entity_type', label:'Entity Type'},
+    {key:'entity_id', label:'Entity ID'},
+    {key:'entity_name', label:'Entity'},
+    {key:'summary', label:'Summary'}
+  ]);
+  downloadTextFile(sanitizeFilenamePart(payload.flock.name || 'kinverly') + '-event-log.csv', csv, 'text/csv;charset=utf-8');
+  logActivity(DATA.me.id, 'exported the event log', '🧾');
+  saveFlockState();
+  toast('Event log downloaded');
 }
 
 async function removeMemberFromFlock(memberId) {
@@ -5247,9 +5688,12 @@ async function removeMemberFromFlock(memberId) {
   window._pendingRemovedMembers = window._pendingRemovedMembers || {};
   window._pendingRemovedMembers[memberId] = Date.now();
 
-  if (flock.members) delete flock.members[memberId];
+  var beforeMember = flock.members && flock.members[memberId] ? safeCloneForEvent(flock.members[memberId]) : null;
+  var deletedAt = nowISO();
+  if (flock.members && flock.members[memberId]) applySoftDelete(flock.members[memberId], 'Removed from flock');
   flock.memberIds = (flock.memberIds || []).filter(function(id){ return id !== memberId; });
   DATA.members = DATA.members.filter(function(m){ return m.id !== memberId; });
+  recordEvent('member.removed', 'member', memberId, beforeMember, flock.members ? flock.members[memberId] : null, memberName + ' was removed from the flock', '👋');
 
   Object.keys(rsvpData || {}).forEach(function(gId){
     if (rsvpData[gId] && rsvpData[gId][memberId]) delete rsvpData[gId][memberId];
@@ -6038,6 +6482,7 @@ function saveLocal() {
       _f.gatherings = DATA.gatherings;
       _f.ideas      = DATA.ideas;
       _f.activity   = DATA.activity;
+      _f.events     = DATA.events || _f.events || [];
       if (!_f.members) _f.members = {};
       if (!_f.memberIds) _f.memberIds = [];
 
@@ -6139,6 +6584,7 @@ function switchToFlock(flockId) {
   DATA.gatherings = flock.gatherings || [];
   DATA.ideas      = flock.ideas || [];
   DATA.activity   = flock.activity || [];
+  DATA.events     = flock.events || [];
 
   // Save currentFlockId to localStorage so refresh remembers which flock
   try {
@@ -6165,7 +6611,7 @@ function createFlock(name, emoji) {
   var flock = ensureAuditFields({
     id:id, name:name, emoji:emoji||'HOME', inviteCode:code, createdBy:DATA.me.id,
     members:{}, memberIds:[], gatherings:[], ideas:[], activity:[],
-    meta:{ next_member_id:1, next_gathering_id:1, next_task_id:1, next_message_id:1, next_photo_id:1, next_activity_id:1, next_idea_id:1 },
+    meta:{ next_flock_id:1, next_member_id:1, next_gathering_id:1, next_task_id:1, next_message_id:1, next_photo_id:1, next_activity_id:1, next_idea_id:1 },
     created_at: createdAt, updated_at: createdAt, deleted_at: null
   }, createdAt);
 
@@ -6174,7 +6620,7 @@ function createFlock(name, emoji) {
   var myMemberData = DATA.members.find(function(m){ return m.id === DATA.me.id; });
   if (myMemberData && myMemberData.pw) myPw = myMemberData.pw;
 
-  var creator = ensureAuditFields({ id:DATA.me.id, member_id:nextEntityInt(flock,'member'), name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator', pw:myPw, created_at:createdAt, updated_at:createdAt, deleted_at:null }, createdAt);
+  var creator = ensureAuditFields({ id:DATA.me.id, member_id:nextEntityInt(flock,'member'), flock_id:flock.id, name:DATA.me.name, animal:DATA.me.animal, location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs, role:'creator', pw:myPw, created_at:createdAt, updated_at:createdAt, deleted_at:null }, createdAt);
   flock.members[DATA.me.id] = creator;
   flock.memberIds = [DATA.me.id];
   FLOCKS[id] = flock;
@@ -6341,6 +6787,7 @@ async function syncFlockToFirebase() {
       gatherings: safeGatherings,
       ideas: flock.ideas || [],
       activity: (flock.activity || []).slice(0, 30),
+      events: (flock.events || DATA.events || []).slice(0, 500),
       meta: flock.meta || {},
       created_at: flock.created_at || nowISO(),
       updated_at: flock.updated_at || nowISO(),
@@ -9211,6 +9658,7 @@ try {
       deleted_at: null
     }, createdAt);
     DATA.ideas.unshift(newIdea);
+    recordEvent('idea.created', 'idea', newIdea.id || String(newIdea.idea_id || ''), null, newIdea, 'Added idea ' + title, '💡');
     saveFlockState();
     document.getElementById('idea-overlay').classList.add('hidden');
     renderIdeas();
@@ -9506,6 +9954,7 @@ try {
         deleted_at: null
       }, createdAt);
       DATA.gatherings.unshift(dup);
+      recordEvent('gathering.created', 'gathering', dup.id, null, dup, 'Created gathering ' + dup.name, '📋');
       saveFlockState();
       document.getElementById('gather-edit-overlay').classList.add('hidden');
       renderGatherings();
@@ -9525,7 +9974,11 @@ try {
     });
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
       var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
-      if (idx >= 0) { DATA.gatherings[idx].deleted_at = nowISO(); DATA.gatherings[idx].updated_at = DATA.gatherings[idx].deleted_at; }
+      if (idx >= 0) {
+        var beforeDelete = safeCloneForEvent(DATA.gatherings[idx]);
+        applySoftDelete(DATA.gatherings[idx], 'Deleted from edit sheet');
+        recordEvent('gathering.deleted', 'gathering', DATA.gatherings[idx].id, beforeDelete, DATA.gatherings[idx], 'Deleted gathering ' + (DATA.gatherings[idx].name || ''), '🗑️');
+      }
       saveFlockState();
       document.getElementById('gather-edit-overlay').classList.add('hidden');
       showPage('gatherings');
@@ -9575,6 +10028,7 @@ try {
 
       var changeText = describeGatheringChanges(before, liveG);
       logActivity(DATA.me.id, changeText + ' for <strong>' + escapeHtml(name) + '</strong>', '✏️');
+      recordEvent('gathering.updated', 'gathering', liveG.id, before, liveG, changeText + ' for ' + name, '✏️');
       markGatheringEditPending(liveG);
 
       saveBtn.disabled = true;
@@ -9663,6 +10117,7 @@ try {
     var changeText = describeGatheringChanges(before, liveG);
     if (changeText !== 'updated details') {
       logActivity(DATA.me.id, changeText + ' for <strong>' + escapeHtml(name) + '</strong>', '✏️');
+      recordEvent('gathering.updated', 'gathering', liveG.id, before, liveG, changeText + ' for ' + name, '✏️');
     }
 
     markGatheringEditPending(liveG);
