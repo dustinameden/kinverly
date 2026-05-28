@@ -1462,6 +1462,9 @@ img,svg{display:block}
 .dw-li.dw-high{background:#f8d7da}
 
 /* Best window chips */
+.dw-summary-stat.wide{min-width:130px}
+.dw-resp-badge.done{background:var(--green-bg);color:var(--green)}
+.dw-resp-badge.pending{background:var(--amber-bg);color:var(--amber)}
 .dw-chips{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
 .dw-chip{
   border-radius:12px;padding:12px 14px;cursor:pointer;
@@ -1688,6 +1691,52 @@ img,svg{display:block}
 .xflock-link{font-size:11px;font-weight:800;color:var(--brand);margin-top:6px;display:inline-flex;align-items:center;gap:3px}
 .xflock-empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700;margin-bottom:12px}
 .activity-deeplink{color:var(--brand);font-weight:800;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+
+
+/* ── MY WORLD CALENDAR ───────────────────────────── */
+.mw-cal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+.mw-cal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.mw-cal-title{font-family:'Fredoka One',cursive;font-size:20px;color:var(--text1);line-height:1.1}
+.mw-cal-sub{font-size:12px;color:var(--text2);font-weight:700;line-height:1.4;margin-top:3px}
+.mw-cal-nav{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.mw-cal-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit}
+.mw-cal-month{font-size:12px;font-weight:900;color:var(--brand);min-width:76px;text-align:center}
+.mw-cal-legend{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
+.mw-cal-leg{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:var(--text2)}
+.mw-cal-leg-dot{width:9px;height:9px;border-radius:50%}
+.mw-cal-leg-dot.blackout{background:var(--red)}
+.mw-cal-leg-dot.confirmed{background:var(--green)}
+.mw-cal-leg-dot.pending{background:var(--brand2)}
+.mw-cal-leg-dot.recommended{background:var(--gold)}
+.mw-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:10px}
+.mw-cal-dow{font-size:10px;font-weight:900;color:var(--text3);text-align:center;padding:3px 0}
+.mw-cal-day{aspect-ratio:1;border-radius:9px;background:var(--surface2);position:relative;display:flex;align-items:flex-start;justify-content:flex-start;padding:5px;font-size:11px;font-weight:900;color:var(--text2);cursor:pointer;border:1px solid transparent;min-width:0;overflow:hidden}
+.mw-cal-day.empty{background:transparent;cursor:default}
+.mw-cal-day.today{border-color:var(--brand)}
+.mw-cal-day.has-events{background:#fff;box-shadow:inset 0 0 0 1px var(--border)}
+.mw-cal-day.selected{border-color:var(--brand);box-shadow:0 0 0 2px #ede8ff}
+.mw-cal-date-num{position:relative;z-index:2}
+.mw-cal-markers{position:absolute;left:4px;right:4px;bottom:4px;display:flex;gap:2px;align-items:center;justify-content:center;overflow:hidden}
+.mw-cal-marker{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.mw-cal-marker.blackout{background:var(--red)}
+.mw-cal-marker.confirmed{background:var(--green)}
+.mw-cal-marker.pending{background:var(--brand2)}
+.mw-cal-marker.recommended{background:var(--gold)}
+.mw-cal-details{background:var(--surface2);border-radius:14px;padding:12px;margin-top:8px}
+.mw-cal-details-title{font-size:13px;font-weight:900;color:var(--text1);margin-bottom:8px}
+.mw-cal-event{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:7px;cursor:pointer;transition:border-color .15s}
+.mw-cal-event:last-child{margin-bottom:0}
+.mw-cal-event:hover{border-color:var(--brand2)}
+.mw-cal-event-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+.mw-cal-event-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.mw-cal-event-dot.blackout{background:var(--red)}
+.mw-cal-event-dot.confirmed{background:var(--green)}
+.mw-cal-event-dot.pending{background:var(--brand2)}
+.mw-cal-event-dot.recommended{background:var(--gold)}
+.mw-cal-event-title{font-size:13px;font-weight:900;color:var(--text1);line-height:1.3}
+.mw-cal-event-meta{font-size:11px;color:var(--text2);font-weight:700;line-height:1.35;margin-left:17px}
+.mw-cal-empty{font-size:12px;color:var(--text3);font-weight:700;text-align:center;padding:12px}
+.mw-cal-cta{width:100%;border:none;background:#ede8ff;color:var(--brand);border-radius:12px;padding:11px 12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;margin-top:8px}
 
 /* ── CONTEXT BAR: helps people understand where they are ───────── */
 .context-bar{
@@ -2042,6 +2091,10 @@ var DATA = {
 function getMember(id) {
   if (id === DATA.me.id && !DATA.me.deleted_at) return DATA.me;
   return DATA.members.find(function(m){ return m && !m.deleted_at && m.id === id; }) || null;
+}
+
+function getActiveFlockMembers() {
+  return [DATA.me].concat(DATA.members || []).filter(function(m){ return m && !m.deleted_at; });
 }
 
 // ═══════════════════════════════════════════════
@@ -2546,6 +2599,209 @@ function buildCrossFlockActivity(limit) {
   return out.slice(0, limit || 20);
 }
 
+
+var myWorldCalendarState = { offset: 0, selectedKey: null };
+
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+function isoDateKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function normalizeCalendarDateKey(key, g) {
+  if (!key) return null;
+  var str = String(key);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  var parts = str.split('-');
+  if (parts.length >= 2 && MMAP_DW[parts[0]] !== undefined) {
+    var now = new Date();
+    var m = MMAP_DW[parts[0]];
+    var y = now.getFullYear();
+    var baseM = (g && g.month && MMAP_DW[g.month] !== undefined) ? MMAP_DW[g.month] : now.getMonth();
+    if (m < now.getMonth() && baseM >= now.getMonth()) y++;
+    return y + '-' + pad2(m + 1) + '-' + pad2(parseInt(parts[1], 10));
+  }
+  return null;
+}
+function dateFromMonthDay(monthAbbr, day) {
+  if (!monthAbbr || MMAP_DW[monthAbbr] === undefined || !day) return null;
+  var now = new Date();
+  var m = MMAP_DW[monthAbbr];
+  var y = now.getFullYear();
+  if (m < now.getMonth() - 1) y++;
+  return new Date(y, m, parseInt(day, 10));
+}
+function addDaysToDate(d, days) {
+  var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() + days);
+  return x;
+}
+function eachDateInRange(start, end, cb) {
+  if (!start) return;
+  var cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  var last = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate()) : cur;
+  var guard = 0;
+  while (cur <= last && guard < 370) {
+    cb(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+    guard++;
+  }
+}
+function getMyCalendarEventsAcrossFlocks() {
+  var events = [];
+  getMyFlockKeys().forEach(function(fid){
+    var flock = FLOCKS[fid];
+    if (!flock) return;
+    var memberId = DATA.me && DATA.me.id;
+    ((flock.gatherings || [])).forEach(function(g){
+      if (!g || g.deleted_at) return;
+      var gid = g.id;
+      var r = (rsvpData && rsvpData[gid] && rsvpData[gid][memberId]) || null;
+
+      // Personal blackout dates submitted through the gathering availability tool.
+      if (r && r.blockedDates && r.blockedDates.length) {
+        r.blockedDates.forEach(function(k){
+          var dk = normalizeCalendarDateKey(k, g);
+          if (!dk) return;
+          events.push({
+            key: dk,
+            type: 'blackout',
+            title: 'Blackout date',
+            meta: (g.name || 'Gathering') + ' · ' + (flock.name || 'Flock'),
+            fid: fid,
+            gid: gid,
+            tab: 'overview',
+            sort: 1
+          });
+        });
+      }
+
+      // Confirmed gathering dates.
+      if (g.status !== 'planning') {
+        var start = dateFromMonthDay(g.month, g.day);
+        var end = dateFromMonthDay(g.endMonth || g.end_month || g.month, g.endDay || g.end_day || g.day);
+        if (start) {
+          eachDateInRange(start, end, function(d){
+            events.push({
+              key: isoDateKey(d),
+              type: 'confirmed',
+              title: g.name || 'Confirmed gathering',
+              meta: (g.date_label || getGatheringDateDisplay(g).replace('Confirmed: ', '')) + ' · ' + (flock.name || 'Flock'),
+              fid: fid,
+              gid: gid,
+              tab: 'overview',
+              sort: 2
+            });
+          });
+        }
+      }
+
+      // Pending planning windows / recommended windows.
+      if (g.status === 'planning') {
+        var allMembers = Object.values(flock.members || {}).filter(function(m){ return m && !m.deleted_at; });
+        var submitted = allMembers.filter(function(m){
+          var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
+          return rd && rd.availSubmitted;
+        }).length;
+        var months = gatheringMonths(g);
+        var days = buildDayList(months);
+        var conflicts = computeConflicts(g.id, allMembers);
+        var windows = submitted > 0 ? findBestWindows(days, conflicts, submitted, 5, 2) : [];
+        if (windows.length) {
+          windows.forEach(function(w, idx){
+            w.days.forEach(function(day){
+              var dk = normalizeCalendarDateKey(day.key, g);
+              if (!dk) return;
+              events.push({
+                key: dk,
+                type: idx === 0 ? 'recommended' : 'pending',
+                title: (idx === 0 ? 'Recommended window' : 'Possible window'),
+                meta: (g.name || 'Gathering') + ' · ' + formatDateWindowRange(w) + ' · ' + (flock.name || 'Flock'),
+                fid: fid,
+                gid: gid,
+                tab: 'overview',
+                sort: idx === 0 ? 3 : 4
+              });
+            });
+          });
+        } else {
+          months.forEach(function(mo){
+            var start = new Date(mo.y, mo.m, 1);
+            var end = new Date(mo.y, mo.m + 1, 0);
+            // Show a light planning marker on weekends only until enough availability is shared.
+            eachDateInRange(start, end, function(d){
+              if (d.getDay() !== 0 && d.getDay() !== 6) return;
+              events.push({
+                key: isoDateKey(d),
+                type: 'pending',
+                title: 'Gathering window under review',
+                meta: (g.name || 'Gathering') + ' · waiting for availability · ' + (flock.name || 'Flock'),
+                fid: fid,
+                gid: gid,
+                tab: 'overview',
+                sort: 5
+              });
+            });
+          });
+        }
+      }
+    });
+  });
+  return events;
+}
+function renderMyWorldCalendar() {
+  var events = getMyCalendarEventsAcrossFlocks();
+  var now = new Date();
+  var view = new Date(now.getFullYear(), now.getMonth() + (myWorldCalendarState.offset || 0), 1);
+  var y = view.getFullYear(), m = view.getMonth();
+  var monthName = fullMonthName(m) + ' ' + y;
+  var todayKey = isoDateKey(now);
+  if (!myWorldCalendarState.selectedKey) myWorldCalendarState.selectedKey = todayKey;
+  var monthEvents = events.filter(function(e){ return e.key && e.key.slice(0,7) === y + '-' + pad2(m + 1); });
+  var eventsByKey = {};
+  monthEvents.forEach(function(e){ if (!eventsByKey[e.key]) eventsByKey[e.key] = []; eventsByKey[e.key].push(e); });
+  Object.keys(eventsByKey).forEach(function(k){ eventsByKey[k].sort(function(a,b){ return a.sort - b.sort; }); });
+
+  var first = new Date(y, m, 1).getDay();
+  var dim = new Date(y, m + 1, 0).getDate();
+  var html = '<div class="mw-cal-card">' +
+    '<div class="mw-cal-head"><div><div class="mw-cal-title">My calendar</div>' +
+    '<div class="mw-cal-sub">Your blackouts, confirmed gatherings, and possible dates across every flock.</div></div>' +
+    '<div class="mw-cal-nav"><button class="mw-cal-btn" id="mw-cal-prev">‹</button><div class="mw-cal-month">' + escapeHtml(monthName) + '</div><button class="mw-cal-btn" id="mw-cal-next">›</button></div></div>' +
+    '<div class="mw-cal-legend">' +
+      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot blackout"></span>Blackout</span>' +
+      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot confirmed"></span>Gathering</span>' +
+      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot recommended"></span>Recommended</span>' +
+      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot pending"></span>Potential</span>' +
+    '</div>' +
+    '<div class="mw-cal-grid">';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){ html += '<div class="mw-cal-dow">' + d + '</div>'; });
+  for (var e=0;e<first;e++) html += '<div class="mw-cal-day empty"></div>';
+  for (var day=1; day<=dim; day++) {
+    var key = y + '-' + pad2(m + 1) + '-' + pad2(day);
+    var evs = eventsByKey[key] || [];
+    var classes = 'mw-cal-day' + (evs.length ? ' has-events' : '') + (key === todayKey ? ' today' : '') + (key === myWorldCalendarState.selectedKey ? ' selected' : '');
+    html += '<div class="' + classes + '" data-date="' + key + '"><span class="mw-cal-date-num">' + day + '</span>';
+    if (evs.length) {
+      html += '<div class="mw-cal-markers">' + evs.slice(0,4).map(function(ev){ return '<span class="mw-cal-marker ' + ev.type + '"></span>'; }).join('') + '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div><div id="mw-cal-details">' + renderMyWorldCalendarDetails(myWorldCalendarState.selectedKey, events) + '</div>' +
+    '<button class="mw-cal-cta" id="mw-cal-share">Share or update blackout dates</button>' +
+    '</div>';
+  return html;
+}
+function renderMyWorldCalendarDetails(dateKey, events) {
+  var d = dateKey ? new Date(dateKey + 'T00:00:00') : new Date();
+  var title = d.toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' });
+  var list = events.filter(function(e){ return e.key === dateKey; }).sort(function(a,b){ return a.sort - b.sort; });
+  if (!list.length) {
+    return '<div class="mw-cal-details"><div class="mw-cal-details-title">' + escapeHtml(title) + '</div><div class="mw-cal-empty">Nothing planned here yet.</div></div>';
+  }
+  return '<div class="mw-cal-details"><div class="mw-cal-details-title">' + escapeHtml(title) + '</div>' + list.map(function(e){
+    return '<div class="mw-cal-event" data-fid="' + escapeHtml(e.fid || '') + '" data-gid="' + escapeHtml(e.gid || '') + '" data-tab="' + escapeHtml(e.tab || 'overview') + '">' +
+      '<div class="mw-cal-event-top"><span class="mw-cal-event-dot ' + e.type + '"></span><div class="mw-cal-event-title">' + escapeHtml(e.title) + '</div></div>' +
+      '<div class="mw-cal-event-meta">' + escapeHtml(e.meta || '') + '</div>' +
+    '</div>';
+  }).join('') + '</div>';
+}
 function renderMyWorld() {
   var el = document.getElementById('myworld-content');
   if (!el) return;
@@ -2582,8 +2838,26 @@ function renderMyWorld() {
   }).join('') : '<div class="xflock-empty">No updates yet. When someone plans, chats, or changes a gathering, it will show up here.</div>';
 
   el.innerHTML = strip +
+    renderMyWorldCalendar() +
     '<div class="section-title">Your to-do across flocks</div>' + todoHtml +
     '<div class="section-title">Recent activity across flocks</div>' + actHtml;
+
+  var prev = el.querySelector('#mw-cal-prev');
+  var next = el.querySelector('#mw-cal-next');
+  if (prev) prev.addEventListener('click', function(){ myWorldCalendarState.offset = (myWorldCalendarState.offset || 0) - 1; renderMyWorld(); });
+  if (next) next.addEventListener('click', function(){ myWorldCalendarState.offset = (myWorldCalendarState.offset || 0) + 1; renderMyWorld(); });
+  el.querySelectorAll('.mw-cal-day[data-date]').forEach(function(day){
+    day.addEventListener('click', function(){ myWorldCalendarState.selectedKey = day.dataset.date; renderMyWorld(); });
+  });
+  el.querySelectorAll('.mw-cal-event').forEach(function(ev){
+    ev.addEventListener('click', function(){ openCrossFlockTarget(ev.dataset.fid, ev.dataset.gid || null, ev.dataset.tab || 'overview'); });
+  });
+  var share = el.querySelector('#mw-cal-share');
+  if (share) share.addEventListener('click', function(){
+    var planning = buildCrossFlockTodos().find(function(t){ return t.action === 'Dates'; });
+    if (planning) openCrossFlockTarget(planning.fid, planning.gid, 'overview');
+    else toast('No pending blackout date requests right now ✓');
+  });
 
   el.querySelectorAll('.myworld-flock-chip').forEach(function(btn){
     btn.addEventListener('click', function(){ switchToFlock(btn.dataset.fid); showPage('gatherings'); renderGatherings(); });
@@ -3270,7 +3544,7 @@ function renderGatheringsList() {
 // -- DECISION ENGINE ----------------------------------
 // Pure recommendation helper: reads the gathering + current flock data and returns display-ready output.
 function computeGatheringRecommendation(g) {
-  var allFlock = [DATA.me].concat(DATA.members || []).filter(Boolean);
+  var allFlock = getActiveFlockMembers();
   var totalMembers = Math.max(allFlock.length, 1);
   var gRsvps = (rsvpData && rsvpData[g.id]) || {};
 
@@ -3309,7 +3583,7 @@ function computeGatheringRecommendation(g) {
       var availableSlots = Math.max(submittedCount * w.days.length - w.totalConflicts, 0);
       var possibleSlots = Math.max(submittedCount * w.days.length, 1);
       windowScore = Math.round((availableSlots / possibleSlots) * 100);
-      bestWindow = w.start.label + '–' + w.end.label;
+      bestWindow = formatDateWindowRange(w);
     }
   }
 
@@ -3359,9 +3633,9 @@ function computeGatheringRecommendation(g) {
 
 function buildDecisionCard(g) {
   var rec = computeGatheringRecommendation(g);
-  var scoreLabel = g.status === 'planning' ? 'Fit' : 'Score';
+  var scoreLabel = g.status === 'planning' ? 'Confidence' : 'Score';
   var middleScore = g.status === 'planning' && rec.windowScore !== null ? rec.windowScore : rec.replyScore;
-  var middleLabel = g.status === 'planning' ? 'Window' : 'Replies';
+  var middleLabel = g.status === 'planning' ? 'Availability' : 'Replies';
   var reasonHtml = (rec.reasons || []).map(function(r){
     return '<span class="decision-reason ' + (r.type || '') + '">' + escapeHtml(r.text) + '</span>';
   }).join('');
@@ -3879,6 +4153,42 @@ function fullMonthName(m) {
   return ['January','February','March','April','May','June','July','August','September','October','November','December'][m];
 }
 
+function formatDayObj(day) {
+  if (!day) return 'TBD';
+  return day.abbr + ' ' + day.d;
+}
+
+function formatDateWindowRange(w) {
+  if (!w || !w.start || !w.end) return 'TBD';
+  return w.start.abbr === w.end.abbr
+    ? w.start.abbr + ' ' + w.start.d + '–' + w.end.d
+    : w.start.abbr + ' ' + w.start.d + ' – ' + w.end.abbr + ' ' + w.end.d;
+}
+
+function getGatheringDateDisplay(g) {
+  if (!g) return 'Date TBD';
+  if (g.status === 'planning') return 'Choosing dates';
+  if (g.date_label) return 'Confirmed: ' + g.date_label;
+  if (g.endMonth || g.endDay || g.end_month || g.end_day) {
+    var sm = g.month || 'TBD';
+    var sd = g.day || '';
+    var em = g.endMonth || g.end_month || sm;
+    var ed = g.endDay || g.end_day || '';
+    var lbl = sm === em ? sm + ' ' + sd + (ed ? '–' + ed : '') : sm + ' ' + sd + ' – ' + em + ' ' + ed;
+    return 'Confirmed: ' + lbl;
+  }
+  if (g.month || g.day) return 'Confirmed: ' + (g.month || 'TBD') + (g.day ? ' ' + g.day : '');
+  return 'Date TBD';
+}
+
+function getGatheringPhaseLabel(g) {
+  if (!g) return 'Gathering';
+  if (g.status === 'planning') return 'Choosing Dates';
+  if (g.status === 'completed') return 'Completed';
+  if (g.status === 'archived') return 'Archived';
+  return 'Confirmed';
+}
+
 // Compute conflict score per day across all flock members
 function computeConflicts(gId, allFlock) {
   var map = {}; // key -> { count, who[] }
@@ -3924,7 +4234,7 @@ function findBestWindows(allDays, conflicts, submittedCount, windowSize, topN) {
 }
 
 function renderDateWindowPanel(g, panel) {
-  var allFlock = [DATA.me].concat(DATA.members || []).filter(Boolean);
+  var allFlock = getActiveFlockMembers();
   var flockCount = allFlock.length;
 
   var conflicts = computeConflicts(g.id, allFlock);
@@ -3972,10 +4282,7 @@ function renderDateWindowPanel(g, panel) {
   }).join('');
 
   // ── Window chips ──
-  function fmtRange(w) {
-    var s = w.start, e = w.end;
-    return s.abbr === e.abbr ? s.abbr + ' ' + s.d + '–' + e.d : s.abbr + ' ' + s.d + ' – ' + e.abbr + ' ' + e.d;
-  }
+  function fmtRange(w) { return formatDateWindowRange(w); }
   var chipLabels = ['Best window', 'Good alternative', 'Also works'];
   var chipClasses = ['dw-chip best', 'dw-chip alt', 'dw-chip ok'];
 
@@ -3988,7 +4295,7 @@ function renderDateWindowPanel(g, panel) {
           '<div class="dw-chip-top"><div class="dw-chip-label">' + chipLabels[i] + '</div>' +
           '<div class="dw-chip-conf">' + conf + '</div></div>' +
           '<div class="dw-chip-range">' + fmtRange(w) + '</div>' +
-          '<div class="dw-chip-action">Tap to set this date →</div>' +
+          '<div class="dw-chip-action">Organizer: finalize this window →</div>' +
         '</div>';
       }).join('')
     : '<div class="dw-no-data">Share availability below — windows appear once people respond.</div>';
@@ -4015,13 +4322,13 @@ function renderDateWindowPanel(g, panel) {
 
     // Response summary
     '<div class="dw-summary-row">' +
-      '<div class="dw-summary-stat"><strong>' + submittedCount + '</strong><span>responded</span></div>' +
-      '<div class="dw-summary-stat"><strong>' + pending.length + '</strong><span>pending</span></div>' +
-      '<div class="dw-summary-stat"><strong>' + flockCount + '</strong><span>total</span></div>' +
+      '<div class="dw-summary-stat wide"><strong>' + submittedCount + '/' + flockCount + '</strong><span>submitted availability</span></div>' +
+      '<div class="dw-summary-stat"><strong>' + pending.length + '</strong><span>waiting</span></div>' +
+      '<div class="dw-summary-stat"><strong>' + getGatheringPhaseLabel(g) + '</strong><span>status</span></div>' +
     '</div>' +
 
     // Best windows
-    '<div class="dw-section-lbl">Suggested windows</div>' +
+    '<div class="dw-section-lbl">Proposed date windows</div>' +
     '<div class="dw-chips">' + chipsHtml + '</div>' +
 
     // Heatmap
@@ -4038,7 +4345,7 @@ function renderDateWindowPanel(g, panel) {
     '<div class="dw-cal-wrap">' + calHtml + '</div>' +
 
     // Who responded
-    '<div class="dw-section-lbl">Flock responses</div>' +
+    '<div class="dw-section-lbl">Who submitted availability</div>' +
     '<div class="dw-resp-list">' + respHtml + '</div>' +
 
     // Share button
@@ -4062,14 +4369,23 @@ function renderDateWindowPanel(g, panel) {
       var parts = startKey.split('-');
       var mon = parts[0], day = parseInt(parts[1]);
       var label = fmtRange({ start: { abbr: mon, d: day }, end: (function(){ var p2=endKey.split('-'); return {abbr:p2[0],d:parseInt(p2[1])}; })() });
-      if (!confirm('Set the gathering window to ' + label + '?\nThis will confirm the date and move the gathering to planning mode.')) return;
-      g.month  = mon;
-      g.day    = day;
-      g.status = 'next';
+      if (!confirm('Finalize ' + label + ' as the official gathering dates?\nThis will move the gathering from Choosing Dates to Confirmed.')) return;
+      var before = safeCloneForEvent(g);
+      var endParts = endKey.split('-');
+      g.month = mon;
+      g.day = day;
+      g.endMonth = endParts[0];
+      g.endDay = parseInt(endParts[1], 10);
+      g.date_label = label;
+      g.finalized_at = nowISO();
+      g.status = 'upcoming';
+      g.updated_at = nowISO();
+      logActivity(DATA.me.id, 'finalized <strong>' + escapeHtml(g.name) + '</strong> for <strong>' + escapeHtml(label) + '</strong>', '📅');
+      recordEvent('gathering.dates_finalized', 'gathering', g.id, before, g, 'Finalized dates for ' + (g.name || 'gathering') + ': ' + label, '📅');
       saveFlockState();
       renderDetail(g);
       if (document.getElementById('gatherings-list')) renderGatherings();
-      toast('\uD83C\uDF89 Date set to ' + label + '!');
+      toast('🎉 Dates finalized: ' + label);
     });
   });
 }
@@ -4148,9 +4464,12 @@ function wireDetailButtons(g) {
   // Wire nudge button
   var nudgeBtn = document.getElementById('nudge-btn');
   if (nudgeBtn) { nudgeBtn.addEventListener('click', function(){
-    var nr=[DATA.me].concat(DATA.members||[]).filter(function(m){return m&&!(rsvpData[g.id]&&rsvpData[g.id][m.id]);});
-    if(!nr.length){toast('Everyone has replied \u2713');return;}
-    toast('\ud83d\udce3 Nudge sent to: '+nr.map(function(m){return m.name;}).join(', '));
+    var nr=getActiveFlockMembers().filter(function(m){
+      var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
+      return g.status === 'planning' ? !(rd && rd.availSubmitted) : !rd;
+    });
+    if(!nr.length){toast(g.status === 'planning' ? 'Everyone submitted availability ✓' : 'Everyone has replied ✓');return;}
+    toast('📣 Nudge sent to: '+nr.map(function(m){return m.name;}).join(', '));
   }); }
 
   // Wire quick-link cards to switch tabs
@@ -4236,7 +4555,7 @@ function buildStandardDetail(g) {
   }
 
   // Build RSVP-aware member list
-  var allFlock = [DATA.me].concat(DATA.members||[]);
+  var allFlock = getActiveFlockMembers();
   var confirmed = [], notComing = [], noReply = [];
   allFlock.forEach(function(m){
     if (!m) return;
@@ -4314,8 +4633,9 @@ function buildStandardDetail(g) {
 
   // Status-aware eyebrow
   var eyebrow = g.status === 'completed' ? '✅ Completed' :
-                g.status === 'next' ? '⭐ Next up' :
-                g.status === 'planning' ? '🗓️ Collecting dates' :
+                g.status === 'next' ? '⭐ Confirmed' :
+                g.status === 'upcoming' ? '✅ Confirmed' :
+                g.status === 'planning' ? '🗓️ Choosing dates' :
                 g.type === 'planned' ? 'Planned gathering' : '✨ Bonus gathering';
 
   // Quick-glance stats based on what matters NOW
@@ -4323,7 +4643,7 @@ function buildStandardDetail(g) {
   if (g.status === 'planning') {
     var responded = allFlock.filter(function(m){ return rsvpData[g.id] && rsvpData[g.id][m.id] && rsvpData[g.id][m.id].availSubmitted; }).length;
     statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + responded + '/' + allFlock.length + '</div><div class="detail-stat-l">shared dates</div></div>';
+      '<div class="detail-stat"><div class="detail-stat-n">' + responded + '/' + allFlock.length + '</div><div class="detail-stat-l">submitted availability</div></div>';
   } else if (g.status === 'completed') {
     statsHtml =
       '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attended</div></div>' +
@@ -4361,7 +4681,7 @@ function buildStandardDetail(g) {
   return '<div class="detail-hero">' +
     '<div class="detail-eyebrow">' + eyebrow + '</div>' +
     '<div class="detail-title">' + g.name + '</div>' +
-    '<div class="detail-sub">' + (g.month||'TBD') + ' ' + (g.day||'') + ' \u00b7 ' + (g.location||'TBD') + '</div>' +
+    '<div class="detail-sub">' + getGatheringDateDisplay(g) + ' · ' + (g.location||'TBD') + '</div>' +
     '<div class="detail-stats">' + statsHtml + '</div>' +
   '</div>' +
 
@@ -4375,7 +4695,7 @@ function buildStandardDetail(g) {
     '</button>') +
 
   (g.status === 'planning' ?
-    '<div class="section-title" style="margin-top:16px">Best date window</div>' +
+    '<div class="section-title" style="margin-top:16px">Choose final dates</div>' +
     '<div id="date-window-panel-'+g.id+'"></div>'
   : '') +
 
@@ -4383,7 +4703,7 @@ function buildStandardDetail(g) {
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
 
   (noReply.length > 0 && g.status !== 'completed' ?
-    '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">Nudge the ' + noReply.length + ' who haven\'t replied</button>'
+    '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">' + (g.status === 'planning' ? 'Nudge members missing availability' : 'Nudge the ' + noReply.length + ' who haven\'t replied') + '</button>'
   : '') +
 
   (tasksTotal && g.status !== 'completed' ? '<div class="section-title" style="margin-top:16px">Shared tasks</div>' + taskHTML : '') +
@@ -4428,9 +4748,9 @@ function buildBeachDetail(g) {
   return '<div class="detail-hero beach">'+
     '<div class="detail-eyebrow">✨ Collecting availability</div>'+
     '<div class="detail-title">'+g.name+'</div>'+
-    '<div class="detail-sub">'+(g.month||'TBD')+' '+(g.day||'')+' · '+(g.theme||'Trip')+' · '+(g.location||'Location TBD')+'</div>'+
+    '<div class="detail-sub">'+ getGatheringDateDisplay(g) +' · '+(g.theme||'Trip')+' · '+(g.location||'Location TBD')+'</div>'+
     '<div class="detail-stats">'+
-      '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">responded</div></div>'+
+      '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">submitted availability</div></div>'+
     '</div>'+
     (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
   '</div>'+
@@ -5414,6 +5734,16 @@ function getAllFlockMembersForExport() {
   return Object.values(map);
 }
 
+function isRemovedMember(m) {
+  return !!(m && m.deleted_at);
+}
+
+function getRemovedAtForMember(memberId) {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  var m = (flock && flock.members && flock.members[memberId]) || getMember(memberId);
+  return m && m.deleted_at ? m.deleted_at : '';
+}
+
 function getMemberNameForExport(memberId) {
   var m = getMember(memberId) || (FLOCKS[currentFlockId] && FLOCKS[currentFlockId].members && FLOCKS[currentFlockId].members[memberId]);
   return m ? m.name : (memberId || '');
@@ -5545,6 +5875,8 @@ function buildExportPayload(scope, gatheringId) {
         updated_at: m.updated_at || '',
         deleted_at: m.deleted_at || null,
         flock_id: getNumericFlockIdForExport(),
+        status: m.deleted_at ? 'removed' : 'active',
+        removed_at: m.deleted_at || '',
         name: m.name || '',
         animal: m.animal || '',
         location: m.location || '',
@@ -5614,6 +5946,8 @@ function buildGatheringSummaryRows(payload) {
         member_id: m.id,
         member_name: m.name,
         member_role: m.role,
+        member_status: m.deleted_at ? 'removed' : 'active',
+        member_removed_at: m.deleted_at || '',
         rsvp_status: r.status || '',
         guests: r.guests || 0,
         availability_submitted: r.availSubmitted ? 'yes' : 'no',
@@ -5658,6 +5992,8 @@ function exportGatheringsCsv(scope, gatheringId) {
     {key:'member_id', label:'Member ID'},
     {key:'member_name', label:'Member'},
     {key:'member_role', label:'Role'},
+    {key:'member_status', label:'Member Status'},
+    {key:'member_removed_at', label:'Member Removed At'},
     {key:'rsvp_status', label:'RSVP'},
     {key:'guests', label:'Guests'},
     {key:'availability_submitted', label:'Availability Submitted'},
@@ -5686,6 +6022,8 @@ function exportMemberDirectoryCsv() {
       updated_at: m.updated_at || '',
       deleted_at: m.deleted_at || null,
       flock_id: payload.flock.id,
+      status: m.deleted_at ? 'removed' : 'active',
+      removed_at: m.deleted_at || '',
       member_name: m.name,
       role: m.role,
       animal: m.animal,
@@ -5701,6 +6039,8 @@ function exportMemberDirectoryCsv() {
     {key:'updated_at', label:'updated_at'},
     {key:'deleted_at', label:'deleted_at'},
     {key:'flock_id', label:'flock_id'},
+    {key:'status', label:'Status'},
+    {key:'removed_at', label:'Removed At'},
     {key:'member_name', label:'Member'},
     {key:'role', label:'Role'},
     {key:'animal', label:'Animal'},
@@ -5776,18 +6116,15 @@ async function removeMemberFromFlock(memberId) {
   DATA.members = DATA.members.filter(function(m){ return m.id !== memberId; });
   recordEvent('member.removed', 'member', memberId, beforeMember, flock.members ? flock.members[memberId] : null, memberName + ' was removed from the flock', '👋');
 
-  Object.keys(rsvpData || {}).forEach(function(gId){
-    if (rsvpData[gId] && rsvpData[gId][memberId]) delete rsvpData[gId][memberId];
-  });
-
-  (DATA.gatherings || []).forEach(function(g){
-    if (g.attending) g.attending = g.attending.filter(function(a){ return a !== memberId; });
-  });
+  // Keep historical references intact. RSVP, attendance, tasks, chat, photos,
+  // and activity are intentionally NOT deleted so exports/database history remain complete.
+  // The UI should treat deleted_at as the removed timestamp and hide the member from
+  // active pickers/lists where appropriate.
 
   saveLocal();
 
-  // Prefer atomic Firestore removal over full-document setDoc. A full sync can
-  // race with the realtime listener and accidentally re-save the removed member.
+  // Prefer an atomic Firestore soft-delete over removing the member object.
+  // This preserves their history for exports/database audit records while hiding them from active lists.
   var h = window.__firestoreHelpers;
   if (window.__db && h && h.updateDoc && h.deleteField && h.arrayRemove) {
     try {
@@ -5822,22 +6159,33 @@ function openAdminPanel() {
   if (!flock) return;
 
   var allMembers = flock.members ? Object.values(flock.members) : [];
+  allMembers.sort(function(a,b){
+    var ar = a && a.deleted_at ? 1 : 0;
+    var br = b && b.deleted_at ? 1 : 0;
+    if (ar !== br) return ar - br;
+    return String((a && a.name) || '').localeCompare(String((b && b.name) || ''));
+  });
 
   var memberRows = allMembers.map(function(m){
     var isMe = m.id === DATA.me.id;
+    var isRemoved = !!m.deleted_at;
     var role = m.role || 'member';
-    var roleBadge = role === 'creator' ? '<span style="background:var(--gold);color:#1E1433;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Creator</span>'
+    var roleBadge = isRemoved ? '<span style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Removed</span>'
+                  : role === 'creator' ? '<span style="background:var(--gold);color:#1E1433;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Creator</span>'
                   : role === 'admin' ? '<span style="background:#ede8ff;color:var(--brand);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Admin</span>'
                   : '<span style="background:var(--surface2);color:var(--text3);font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">Member</span>';
+    var subline = isRemoved
+      ? 'Removed ' + escapeHtml(m.deleted_at || '') + ' &middot; kept for history/export'
+      : escapeHtml(m.location||'') + ' &middot; ' + (m.pw ? 'Password set' : 'No password');
 
-    return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)">' +
+    return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);' + (isRemoved ? 'opacity:.72;' : '') + '">' +
       makeAv(m.animal||'bear', 36) +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:13px;font-weight:700;color:var(--text1)">' + escapeHtml(m.name) + (isMe ? ' (you)' : '') + '</div>' +
-        '<div style="font-size:11px;color:var(--text2)">' + (m.location||'') + ' &middot; ' + (m.pw ? 'Password set' : 'No password') + '</div>' +
+        '<div style="font-size:11px;color:' + (isRemoved ? 'var(--red)' : 'var(--text2)') + '">' + subline + '</div>' +
       '</div>' +
       roleBadge +
-      (!isMe ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:180px">' +
+      (!isMe && !isRemoved ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:180px">' +
         (role !== 'admin' && role !== 'creator' ? '<button class="admin-promote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make admin</button>' : '') +
         (role === 'admin' ? '<button class="admin-demote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove admin</button>' : '') +
         '<button class="admin-reset-pw" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-family:inherit">Reset pw</button>' +
@@ -5939,7 +6287,7 @@ function openAdminPanel() {
         e.stopPropagation();
         var mid = btn.dataset.mid;
         var memberName = (flock.members[mid]||{}).name || 'this member';
-        if (confirm('Remove ' + memberName + ' from the flock?')) {
+        if (confirm('Remove ' + memberName + ' from the active flock? Their history will stay in exports and the database with a removed timestamp.')) {
           btn.disabled = true;
           try {
             var name = await removeMemberFromFlock(mid);
@@ -9267,7 +9615,7 @@ try {
         }
         local.members = merged;
         local.memberIds = remote.memberIds || Object.keys(merged);
-        DATA.members = Object.values(merged).filter(function(m){ return m && m.id !== myId; });
+        DATA.members = Object.values(merged).filter(function(m){ return m && !m.deleted_at && m.id !== myId; });
 
         // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
         if (merged[myId]) {
