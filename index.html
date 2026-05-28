@@ -2455,6 +2455,156 @@ function getRsvpForMemberRecord(gatheringId, memberOrId) {
 function hasSubmittedAvailability(rsvp) {
   return !!(rsvp && (rsvp.availSubmitted || rsvp.availability_submitted || rsvp.availability_reviewed_at));
 }
+
+
+// ═══════════════════════════════════════════════
+//  SMART REMINDER QUEUE / AUTOMATIC NUDGES
+//  Nudges are no longer just a manual toast. Each gathering keeps a durable
+//  per-user reminder queue keyed by user_id so all accounts agree on who is
+//  waiting, when they were reminded, and when the next reminder is due.
+// ═══════════════════════════════════════════════
+function reminderKindForGathering(g) {
+  return g && g.status === 'planning' ? 'availability' : 'rsvp';
+}
+function getGatheringResponseForUser(g, member) {
+  if (!g || !member) return null;
+  if (typeof getRsvpForMemberRecord === 'function') return getRsvpForMemberRecord(g.id, member);
+  var bucket = (typeof rsvpData !== 'undefined' && rsvpData && rsvpData[g.id]) || {};
+  return bucket[member.id] || bucket[String(member.id)] || bucket[getCanonicalUserId(member)] || null;
+}
+function hasGatheringResponseForReminder(g, member) {
+  var r = getGatheringResponseForUser(g, member);
+  if (g && g.status === 'planning') return !!(r && (r.availSubmitted || r.availability_submitted || r.availability_reviewed_at));
+  return !!(r && r.status);
+}
+function getPendingReminderMembers(g) {
+  var active = (typeof getActiveFlockMembers === 'function') ? getActiveFlockMembers() : [];
+  return active.filter(function(m){
+    if (!m || !isActiveMemberRecord(m)) return false;
+    return !hasGatheringResponseForReminder(g, m);
+  });
+}
+function ensureGatheringNudgeState(g) {
+  if (!g) return {};
+  if (!g.nudges || typeof g.nudges !== 'object') g.nudges = {};
+  ['availability','rsvp'].forEach(function(kind){
+    if (!g.nudges[kind] || typeof g.nudges[kind] !== 'object') g.nudges[kind] = {};
+  });
+  return g.nudges;
+}
+function nextReminderDelayMs(kind, count) {
+  // First auto reminder: 24h after creation/last relevant update.
+  // Second: 3 days later. RSVP final reminder: 2 days later.
+  if (!count || count <= 0) return 24 * 60 * 60 * 1000;
+  if (count === 1) return 3 * 24 * 60 * 60 * 1000;
+  return kind === 'rsvp' ? 2 * 24 * 60 * 60 * 1000 : 3 * 24 * 60 * 60 * 1000;
+}
+function formatReminderTime(ts) {
+  if (!ts) return 'soon';
+  var d = new Date(ts);
+  var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  var sameDay = d.toDateString() === new Date().toDateString();
+  var tom = d.toDateString() === tomorrow.toDateString();
+  var t = d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  if (sameDay) return 'today at ' + t;
+  if (tom) return 'tomorrow at ' + t;
+  return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' at ' + t;
+}
+function computeReminderQueue(g) {
+  var kind = reminderKindForGathering(g);
+  var nudges = ensureGatheringNudgeState(g);
+  var bucket = nudges[kind] || {};
+  var pending = getPendingReminderMembers(g);
+  var now = Date.now();
+  var createdBase = Date.parse(g.updated_at || g.created_at || '') || g.updatedAt || g._createdAt || now;
+  return pending.map(function(m){
+    var uid = getCanonicalUserId(m);
+    var row = bucket[uid] || {};
+    var count = parseInt(row.count, 10) || 0;
+    var last = Date.parse(row.last_sent_at || '') || row.last_sent_ts || 0;
+    var next = last ? last + nextReminderDelayMs(kind, count) : createdBase + nextReminderDelayMs(kind, 0);
+    return { member:m, user_id:uid, kind:kind, row:row, count:count, last_ts:last, next_ts:next, due: now >= next };
+  });
+}
+function sendGatheringReminder(g, queueRows, source) {
+  if (!g) return 0;
+  var kind = reminderKindForGathering(g);
+  var nudges = ensureGatheringNudgeState(g);
+  var bucket = nudges[kind];
+  var rows = queueRows || computeReminderQueue(g);
+  if (!rows.length) return 0;
+  var stamp = nowISO();
+  rows.forEach(function(q){
+    var mem = q.member;
+    var uid = q.user_id || getCanonicalUserId(mem);
+    if (!uid) return;
+    var prev = bucket[uid] || {};
+    bucket[uid] = Object.assign({}, prev, {
+      user_id: uid,
+      member_id: mem.member_id || '',
+      status: 'pending',
+      last_sent_at: stamp,
+      last_sent_ts: Date.now(),
+      count: (parseInt(prev.count, 10) || 0) + 1,
+      source: source || 'manual',
+      updated_at: stamp,
+      created_at: prev.created_at || stamp
+    });
+    if (typeof pushNotification === 'function' && uid !== getCanonicalUserId(DATA.me)) {
+      pushNotification(uid, {
+        text: (kind === 'availability' ? 'Quick reminder — share when you’re free for ' : 'Quick reminder — RSVP for ') + '<strong>' + escapeHtml(g.name || 'this gathering') + '</strong>.',
+        kind: 'nudge', icon: '👋', gid: g.id, tab: 'overview'
+      });
+    }
+  });
+  touchEntity(g);
+  if (typeof logActivity === 'function') {
+    logActivity(DATA.me.id, (source === 'auto' ? 'scheduled reminders for ' : 'sent reminders to ') + rows.length + ' member' + (rows.length === 1 ? '' : 's') + ' about <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', '👋');
+  }
+  if (typeof recordEvent === 'function') {
+    recordEvent('gathering.reminder_sent', 'gathering', g.id, null, { gathering_id:g.id, count:rows.length, kind:kind, source:source || 'manual' }, 'Reminder sent for ' + (g.name || 'gathering'), '👋');
+  }
+  if (typeof saveFlockState === 'function') saveFlockState();
+  return rows.length;
+}
+function maybeRunAutomaticReminderQueue() {
+  // Client-side automation: runs when an organizer/admin opens or receives a flock update.
+  // It is throttled per browser session so it does not spam reminders.
+  if (!(typeof can === 'function' && (can('edit_gathering') || can('finalize_gathering') || can('manage_flock')))) return;
+  window._autoReminderRun = window._autoReminderRun || {};
+  (DATA.gatherings || []).forEach(function(g){
+    if (!g || g.deleted_at || g.status === 'completed') return;
+    var q = computeReminderQueue(g).filter(function(row){ return row.due; });
+    if (!q.length) return;
+    var key = g.id + ':' + reminderKindForGathering(g);
+    if (window._autoReminderRun[key] && Date.now() - window._autoReminderRun[key] < 6 * 60 * 60 * 1000) return;
+    window._autoReminderRun[key] = Date.now();
+    sendGatheringReminder(g, q, 'auto');
+  });
+}
+function renderReminderQueueCard(g) {
+  var q = computeReminderQueue(g);
+  if (!q.length) return '<div class="planning-empty">Everyone is caught up for this gathering ✓</div>';
+  var due = q.filter(function(x){ return x.due; });
+  var next = q.slice().sort(function(a,b){ return a.next_ts - b.next_ts; })[0];
+  var names = q.map(function(x){ return escapeHtml((x.member && x.member.name) || 'Someone'); }).slice(0,3).join(', ');
+  if (q.length > 3) names += ' +' + (q.length - 3) + ' more';
+  return '<div class="card" style="background:#fffaf0;border-color:rgba(240,192,48,.35)">' +
+    '<div style="font-size:11px;font-weight:900;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Reminder queue</div>' +
+    '<div style="font-size:16px;font-weight:900;color:var(--text1);margin-bottom:4px">Waiting on ' + names + '</div>' +
+    '<div style="font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:12px">' +
+      (due.length ? due.length + ' reminder' + (due.length === 1 ? ' is' : 's are') + ' ready to send now.' : 'Next reminder scheduled for ' + formatReminderTime(next && next.next_ts) + '.') +
+    '</div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button class="btn-primary" style="flex:1" onclick="nudgeGatheringById('' + escapeHtml(String(g.id)) + '')">Send now</button>' +
+      '<button class="btn-secondary" style="flex:1" onclick="toast('Reminder left in queue')">Skip for now</button>' +
+    '</div>' +
+  '</div>';
+}
+window.computeReminderQueue = computeReminderQueue;
+window.sendGatheringReminder = sendGatheringReminder;
+window.maybeRunAutomaticReminderQueue = maybeRunAutomaticReminderQueue;
+window.renderReminderQueueCard = renderReminderQueueCard;
 function getCanonicalMemberId(memberOrId) {
   if (memberOrId && typeof memberOrId === 'object') return memberOrId.member_id || memberOrId.id || memberOrId.uid || memberOrId.memberKey || '';
   return memberOrId;
@@ -3976,6 +4126,9 @@ function renderHome() {
     if (myNotifs.length > 0) saveFlockState();
   }
   if (typeof renderNotificationBell === 'function') renderNotificationBell();
+  if (typeof maybeRunAutomaticReminderQueue === 'function') {
+    try { maybeRunAutomaticReminderQueue(); } catch(_remErr) { console.warn('[Kinverly] reminder queue failed:', _remErr && _remErr.message); }
+  }
 
   // Topbar avatar
   var av = document.getElementById('topbar-av');
@@ -5419,15 +5572,10 @@ function wireDetailButtons(g) {
     if (dwPanel) renderDateWindowPanel(g, dwPanel);
   }
 
-  // Wire nudge button
+  // Wire reminder queue / nudge button
   var nudgeBtn = document.getElementById('nudge-btn');
   if (nudgeBtn) { nudgeBtn.addEventListener('click', function(){
-    var nr=getActiveFlockMembers().filter(function(m){
-      var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
-      return g.status === 'planning' ? !(rd && rd.availSubmitted) : !rd;
-    });
-    if(!nr.length){toast(g.status === 'planning' ? 'Everyone submitted availability ✓' : 'Everyone has replied ✓');return;}
-    toast('📣 Nudge sent to: '+nr.map(function(m){return m.name;}).join(', '));
+    if (typeof nudgeGatheringById === 'function') nudgeGatheringById(g.id);
   }); }
 
   // Wire quick-link cards to switch tabs
@@ -8725,7 +8873,7 @@ function saveFlockState() {
   if (window._kickedFromFlock) return;
   saveLocal();
   if (window._syncTimer) clearTimeout(window._syncTimer);
-  window._syncTimer = setTimeout(pushToFirebase, 1500);
+  window._syncTimer = setTimeout(pushToFirebase, 250);
 }
 
 function loadPersistedExtras() {
@@ -12607,6 +12755,7 @@ try {
 
       // ── Save ──
       '<button type="button" class="gc-save-btn" id="ge-save-btn" data-action="save-gathering-edit" style="margin-top:16px">Save changes</button>' +
+      '<div id="ge-autosave-indicator" style="font-size:11px;color:var(--text3);font-weight:700;text-align:center;margin-top:6px">Changes save automatically</div>' +
 
       // ── Share & Duplicate ──
       '<div style="display:flex;gap:8px;margin-top:12px">' +
@@ -12942,6 +13091,29 @@ try {
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       saveGatheringEditFromSheet(btn);
     }, true);
+  }
+  if (gatherEditOverlay && !gatherEditOverlay.dataset.autoSaveBound) {
+    gatherEditOverlay.dataset.autoSaveBound = '1';
+    var autoTimer = null;
+    function queueGatheringAutoSaveFromEdit(){
+      if (!editingGathering) return;
+      if (autoTimer) clearTimeout(autoTimer);
+      autoTimer = setTimeout(function(){
+        var ind = document.getElementById('ge-autosave-indicator');
+        if (ind) ind.textContent = 'Saving…';
+        autoSaveGatherEdit(editingGathering).then(function(){
+          if (ind) ind.textContent = 'Saved just now';
+        }).catch(function(err){
+          console.warn('[Kinverly] edit auto-save failed:', err && err.message);
+          if (ind) ind.textContent = 'Not saved yet';
+        });
+      }, 700);
+    }
+    gatherEditOverlay.addEventListener('input', function(e){
+      if (e.target && e.target.closest && e.target.closest('#ge-save-btn')) return;
+      queueGatheringAutoSaveFromEdit();
+    });
+    gatherEditOverlay.addEventListener('change', function(){ queueGatheringAutoSaveFromEdit(); });
   }
 
   document.getElementById('gather-edit-close').addEventListener('click', function(){
