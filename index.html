@@ -2018,7 +2018,7 @@ img,svg{display:block}
 
       <div class="avail-review-section-title">3. Confirm for this gathering</div>
       <div class="avail-review-note">These answers only update this gathering. Your unavailable times stay saved in My Calendar.</div>
-      <button class="btn-primary" id="avail-submit" style="margin-top:4px">Confirm availability</button>
+      <button type="button" class="btn-primary" id="avail-submit" style="margin-top:4px">Confirm availability</button>
       <button class="avail-link-btn" id="avail-manage-calendar">Manage full calendar in My World</button>
     </div>
   </div>
@@ -5881,34 +5881,79 @@ if (availManageCalendarBtn) availManageCalendarBtn.addEventListener('click', fun
     if (cal && cal.scrollIntoView) cal.scrollIntoView({behavior:'smooth', block:'start'});
   }, 150);
 });
-var availSubmitEl = document.getElementById('avail-submit');
-if (availSubmitEl) availSubmitEl.addEventListener('click', function(){
-  var g = window._availGathering;
-  if (g) {
-    if (!rsvpData[g.id]) rsvpData[g.id] = {};
-    if (!rsvpData[g.id][DATA.me.id]) rsvpData[g.id][DATA.me.id] = {status:'yes'};
-    var mine = rsvpData[g.id][DATA.me.id];
-    mine.blockedDates = Object.keys(blockedDates).filter(function(k){return blockedDates[k];});
-    mine.windowAnswers = Object.assign({}, availabilityWindowAnswers);
-    mine.window_answers = Object.assign({}, availabilityWindowAnswers);
-    mine.availSubmitted = true;
-    mine.availability_reviewed_at = nowISO();
-    mine.updated_at = nowISO();
-    if (g.responses) {
-      var resp = g.responses.find(function(r){return r.id===DATA.me.id;});
-      if (resp) resp.status = 'responded';
-      else g.responses.push({id:DATA.me.id, status:'responded'});
-    }
-    logActivity(DATA.me.id, 'reviewed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
-    saveFlockState();
+function confirmAvailabilityReview() {
+  var g = window._availGathering || window._currentDetailGathering || null;
+  if (!g || !g.id) {
+    toast('Open a gathering first, then review availability.');
+    return;
   }
-  document.getElementById('avail-overlay').classList.add('hidden');
+
+  // Make sure every visible proposed window has a saved answer, even if the user did not tap it.
+  getAvailabilityReviewWindows(g).forEach(function(win){
+    if (!availabilityWindowAnswers[win.id]) availabilityWindowAnswers[win.id] = defaultAnswerForWindow(win);
+  });
+
+  if (!rsvpData[g.id]) rsvpData[g.id] = {};
+  if (!rsvpData[g.id][DATA.me.id]) rsvpData[g.id][DATA.me.id] = { status: 'yes' };
+
+  var stamp = nowISO();
+  var blocked = Object.keys(blockedDates).filter(function(k){ return blockedDates[k]; });
+  var mine = rsvpData[g.id][DATA.me.id];
+  mine.status = mine.status || 'yes';
+  mine.blockedDates = blocked;
+  mine.windowAnswers = Object.assign({}, availabilityWindowAnswers);
+  mine.window_answers = Object.assign({}, availabilityWindowAnswers);
+  mine.availSubmitted = true;
+  mine.availability_reviewed_at = stamp;
+  mine.updated_at = stamp;
+
+  if (!Array.isArray(g.responses)) g.responses = [];
+  var resp = g.responses.find(function(r){ return String(r.id) === String(DATA.me.id); });
+  if (resp) {
+    resp.status = 'responded';
+    resp.availSubmitted = true;
+    resp.updated_at = stamp;
+  } else {
+    g.responses.push({ id: DATA.me.id, status: 'responded', availSubmitted: true, created_at: stamp, updated_at: stamp, deleted_at: null });
+  }
+  touchEntity(g);
+
+  logActivity(DATA.me.id, 'reviewed availability for <strong>' + escapeHtml(g.name || 'this gathering') + '</strong>', '📅');
+  if (typeof recordEvent === 'function') {
+    recordEvent('availability.reviewed', 'gathering', g.id, null, {
+      gathering_id: g.id,
+      member_id: DATA.me.id,
+      blocked_dates: blocked,
+      window_answers: Object.assign({}, availabilityWindowAnswers)
+    });
+  }
+
+  saveLocal();
+  pushToFirebase();
+
+  var ov = document.getElementById('avail-overlay');
+  if (ov) ov.classList.add('hidden');
+
   var counts = Object.values(availabilityWindowAnswers).reduce(function(acc, a){ acc[a] = (acc[a] || 0) + 1; return acc; }, {});
   toast('✅ Availability confirmed' + (counts.no ? ' · ' + counts.no + ' option' + (counts.no > 1 ? 's' : '') + ' marked unavailable' : ''));
-  if (g) {
-    var panel = document.getElementById('date-window-panel-'+g.id);
-    if (panel) renderDateWindowPanel(g, panel);
-  }
+
+  var panel = document.getElementById('date-window-panel-' + g.id);
+  if (panel) renderDateWindowPanel(g, panel);
+  if (typeof renderGatheringDetail === 'function') renderGatheringDetail(g);
+  if (typeof renderHome === 'function') renderHome();
+}
+
+var availSubmitEl = document.getElementById('avail-submit');
+if (availSubmitEl) availSubmitEl.addEventListener('click', function(e){
+  e.preventDefault();
+  confirmAvailabilityReview();
+});
+// Safety net: if the sheet gets re-rendered later, the confirm button still works.
+document.addEventListener('click', function(e){
+  var btn = e.target && e.target.closest ? e.target.closest('#avail-submit') : null;
+  if (!btn) return;
+  e.preventDefault();
+  confirmAvailabilityReview();
 });
 
 // -- EDIT PROFILE --------------------------------
