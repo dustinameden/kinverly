@@ -5801,6 +5801,7 @@ function renderProfile() {
     // Switch to another flock or show onboarding
     var remaining = Object.keys(FLOCKS).filter(function(k){ return k !== currentFlockId; });
     delete FLOCKS[currentFlockId];
+    normalizeFlockStorageKeys();
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
     if (remaining.length > 0) {
       switchToFlock(remaining[0]);
@@ -8073,11 +8074,143 @@ function resolveFlockKey(flockId) {
   return null;
 }
 
+
+// ═══════════════════════════════════════════════
+//  CANONICAL FLOCK IDENTITY + SAFE REALTIME SYNC
+//  Firestore document id is the only shared source of truth.
+//  Numeric flock.id/flock_id are analytics ids only and must never be used
+//  as the Firestore document id or local storage key when firestore_id exists.
+// ═══════════════════════════════════════════════
+function isProbablyNumericId(v) {
+  return v !== null && v !== undefined && /^\d+$/.test(String(v));
+}
+
+function getCanonicalFlockDocId(flockKey, flock) {
+  flock = flock || (flockKey && FLOCKS ? FLOCKS[flockKey] : null) || {};
+  var candidates = [flock.firestore_id, flock.storage_key, flock.uid, flock.firebase_id, flock.firestoreDocId, flockKey, flock.id];
+  for (var i = 0; i < candidates.length; i++) {
+    var c = candidates[i];
+    if (c === null || c === undefined || c === '') continue;
+    // Numeric ids are analytics ids. Only use them as a last resort for brand-new legacy local flocks.
+    if (!isProbablyNumericId(c)) return String(c);
+  }
+  for (var j = 0; j < candidates.length; j++) {
+    var d = candidates[j];
+    if (d !== null && d !== undefined && d !== '') return String(d);
+  }
+  return null;
+}
+
+// Backward-compatible name used by older code paths.
+function getFlockFirestoreDocId(flockKey, flock) {
+  return getCanonicalFlockDocId(flockKey, flock);
+}
+
+function stampCanonicalFlockIdentity(flockKey, flock) {
+  if (!flock) return null;
+  var docId = getCanonicalFlockDocId(flockKey, flock);
+  if (!docId) return null;
+  flock.firestore_id = docId;
+  flock.storage_key = docId;
+  flock.uid = docId;
+  return docId;
+}
+
+function normalizeFlockStorageKeys() {
+  var next = {};
+  Object.keys(FLOCKS || {}).forEach(function(key){
+    var f = FLOCKS[key];
+    if (!f) return;
+    var docId = stampCanonicalFlockIdentity(key, f) || key;
+    if (next[docId]) {
+      next[docId] = mergeCanonicalFlockRecords(next[docId], f);
+    } else {
+      next[docId] = f;
+    }
+    if (currentFlockId && String(currentFlockId) === String(key)) currentFlockId = docId;
+  });
+  FLOCKS = next;
+  window.FLOCKS = FLOCKS;
+}
+
+function parseComparableTime(v) {
+  if (!v) return 0;
+  if (typeof v === 'number') return v;
+  var t = Date.parse(String(v).replace(' ', 'T'));
+  return isNaN(t) ? 0 : t;
+}
+function entityModifiedTime(x) {
+  return Math.max(parseComparableTime(x && x.updated_at), parseComparableTime(x && x.created_at), Number(x && x.updatedAt) || 0, Number(x && x.ts) || 0);
+}
+function mergeArraysByIdNewest(remoteArr, localArr) {
+  var map = {};
+  function put(item) {
+    if (!item) return;
+    var id = item.id || item.gathering_id || item.task_id || item.uid;
+    if (id === undefined || id === null || id === '') return;
+    var k = String(id);
+    var old = map[k];
+    if (!old || entityModifiedTime(item) >= entityModifiedTime(old)) map[k] = item;
+  }
+  (remoteArr || []).forEach(put);
+  (localArr || []).forEach(put);
+  return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){
+    return entityModifiedTime(b) - entityModifiedTime(a);
+  });
+}
+function mergeMembersByTombstone(remoteMembers, localMembers) {
+  var merged = {};
+  var keys = {};
+  Object.keys(remoteMembers || {}).forEach(function(k){ keys[k] = true; });
+  Object.keys(localMembers || {}).forEach(function(k){ keys[k] = true; });
+  Object.keys(keys).forEach(function(k){
+    var rm = remoteMembers && remoteMembers[k];
+    var lm = localMembers && localMembers[k];
+    if (typeof mergeMemberWithTombstone === 'function') merged[k] = mergeMemberWithTombstone(rm, lm);
+    else merged[k] = entityModifiedTime(lm) > entityModifiedTime(rm) ? lm : rm;
+  });
+  return merged;
+}
+function mergeCanonicalFlockRecords(remote, local) {
+  remote = remote || {};
+  local = local || {};
+  var out = Object.assign({}, local, remote);
+  out.members = mergeMembersByTombstone(remote.members || {}, local.members || {});
+  out.memberIds = Object.keys(out.members || {}).filter(function(mid){
+    var m = out.members[mid];
+    return m && !(typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(m));
+  });
+  out.removedMembers = Object.assign({}, local.removedMembers || {}, remote.removedMembers || {});
+  out.gatherings = mergeArraysByIdNewest(remote.gatherings || [], local.gatherings || []);
+  out.ideas = mergeArraysByIdNewest(remote.ideas || [], local.ideas || []);
+  out.activity = mergeArraysByIdNewest(remote.activity || [], local.activity || []).slice(0, 60);
+  out.events = mergeArraysByIdNewest(remote.events || [], local.events || []).slice(0, 600);
+  out.meta = Object.assign({}, local.meta || {}, remote.meta || {});
+  stampCanonicalFlockIdentity(out.firestore_id || out.storage_key || out.uid, out);
+  return out;
+}
+function sanitizeGatheringForFirestore(g) {
+  var copy = Object.assign({}, g || {});
+  if (copy.photos && copy.photos.length > 0) {
+    copy.photos = copy.photos.map(function(photo) {
+      var safePhoto = Object.assign({}, photo);
+      if (safePhoto.dataUrl && safePhoto.dataUrl.length > 50000) safePhoto.dataUrl = '';
+      return safePhoto;
+    });
+  }
+  if (copy.chat && copy.chat.length > 50) copy.chat = copy.chat.slice(-50);
+  return copy;
+}
+function getGatheringsForFirestore(localGatherings) {
+  return (localGatherings || []).map(sanitizeGatheringForFirestore);
+}
+
 function loadFlockState() {
   try {
     var s = localStorage.getItem('kinverly_flocks');
     if (s) FLOCKS = JSON.parse(s);
     currentFlockId = localStorage.getItem('kinverly_current_flock') || null;
+    normalizeFlockStorageKeys();
     var resolved = resolveFlockKey(currentFlockId);
     if (resolved) currentFlockId = resolved;
     else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
@@ -8318,20 +8451,23 @@ async function syncFlockToFirebase() {
     normalizeKinverlySchema(flock);
     normalizeRemovedMemberLogs(flock);
     touchEntity(flock);
-    var safeGatherings = (flock.gatherings || []).map(function(g) {
-      var copy = Object.assign({}, g);
-      if (copy.photos && copy.photos.length > 0) {
-        copy.photos = copy.photos.map(function(p) {
-          var safeP = Object.assign({}, p);
-          if (safeP.dataUrl && safeP.dataUrl.length > 50000) safeP.dataUrl = '';
-          return safeP;
-        });
-      }
-      if (copy.chat && copy.chat.length > 50) copy.chat = copy.chat.slice(-50);
-      return copy;
-    });
-
     var docId = getFlockFirestoreDocId(currentFlockId, flock);
+    // Pull latest remote first and merge by entity updated_at so stale clients do not
+    // overwrite gathering edits or resurrect old state from another browser.
+    var latestRemote = null;
+    if (h.getDoc && h.doc) {
+      try {
+        var latestSnap = await h.getDoc(h.doc(window.__db, 'flocks', docId));
+        if (latestSnap && latestSnap.exists && latestSnap.exists()) latestRemote = latestSnap.data() || null;
+      } catch(_latestErr) {}
+    }
+    if (latestRemote) {
+      flock = mergeCanonicalFlockRecords(latestRemote, flock);
+      FLOCKS[currentFlockId] = flock;
+    }
+    var safeGatherings = getGatheringsForFirestore(flock.gatherings || []);
+
+    docId = getFlockFirestoreDocId(currentFlockId, flock);
     flock.firestore_id = docId;
     flock.storage_key = docId;
     flock.uid = flock.uid || docId;
@@ -10929,10 +11065,20 @@ try {
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', docId), function(snap) {
       if (!snap.exists()) return;
 
-      var remote = snap.data();
+      var remote = snap.data() || {};
       var myId = DATA.me.id;
-      if (!window.FLOCKS[flockKey]) window.FLOCKS[flockKey] = {};
-      var local = window.FLOCKS[flockKey];
+      var canonicalKey = snap.id || docId || flockKey;
+      if (canonicalKey !== flockKey) {
+        window.FLOCKS[canonicalKey] = mergeCanonicalFlockRecords(remote, window.FLOCKS[flockKey] || {});
+        delete window.FLOCKS[flockKey];
+        currentFlockId = canonicalKey;
+        window.currentFlockId = canonicalKey;
+        try { localStorage.setItem('kinverly_current_flock', canonicalKey); } catch(_ckErr) {}
+      }
+      var activeKey = canonicalKey;
+      if (!window.FLOCKS[activeKey]) window.FLOCKS[activeKey] = {};
+      var local = window.FLOCKS[activeKey];
+      stampCanonicalFlockIdentity(activeKey, local);
 
       // ── MEMBERS: remote is authoritative for who's in the flock ──
       if (remote.members) {
@@ -10992,7 +11138,7 @@ try {
           // Stop the listener
           if (window._currentFlockListener) { window._currentFlockListener(); window._currentFlockListener = null; }
           // Remove this flock from local data
-          delete window.FLOCKS[flockKey];
+          delete window.FLOCKS[activeKey];
           localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
           // Switch to another flock or show onboarding
           var remaining = Object.keys(window.FLOCKS);
@@ -11206,6 +11352,20 @@ try {
       if (serverTimestamp) data.updatedAt = serverTimestamp();
       var docId = getFlockFirestoreDocId(flockId, flockObj);
       await setDoc(doc(db, 'flocks', docId), data, {merge: true});
+      if (member && member.id) {
+        var userPatch = { id: member.id, name: member.name || '', updated_at: nowISO(), flocks: {} };
+        userPatch.flocks[docId] = {
+          flock_key: docId,
+          flock_id: typeof flockObj.id === 'number' ? flockObj.id : '',
+          member_id: typeof member.member_id === 'number' ? member.member_id : '',
+          status: isRemovedMemberRecord(member) ? 'removed' : 'active',
+          role: member.role || 'member',
+          updated_at: nowISO(),
+          removed_at: member.removed_at || member.deleted_at || null,
+          removal_updated_at: member.removal_updated_at || null
+        };
+        await setDoc(doc(db, 'users', member.id), userPatch, { merge: true });
+      }
     } catch(e) { console.warn('[Kinverly] Member save error:', e.message); }
   };
 
@@ -11519,37 +11679,73 @@ try {
     var flock = FLOCKS[currentFlockId];
     normalizeKinverlySchema(flock);
     touchEntity(flock);
-    var safeGatherings = (flock.gatherings || []).map(function(item) {
-      var copy = Object.assign({}, item);
-      if (copy.photos && copy.photos.length > 0) {
-        copy.photos = copy.photos.map(function(photo) {
-          var safePhoto = Object.assign({}, photo);
-          if (safePhoto.dataUrl && safePhoto.dataUrl.length > 50000) safePhoto.dataUrl = '';
-          return safePhoto;
-        });
-      }
-      if (copy.chat && copy.chat.length > 50) copy.chat = copy.chat.slice(-50);
-      return copy;
-    });
-
     var docId = getFlockFirestoreDocId(currentFlockId, flock);
     flock.firestore_id = docId;
     flock.storage_key = docId;
-    flock.uid = flock.uid || docId;
+    flock.uid = docId;
+
+    // Read current shared flock first, patch only this gathering into that array,
+    // then write the merged array back. This prevents User A from overwriting
+    // User B's current flock state with stale localStorage.
+    var remote = null;
+    if (h.getDoc && h.doc) {
+      try {
+        var snap = await h.getDoc(h.doc(window.__db, 'flocks', docId));
+        if (snap && snap.exists && snap.exists()) remote = snap.data() || null;
+      } catch(_readErr) {}
+    }
+
+    var baseGatherings = remote && Array.isArray(remote.gatherings) ? remote.gatherings.slice() : (flock.gatherings || []).slice();
+    var safeEdited = sanitizeGatheringForFirestore(g);
+    var found = false;
+    baseGatherings = baseGatherings.map(function(item){
+      if (item && String(item.id) === String(g.id)) {
+        found = true;
+        return safeEdited;
+      }
+      return item;
+    });
+    if (!found) baseGatherings.unshift(safeEdited);
+
+    // If another local gathering was created seconds ago and is not remote yet, keep it.
+    (flock.gatherings || []).forEach(function(localG){
+      if (!localG || String(localG.id) === String(g.id)) return;
+      var exists = baseGatherings.some(function(x){ return x && String(x.id) === String(localG.id); });
+      if (!exists && Date.now() - (localG._createdAt || 0) < 15000) baseGatherings.push(sanitizeGatheringForFirestore(localG));
+    });
+
+    var remoteMembers = remote && remote.members ? remote.members : (flock.members || {});
+    var mergedMembers = mergeMembersByTombstone(remoteMembers, flock.members || {});
+    var activeMemberIds = Object.keys(mergedMembers || {}).filter(function(mid){
+      return mergedMembers[mid] && !(typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(mergedMembers[mid]));
+    });
 
     var updates = {
       id: flock.id,
       firestore_id: docId,
       storage_key: docId,
-      uid: flock.uid,
-      inviteCode: flock.inviteCode,
+      uid: docId,
+      inviteCode: flock.inviteCode || (remote && remote.inviteCode) || '',
+      name: flock.name || (remote && remote.name) || '',
+      emoji: flock.emoji || (remote && remote.emoji) || '',
+      members: mergedMembers,
+      memberIds: activeMemberIds,
+      removedMembers: Object.assign({}, (remote && remote.removedMembers) || {}, flock.removedMembers || {}),
       updated_at: nowISO(),
-      gatherings: safeGatherings,
-      activity: (flock.activity || DATA.activity || []).slice(0, 30),
-      rsvpData: rsvpData || {}
+      gatherings: baseGatherings,
+      activity: mergeArraysByIdNewest((remote && remote.activity) || [], flock.activity || DATA.activity || []).slice(0, 60),
+      events: mergeArraysByIdNewest((remote && remote.events) || [], flock.events || DATA.events || []).slice(0, 600),
+      rsvpData: Object.assign({}, (remote && remote.rsvpData) || {}, rsvpData || {})
     };
     if (h.serverTimestamp) updates.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', docId), updates, { merge: true });
+
+    // Keep local aligned with exactly what was written.
+    flock.gatherings = baseGatherings;
+    flock.members = mergedMembers;
+    flock.memberIds = activeMemberIds;
+    FLOCKS[currentFlockId] = flock;
+    saveLocal();
   }
 
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
