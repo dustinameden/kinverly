@@ -2161,8 +2161,8 @@ var DATA = {
 };
 
 function getMember(id) {
-  if (id === DATA.me.id && !DATA.me.deleted_at) return DATA.me;
-  return DATA.members.find(function(m){ return m && !m.deleted_at && m.id === id; }) || null;
+  if (id === DATA.me.id && isActiveMemberRecord(DATA.me)) return DATA.me;
+  return DATA.members.find(function(m){ return isActiveMemberRecord(m) && String(m.id) === String(id); }) || null;
 }
 
 function getActiveFlockMembers() {
@@ -2173,8 +2173,7 @@ function getActiveFlockMembers() {
   var members = [];
 
   function addMember(m) {
-    if (!m || m.deleted_at || m.membership_status === 'archived' || m.role === 'archived') return;
-    if (m.status && String(m.status).toLowerCase() === 'removed') return;
+    if (!isActiveMemberRecord(m)) return;
     if (m.id === undefined || m.id === null || m.id === '') return;
     var key = String(m.id);
     if (seen[key]) return;
@@ -2216,12 +2215,170 @@ function getMemberIdentityKeys(memberOrId) {
     add(memberOrId.id);
     add(memberOrId.member_id);
     add(memberOrId.uid);
+    add(memberOrId.firebase_uid);
+    add(memberOrId.auth_uid);
     add(memberOrId.memberKey);
     add(memberOrId.key);
+    add(memberOrId.legacy_id);
+    add(memberOrId.email && String(memberOrId.email).toLowerCase());
+    add(memberOrId.phone);
   } else {
     add(memberOrId);
   }
   return keys;
+}
+
+// ═══════════════════════════════════════════════
+//  IDENTITY + MEMBERSHIP STABILIZATION
+//  One flock can have legacy string IDs, numeric IDs, Firebase UIDs, and
+//  older local keys. These helpers collapse those into a single active
+//  membership view and keep removed members as historical tombstones only.
+// ═══════════════════════════════════════════════
+function normalizeIdentityText(v) {
+  return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function identityAliasList(member) {
+  var aliases = [];
+  function add(v) {
+    if (v === undefined || v === null || v === '') return;
+    var raw = String(v);
+    if (aliases.indexOf(raw) < 0) aliases.push(raw);
+    var norm = normalizeIdentityText(raw);
+    if (norm && aliases.indexOf(norm) < 0) aliases.push(norm);
+  }
+  if (!member) return aliases;
+  add(member.id);
+  add(member.member_id);
+  add(member.uid);
+  add(member.firebase_uid);
+  add(member.auth_uid);
+  add(member.memberKey);
+  add(member.key);
+  add(member.legacy_id);
+  add(member.email);
+  add(member.email && String(member.email).toLowerCase());
+  add(member.phone);
+  if (Array.isArray(member.aliases)) member.aliases.forEach(add);
+  return aliases;
+}
+function weakNameAlias(member) {
+  var n = normalizeIdentityText(member && member.name);
+  return n ? ('name:' + n) : '';
+}
+function strongIdentityKey(member, fallbackKey) {
+  if (!member) return String(fallbackKey || '');
+  if (member.uid) return 'uid:' + String(member.uid);
+  if (member.firebase_uid) return 'uid:' + String(member.firebase_uid);
+  if (member.auth_uid) return 'uid:' + String(member.auth_uid);
+  if (member.email) return 'email:' + String(member.email).trim().toLowerCase();
+  if (member.member_id !== undefined && member.member_id !== null && member.member_id !== '') return 'member_id:' + String(member.member_id);
+  if (member.id !== undefined && member.id !== null && member.id !== '') return 'id:' + String(member.id);
+  return 'key:' + String(fallbackKey || '');
+}
+function isActiveMemberRecord(member) {
+  if (!member) return false;
+  if (typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(member)) return false;
+  if (member.deleted_at || member.removed_at) return false;
+  var ms = String(member.membership_status || '').toLowerCase();
+  var st = String(member.status || '').toLowerCase();
+  var role = String(member.role || '').toLowerCase();
+  if (ms === 'removed' || ms === 'archived' || ms === 'inactive') return false;
+  if (st === 'removed' || st === 'archived' || st === 'inactive') return false;
+  if (role === 'archived') return false;
+  return true;
+}
+function membershipModifiedTime(member) {
+  if (!member) return 0;
+  return entityModifiedTime ? entityModifiedTime(member) : Date.parse(member.updated_at || member.removal_updated_at || member.removed_at || member.deleted_at || member.created_at || 0) || 0;
+}
+function mergeIdentityMembers(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  var aRemoved = typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(a);
+  var bRemoved = typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(b);
+  var newer = membershipModifiedTime(b) >= membershipModifiedTime(a) ? b : a;
+  var older = newer === b ? a : b;
+  var merged = Object.assign({}, older, newer);
+  var aliases = [];
+  identityAliasList(a).concat(identityAliasList(b)).forEach(function(x){ if (aliases.indexOf(x) < 0) aliases.push(x); });
+  merged.aliases = aliases;
+  merged.pw = a.pw || b.pw || '';
+  // Tombstones win. A removed member should never be resurrected by an older
+  // active duplicate or a stale client snapshot.
+  if (aRemoved || bRemoved) {
+    var removedAt = a.deleted_at || a.removed_at || b.deleted_at || b.removed_at || newer.updated_at || nowISO();
+    var removedBy = a.removed_by || a.deleted_by || b.removed_by || b.deleted_by || '';
+    markMemberRemoved(merged, removedAt, removedBy, a.deleted_reason || b.deleted_reason || 'Removed from flock');
+  }
+  return merged;
+}
+function buildRemovalAliasSet(flock) {
+  var removed = {};
+  function addAlias(alias) { if (alias) removed[String(alias)] = true; }
+  Object.keys((flock && flock.members) || {}).forEach(function(k){
+    var m = flock.members[k];
+    if (!m) return;
+    if (typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(m)) {
+      identityAliasList(m).forEach(addAlias);
+      var wn = weakNameAlias(m);
+      if (wn) addAlias(wn);
+    }
+  });
+  Object.keys((flock && flock.removedMembers) || {}).forEach(function(k){
+    var r = flock.removedMembers[k] || {};
+    addAlias(k);
+    identityAliasList(r).forEach(addAlias);
+    var wn = weakNameAlias(r);
+    if (wn) addAlias(wn);
+  });
+  return removed;
+}
+function memberMatchesRemovalAlias(member, removedAliases) {
+  if (!member || !removedAliases) return false;
+  var aliases = identityAliasList(member);
+  for (var i = 0; i < aliases.length; i++) {
+    if (removedAliases[String(aliases[i])]) return true;
+  }
+  // Weak name match only applies if the member has no stronger stable identity.
+  var hasStrong = !!(member.uid || member.firebase_uid || member.auth_uid || member.email || member.member_id);
+  if (!hasStrong) {
+    var wn = weakNameAlias(member);
+    if (wn && removedAliases[wn]) return true;
+  }
+  return false;
+}
+function reconcileFlockMemberships(flock) {
+  if (!flock) return flock;
+  if (!flock.members) flock.members = {};
+  if (!flock.removedMembers) flock.removedMembers = {};
+  var removedAliases = buildRemovalAliasSet(flock);
+  var grouped = {};
+  Object.keys(flock.members || {}).forEach(function(key){
+    var m = flock.members[key];
+    if (!m) return;
+    if (!m.id) m.id = key;
+    if (!Array.isArray(m.aliases)) m.aliases = [];
+    if (m.aliases.indexOf(String(key)) < 0) m.aliases.push(String(key));
+    if (memberMatchesRemovalAlias(m, removedAliases)) {
+      markMemberRemoved(m, m.deleted_at || m.removed_at || nowISO(), m.removed_by || m.deleted_by || '', 'Removed from flock');
+    }
+    var groupKey = strongIdentityKey(m, key);
+    grouped[groupKey] = grouped[groupKey] ? mergeIdentityMembers(grouped[groupKey], m) : m;
+  });
+  var nextMembers = {};
+  Object.keys(grouped).forEach(function(groupKey){
+    var m = grouped[groupKey];
+    if (!m) return;
+    // Keep the display/storage id stable, but never use numeric flock_id as the storage key.
+    var storageId = m.id || m.uid || m.email || groupKey.replace(/^[^:]+:/, '');
+    storageId = String(storageId);
+    m.id = storageId;
+    if (isRemovedMemberRecord(m)) ensureRemovedMemberLog(flock, m);
+    nextMembers[storageId] = m;
+  });
+  flock.members = nextMembers;
+  flock.memberIds = Object.keys(nextMembers).filter(function(k){ return isActiveMemberRecord(nextMembers[k]); });
+  return flock;
 }
 function getRsvpForMemberRecord(gatheringId, memberOrId) {
   if (!gatheringId) return null;
@@ -2403,7 +2560,9 @@ function normalizeKinverlySchema(flock) {
     reserveMax(meta, 'next_member_id', m.member_id);
   });
   normalizeRemovedMemberLogs(flock);
-  flock.memberIds = Object.keys(members).filter(function(k){ return members[k] && !isRemovedMemberRecord(members[k]); });
+  reconcileFlockMemberships(flock);
+  members = flock.members || {};
+  flock.memberIds = Object.keys(members).filter(function(k){ return isActiveMemberRecord(members[k]); });
 
   (flock.gatherings || []).forEach(function(g){
     if (!g) return;
@@ -2507,8 +2666,10 @@ function deriveFlockState(flockId) {
   if (!flock) return {flock:null, activeMembers:[], archivedMembers:[], gatherings:[], activeGatherings:[], planningGatherings:[], completedGatherings:[], activity:[], events:[]};
   normalizeKinverlySchema(flock);
   var allMembers = Object.values(flock.members || {}).filter(Boolean);
-  var activeMembers = allMembers.filter(function(m){ return m && !m.deleted_at && m.membership_status !== 'archived' && String(m.status || '').toLowerCase() !== 'removed'; });
-  var archivedMembers = allMembers.filter(function(m){ return m && (m.deleted_at || m.membership_status === 'archived' || String(m.status || '').toLowerCase() === 'removed'); });
+  reconcileFlockMemberships(flock);
+  allMembers = Object.values(flock.members || {}).filter(Boolean);
+  var activeMembers = allMembers.filter(isActiveMemberRecord);
+  var archivedMembers = allMembers.filter(function(m){ return m && !isActiveMemberRecord(m); });
   var gatherings = (flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
   return {
     flock: flock,
@@ -2531,7 +2692,7 @@ function deriveWorldState(memberId) {
   var flocks = [];
   Object.keys(FLOCKS || {}).forEach(function(fid){
     var fs = deriveFlockState(fid);
-    var belongs = fs.allMembers && fs.allMembers.some(function(m){ return getMemberIdentityKeys(m).some(function(k){ return memberKeys.indexOf(k) >= 0; }) && !m.deleted_at; });
+    var belongs = fs.allMembers && fs.allMembers.some(function(m){ return isActiveMemberRecord(m) && getMemberIdentityKeys(m).some(function(k){ return memberKeys.indexOf(k) >= 0; }); });
     if (belongs) flocks.push(fs);
   });
   var gatherings = [];
@@ -6715,6 +6876,22 @@ function csvEscape(v) {
   return s;
 }
 
+function exportTime(v) {
+  if (!v) return '';
+  if (typeof legacyTimeToISO === 'function') return legacyTimeToISO(v) || '';
+  try { return formatLocalTimestamp(new Date(v)); } catch(e) { return safeExportText(v); }
+}
+
+function firstColumns(row) {
+  row = row || {};
+  return Object.assign({
+    id: row.id || '',
+    created_at: exportTime(row.created_at),
+    updated_at: exportTime(row.updated_at),
+    deleted_at: exportTime(row.deleted_at)
+  }, row);
+}
+
 function buildCsv(rows, columns) {
   var header = columns.map(function(c){ return csvEscape(c.label || c.key); }).join(',');
   var body = rows.map(function(row){
@@ -6865,6 +7042,22 @@ function normalizeGatheringForExport(g) {
         hasImageData: !!ph.dataUrl
       };
     }),
+    proposed_windows: (typeof getProposedDateWindows === 'function' ? getProposedDateWindows(g) : []).map(function(w, idx){
+      var raw = w.raw || {};
+      return {
+        id: Number(w.id) || idx + 1,
+        created_at: raw.created_at || g.created_at || '',
+        updated_at: raw.updated_at || g.updated_at || '',
+        deleted_at: raw.deleted_at || null,
+        flock_id: getNumericFlockIdForExport(),
+        gathering_id: typeof g.gathering_id === 'number' ? g.gathering_id : '',
+        window_label: w.dates || w.label || '',
+        start_date: raw.start || raw.start_date || '',
+        end_date: raw.end || raw.end_date || '',
+        status: w.status || raw.status || '',
+        source: raw.source || 'gathering'
+      };
+    }),
     recommendation: recommendation
   };
 }
@@ -6955,14 +7148,18 @@ function buildGatheringSummaryRows(payload) {
   var rows = [];
   (payload.gatherings || []).forEach(function(g){
     var rsvpByMember = {};
-    (g.rsvps || []).forEach(function(r){ rsvpByMember[r.memberId] = r; });
+    (g.rsvps || []).forEach(function(r){
+      var key = r.member_id || r.memberId || '';
+      if (key !== '') rsvpByMember[String(key)] = r;
+    });
     (payload.members || []).forEach(function(m){
-      var r = rsvpByMember[m.id] || {};
-      var assigned = (g.tasks || []).filter(function(t){ return (t.owner || t.assignedTo) === m.id; });
-      var completed = assigned.filter(function(t){ return !!t.done; });
-      var messages = (g.chat || []).filter(function(c){ return (c.member || c.memberId || c.userId) === m.id; }).length;
-      rows.push({
-        id: Number(String(g.id) + String(m.id).padStart(4, '0')) || '',
+      var r = rsvpByMember[String(m.id)] || {};
+      var assigned = (g.tasks || []).filter(function(t){ return Number(t.owner_member_id || t.owner || t.assignedTo) === Number(m.id); });
+      var completed = assigned.filter(function(t){ return !!t.done || !!t.completed_at; });
+      var messages = (g.chat || []).filter(function(c){ return Number(c.member_id || c.member || c.memberId || c.userId) === Number(m.id); }).length;
+      var rowId = Number(String(g.id || '').replace(/\D/g,'') + String(m.id || '').replace(/\D/g,'').padStart(4, '0')) || '';
+      rows.push(firstColumns({
+        id: rowId,
         created_at: g.created_at || '',
         updated_at: g.updated_at || '',
         deleted_at: g.deleted_at || null,
@@ -6971,31 +7168,253 @@ function buildGatheringSummaryRows(payload) {
         gathering_id: g.id,
         gathering_title: g.title,
         gathering_status: g.status,
+        gathering_lifecycle_status: g.lifecycle_status || g.status || '',
         gathering_date: g.date || ((g.month || '') + ' ' + (g.day || '')).trim(),
+        gathering_end_date: g.endDate || '',
         gathering_location: g.location,
         member_id: m.id,
         member_name: m.name,
         member_role: m.role,
-        member_status: m.deleted_at ? 'removed' : 'active',
-        member_removed_at: m.deleted_at || '',
+        member_status: m.status || (m.deleted_at ? 'removed' : 'active'),
+        member_removed_at: m.removed_at || m.deleted_at || '',
         rsvp_status: r.status || '',
         guests: r.guests || 0,
-        availability_submitted: r.availSubmitted ? 'yes' : 'no',
-        arrive_date: r.arriveDate || '',
-        depart_date: r.departDate || '',
+        availability_submitted: (r.availSubmitted || r.availability_submitted || r.availability_reviewed_at) ? 'yes' : 'no',
+        availability_reviewed_at: r.availability_reviewed_at || '',
+        arrive_date: r.arriveDate || r.arrive_date || '',
+        depart_date: r.departDate || r.depart_date || '',
         tasks_assigned: assigned.length,
         tasks_completed: completed.length,
         messages_sent: messages,
-        is_host: g.host === m.id ? 'yes' : 'no',
+        is_host: Number(g.host_member_id || g.host) === Number(m.id) ? 'yes' : 'no',
         recommendation_score: g.recommendation && typeof g.recommendation.score !== 'undefined' ? g.recommendation.score : ''
-      });
+      }));
     });
   });
   return rows;
 }
 
+function buildExportTables(payload) {
+  payload = payload || buildExportPayload('all', null);
+  var tables = {};
+
+  tables.flocks = [firstColumns(Object.assign({}, payload.flock, {
+    flock_name: payload.flock.name || '',
+    invite_code: payload.flock.inviteCode || '',
+    created_by_member_id: payload.flock.createdBy || ''
+  }))];
+
+  tables.members = (payload.members || []).map(function(m){
+    return firstColumns({
+      id: m.id,
+      created_at: m.created_at || '',
+      updated_at: m.updated_at || '',
+      deleted_at: m.deleted_at || '',
+      flock_id: payload.flock.id,
+      member_name: m.name || '',
+      role: m.role || 'member',
+      membership_status: m.status || (m.deleted_at ? 'removed' : 'active'),
+      removed_at: m.removed_at || m.deleted_at || '',
+      removal_updated_at: m.removal_updated_at || m.updated_at || '',
+      removed_by_member_id: m.removed_by || m.deleted_by || '',
+      animal: m.animal || '',
+      location: m.location || '',
+      gatherings_attended: (m.stats && m.stats.attended) || 0,
+      gatherings_hosted: (m.stats && m.stats.hosted) || 0,
+      ideas_shared: (m.stats && m.stats.ideas) || 0
+    });
+  });
+
+  tables.gatherings = (payload.gatherings || []).map(function(g){
+    return firstColumns({
+      id: g.id,
+      created_at: g.created_at || '',
+      updated_at: g.updated_at || '',
+      deleted_at: g.deleted_at || '',
+      flock_id: payload.flock.id,
+      title: g.title || '',
+      status: g.status || '',
+      lifecycle_status: g.lifecycle_status || '',
+      type: g.type || '',
+      location: g.location || '',
+      start_date: g.date || '',
+      end_date: g.endDate || '',
+      host_member_id: g.host_member_id || '',
+      details: g.details || '',
+      recommendation_score: g.recommendation && typeof g.recommendation.score !== 'undefined' ? g.recommendation.score : '',
+      recommended_window: g.recommendation && g.recommendation.window ? (g.recommendation.window.label || g.recommendation.window.dates || '') : ''
+    });
+  });
+
+  tables.gathering_members = buildGatheringSummaryRows(payload);
+
+  tables.gathering_windows = [];
+  (payload.gatherings || []).forEach(function(g){
+    (g.proposed_windows || []).forEach(function(w){
+      tables.gathering_windows.push(firstColumns(Object.assign({}, w, {
+        id: String(g.id) + '-' + String(w.id),
+        created_at: w.created_at || g.created_at || '',
+        updated_at: w.updated_at || g.updated_at || '',
+        flock_id: payload.flock.id,
+        gathering_id: g.id
+      })));
+    });
+  });
+
+  tables.availability_responses = [];
+  (payload.gatherings || []).forEach(function(g){
+    (g.rsvps || []).forEach(function(r){
+      var mid = r.member_id || '';
+      tables.availability_responses.push(firstColumns({
+        id: String(g.id) + '-' + String(mid),
+        created_at: r.created_at || r.availability_reviewed_at || g.created_at || '',
+        updated_at: r.updated_at || r.availability_reviewed_at || '',
+        deleted_at: r.deleted_at || '',
+        flock_id: payload.flock.id,
+        gathering_id: g.id,
+        member_id: mid,
+        member_name: r.memberName || getMemberNameForExport(r.memberId || mid),
+        rsvp_status: r.status || '',
+        availability_submitted: (r.availSubmitted || r.availability_submitted || r.availability_reviewed_at) ? 'yes' : 'no',
+        availability_reviewed_at: r.availability_reviewed_at || '',
+        blocked_dates: Array.isArray(r.blockedDates || r.blocked_dates) ? (r.blockedDates || r.blocked_dates).join('|') : '',
+        window_answers_json: JSON.stringify(r.windowAnswers || r.window_answers || {})
+      }));
+    });
+  });
+
+  tables.tasks = [];
+  (payload.gatherings || []).forEach(function(g){
+    (g.tasks || []).forEach(function(t){
+      tables.tasks.push(firstColumns({
+        id: t.id || '',
+        created_at: t.created_at || '',
+        updated_at: t.updated_at || '',
+        deleted_at: t.deleted_at || '',
+        flock_id: payload.flock.id,
+        gathering_id: g.id,
+        title: t.title || t.name || '',
+        owner_member_id: t.owner_member_id || '',
+        owner_member_name: t.ownerName || '',
+        status: t.done || t.completed_at ? 'complete' : 'open',
+        completed_at: t.completed_at || '',
+        notes: t.notes || ''
+      }));
+    });
+  });
+
+  tables.chat_messages = [];
+  (payload.gatherings || []).forEach(function(g){
+    (g.chat || []).forEach(function(c){
+      tables.chat_messages.push(firstColumns({
+        id: c.id || '',
+        created_at: c.created_at || c.ts || '',
+        updated_at: c.updated_at || c.created_at || '',
+        deleted_at: c.deleted_at || '',
+        flock_id: payload.flock.id,
+        gathering_id: g.id,
+        member_id: c.member_id || '',
+        member_name: c.memberName || '',
+        message: safeExportText(c.text || c.message || c.body || '')
+      }));
+    });
+  });
+
+  tables.photos = [];
+  (payload.gatherings || []).forEach(function(g){
+    (g.photos || []).forEach(function(ph){
+      tables.photos.push(firstColumns({
+        id: ph.id || '',
+        created_at: ph.created_at || '',
+        updated_at: ph.updated_at || '',
+        deleted_at: ph.deleted_at || '',
+        flock_id: payload.flock.id,
+        gathering_id: g.id,
+        uploader_member_id: ph.uploader_member_id || '',
+        uploader_member_name: ph.uploaderName || '',
+        caption: ph.caption || '',
+        has_image_data: ph.hasImageData ? 'yes' : 'no'
+      }));
+    });
+  });
+
+  var flock = FLOCKS[currentFlockId] || {};
+  tables.ideas = ((flock.ideas || DATA.ideas || []) || []).map(function(i){
+    return firstColumns({
+      id: i.idea_id || i.id || '',
+      created_at: i.created_at || '',
+      updated_at: i.updated_at || '',
+      deleted_at: i.deleted_at || '',
+      flock_id: payload.flock.id,
+      title: i.title || i.name || '',
+      description: i.description || i.sub || '',
+      added_by_member_id: getNumericMemberIdForExport(i.addedBy || i.member || ''),
+      vote_count: (i.votes || []).length || i.vote_count || 0
+    });
+  });
+
+  tables.calendar_events = ((flock.calendar_events || []) || []).map(function(ev){
+    return firstColumns({
+      id: ev.calendar_event_id || ev.id || '',
+      created_at: ev.created_at || '',
+      updated_at: ev.updated_at || '',
+      deleted_at: ev.deleted_at || '',
+      flock_id: payload.flock.id,
+      member_id: ev.member_id || '',
+      member_name: getMemberNameForExport(ev.member_key || ev.member_id || ''),
+      event_type: ev.event_type || '',
+      title: ev.title || '',
+      description: ev.description || '',
+      is_unavailable: ev.is_blackout ? 'yes' : 'no',
+      start_date: ev.start_date || '',
+      end_date: ev.end_date || '',
+      visibility: ev.visibility || '',
+      source: ev.source || ''
+    });
+  });
+
+  tables.activity_log = payload.activity || [];
+  tables.event_log = payload.eventLog || [];
+  return tables;
+}
+
+function csvColumnsForRows(rows) {
+  var preferred = ['id','created_at','updated_at','deleted_at','flock_id','gathering_id','member_id'];
+  var set = {};
+  (rows || []).forEach(function(r){ Object.keys(r || {}).forEach(function(k){ set[k] = true; }); });
+  var cols = [];
+  preferred.forEach(function(k){ if (set[k]) { cols.push({key:k,label:k}); delete set[k]; } });
+  Object.keys(set).sort().forEach(function(k){ cols.push({key:k,label:k}); });
+  return cols;
+}
+
+function downloadExportTableCsvs(scope, gatheringId) {
+  var payload = buildExportPayload(scope || 'all', gatheringId || null);
+  var tables = buildExportTables(payload);
+  var base = sanitizeFilenamePart(payload.flock.name || 'kinverly');
+  Object.keys(tables).forEach(function(tableName, idx){
+    setTimeout(function(){
+      var rows = tables[tableName] || [];
+      downloadTextFile(base + '-' + tableName + '.csv', buildCsv(rows, csvColumnsForRows(rows)), 'text/csv;charset=utf-8');
+    }, idx * 120);
+  });
+  logActivity(DATA.me.id, 'exported clean data tables', '🧾');
+  saveFlockState();
+  toast('Data tables downloaded');
+}
+
+function exportDataTablesJson(scope, gatheringId) {
+  var payload = buildExportPayload(scope || 'all', gatheringId || null);
+  payload.tables = buildExportTables(payload);
+  downloadTextFile(sanitizeFilenamePart(payload.flock.name || 'kinverly') + '-data-tables.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+  logActivity(DATA.me.id, 'exported clean data tables as JSON', '🧾');
+  saveFlockState();
+  toast('Data tables JSON downloaded');
+}
+
 function exportGatheringsJson(scope, gatheringId) {
   var payload = buildExportPayload(scope || 'all', gatheringId || null);
+  payload.tables = buildExportTables(payload);
   var nameBase = sanitizeFilenamePart(payload.flock.name || 'kinverly');
   var suffix = scope === 'one' && payload.gatherings[0] ? '-' + sanitizeFilenamePart(payload.gatherings[0].title) : '-all-gatherings';
   downloadTextFile(nameBase + suffix + '.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
@@ -7285,10 +7704,12 @@ function openAdminPanel() {
           (currentDetailId ? '<button class="admin-export-json" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save gathering JSON</button>' : '')+
         '</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-          '<button class="admin-export-members" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Member directory</button>'+
-          '<button class="admin-export-activity" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Activity log</button>'+
+          '<button class="admin-export-members" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Members table</button>'+
+          '<button class="admin-export-activity" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Activity table</button>'+ 
+          '<button class="admin-export-tables" style="padding:9px;border-radius:10px;border:none;background:#2A1B52;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Download data tables</button>'+ 
+          '<button class="admin-export-tables-json" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Tables JSON</button>'+ 
         '</div>'+ 
-        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">CSV is built for Excel/Tableau. JSON is a fuller backup/debug export.</div>'+ 
+        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">Clean tables export uses normalized rows: flocks, members, gatherings, gathering_members, windows, availability, tasks, chat, photos, ideas, calendar_events, activity, and event_log. Every table starts with id, created_at, updated_at, deleted_at.</div>'+ 
       '</div>'+ 
       '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + allMembers.length + ')</div>'+
       '<div>' + memberRows + '</div>'+
@@ -7312,6 +7733,10 @@ function openAdminPanel() {
     if (membersBtn) membersBtn.addEventListener('click', function(e){ e.stopPropagation(); exportMemberDirectoryCsv(); });
     var activityBtn = body.querySelector('.admin-export-activity');
     if (activityBtn) activityBtn.addEventListener('click', function(e){ e.stopPropagation(); exportActivityLogCsv(); });
+    var tablesBtn = body.querySelector('.admin-export-tables');
+    if (tablesBtn) tablesBtn.addEventListener('click', function(e){ e.stopPropagation(); downloadExportTableCsvs('all', null); });
+    var tablesJsonBtn = body.querySelector('.admin-export-tables-json');
+    if (tablesJsonBtn) tablesJsonBtn.addEventListener('click', function(e){ e.stopPropagation(); exportDataTablesJson('all', null); });
 
     // Promote
     body.querySelectorAll('.admin-promote').forEach(function(btn){
@@ -8176,11 +8601,12 @@ function mergeCanonicalFlockRecords(remote, local) {
   local = local || {};
   var out = Object.assign({}, local, remote);
   out.members = mergeMembersByTombstone(remote.members || {}, local.members || {});
+  out.removedMembers = Object.assign({}, local.removedMembers || {}, remote.removedMembers || {});
+  reconcileFlockMemberships(out);
   out.memberIds = Object.keys(out.members || {}).filter(function(mid){
     var m = out.members[mid];
-    return m && !(typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(m));
+    return isActiveMemberRecord(m);
   });
-  out.removedMembers = Object.assign({}, local.removedMembers || {}, remote.removedMembers || {});
   out.gatherings = mergeArraysByIdNewest(remote.gatherings || [], local.gatherings || []);
   out.ideas = mergeArraysByIdNewest(remote.ideas || [], local.ideas || []);
   out.activity = mergeArraysByIdNewest(remote.activity || [], local.activity || []).slice(0, 60);
@@ -8240,7 +8666,7 @@ function switchToFlock(flockId) {
 
   // Load members — exclude myself
   DATA.members = (flock.members && Object.keys(flock.members).length > 0)
-    ? flockState.activeMembers.filter(function(m){ return m && m.id !== DATA.me.id; })
+    ? flockState.activeMembers.filter(function(m){ return isActiveMemberRecord(m) && m.id !== DATA.me.id; })
     : [];
 
   // Load flock data
@@ -11113,8 +11539,10 @@ try {
           });
         }
         local.members = merged;
-        local.memberIds = Object.keys(merged).filter(function(mid){ return merged[mid] && !isRemovedMemberRecord(merged[mid]); });
-        DATA.members = Object.values(merged).filter(function(m){ return m && !isRemovedMemberRecord(m) && m.id !== myId; });
+        reconcileFlockMemberships(local);
+        merged = local.members || {};
+        local.memberIds = Object.keys(merged).filter(function(mid){ return isActiveMemberRecord(merged[mid]); });
+        DATA.members = Object.values(merged).filter(function(m){ return isActiveMemberRecord(m) && m.id !== myId; });
 
         // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
         if (merged[myId]) {
@@ -11716,8 +12144,11 @@ try {
 
     var remoteMembers = remote && remote.members ? remote.members : (flock.members || {});
     var mergedMembers = mergeMembersByTombstone(remoteMembers, flock.members || {});
+    var tempFlockForMembers = Object.assign({}, flock, { members: mergedMembers, removedMembers: Object.assign({}, (remote && remote.removedMembers) || {}, flock.removedMembers || {}) });
+    reconcileFlockMemberships(tempFlockForMembers);
+    mergedMembers = tempFlockForMembers.members || mergedMembers;
     var activeMemberIds = Object.keys(mergedMembers || {}).filter(function(mid){
-      return mergedMembers[mid] && !(typeof isRemovedMemberRecord === 'function' && isRemovedMemberRecord(mergedMembers[mid]));
+      return isActiveMemberRecord(mergedMembers[mid]);
     });
 
     var updates = {
