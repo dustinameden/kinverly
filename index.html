@@ -5265,6 +5265,9 @@ function generateFlockId() {
 
 function saveLocal() {
   try {
+    // If kicked from flock, don't save anything flock-related
+    if (window._kickedFromFlock) return;
+
     if (currentFlockId && FLOCKS[currentFlockId]) {
       var _f = FLOCKS[currentFlockId];
 
@@ -5286,19 +5289,15 @@ function saveLocal() {
       if (!_f.members) _f.members = {};
       if (!_f.memberIds) _f.memberIds = [];
 
-      // Update self (but don't re-add if removed)
-      if (DATA.me.id) {
-        var inFlock = _f.memberIds.indexOf(DATA.me.id) !== -1 || Object.keys(_f.members).length === 0;
-        if (inFlock || !_f.members[DATA.me.id] === undefined) {
-          var myExisting = _f.members[DATA.me.id] || {};
-          _f.members[DATA.me.id] = {
-            id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
-            location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
-            role: DATA.me.role || myExisting.role || 'member',
-            pw: myExisting.pw || ''
-          };
-          if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
-        }
+      // Update self ONLY if we are in the flock's member list
+      if (DATA.me.id && _f.members[DATA.me.id]) {
+        var myExisting = _f.members[DATA.me.id];
+        _f.members[DATA.me.id] = {
+          id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
+          location:DATA.me.location, stats:DATA.me.stats, prefs:DATA.me.prefs,
+          role: DATA.me.role || myExisting.role || 'member',
+          pw: myExisting.pw || ''
+        };
       }
     }
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
@@ -5309,6 +5308,8 @@ function saveLocal() {
 }
 
 function pushToFirebase() {
+  // Never push if kicked
+  if (window._kickedFromFlock) return;
   if (typeof syncFlockToFirebase === 'function') {
     syncFlockToFirebase().then(function(){
       var ind = document.getElementById('sync-indicator');
@@ -5323,14 +5324,15 @@ function pushToFirebase() {
 
 // Combined save + push for user actions
 function saveAndSync() {
+  if (window._kickedFromFlock) return;
   saveLocal();
   pushToFirebase();
 }
 
 // Backward compat — old code calls saveFlockState everywhere
 function saveFlockState() {
+  if (window._kickedFromFlock) return;
   saveLocal();
-  // Debounced push — only for implicit saves (periodic, nav, etc)
   if (window._syncTimer) clearTimeout(window._syncTimer);
   window._syncTimer = setTimeout(pushToFirebase, 1500);
 }
@@ -5526,6 +5528,7 @@ async function saveFlockToFirebase(flock, creator) {
 
 // Full flock sync to Firebase — call after any data change
 async function syncFlockToFirebase() {
+  if (window._kickedFromFlock) return;
   if (!window.__db || !window.__firestoreHelpers || !currentFlockId || !FLOCKS[currentFlockId]) return;
   try {
     var h = window.__firestoreHelpers;
@@ -7946,9 +7949,14 @@ try {
 
         // Detect if I was REMOVED from the flock
         if (myId && !merged[myId] && Object.keys(merged).length > 0) {
-          // I'm not in the member list anymore — I was kicked
+          // Set flag FIRST — prevents any save/sync from re-adding us
+          window._kickedFromFlock = true;
+
+          // Kill any pending sync timers
+          if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
+
           toast('You were removed from this flock');
-          // Stop the listener so we don't keep syncing
+          // Stop the listener
           if (window._currentFlockListener) { window._currentFlockListener(); window._currentFlockListener = null; }
           // Remove this flock from local data
           delete window.FLOCKS[flockId];
