@@ -5924,10 +5924,12 @@ var ROLE_PERMISSIONS = {
 };
 
 function normalizeRole(role) {
-  if (normalizeRole(role) === 'owner') return 'owner';
-  if (normalizeRole(role) === 'organizer') return 'organizer';
-  if (role === 'removed' || role === 'archived') return 'archived';
-  return role || 'member';
+  role = String(role || 'member').toLowerCase().trim();
+  if (role === 'owner') return 'owner';
+  if (role === 'organizer' || role === 'admin') return 'organizer';
+  if (role === 'guest') return 'guest';
+  if (role === 'removed' || role === 'archived' || role === 'deleted') return 'archived';
+  return 'member';
 }
 
 function getRoleLabel(role) {
