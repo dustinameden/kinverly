@@ -2958,6 +2958,11 @@ function createPersonalCalendarEvent(opts) {
   list.push(ev);
   recordEvent('calendar_event.created', 'calendar_event', ev.id, null, ev, 'Added ' + (ev.is_blackout ? 'blackout' : 'personal') + ' calendar event: ' + ev.title, ev.is_blackout ? '🚫' : '📌');
   saveFlockState();
+  // Loop-closer: a new blackout may now clash with a date this member
+  // already greenlit on a planning gathering — flag it immediately.
+  if (ev.is_blackout && typeof runAvailabilityLoopCloser === 'function') {
+    try { runAvailabilityLoopCloser(ev); } catch(err) { console.warn('[Kinverly] loop-closer failed', err); }
+  }
   return ev;
 }
 function getPersonalBlackoutDateKeysForGathering(g) {
@@ -3487,13 +3492,19 @@ function renderHome() {
   // Check for personal notifications (e.g. "You've been made an admin")
   var flock = FLOCKS[currentFlockId];
   if (flock && flock._notifications) {
-    var myNotifs = flock._notifications.filter(function(n){ return n.to === DATA.me.id && !n.read; });
+    // Legacy/admin notifications still surface as a one-time toast.
+    // Spine notifications (date_locked, collision, loop_closer, …) live in
+    // the bell + panel instead, so they aren't consumed before you see them.
+    var myNotifs = flock._notifications.filter(function(n){
+      return n.to === DATA.me.id && !n.read && (!n.kind || n.kind === 'general' || n.kind === 'admin');
+    });
     myNotifs.forEach(function(n){
       toast('🛡️ ' + n.text);
       n.read = true;
     });
     if (myNotifs.length > 0) saveFlockState();
   }
+  if (typeof renderNotificationBell === 'function') renderNotificationBell();
 
   // Topbar avatar
   var av = document.getElementById('topbar-av');
@@ -4851,23 +4862,11 @@ function renderDateWindowPanel(g, panel) {
       var parts = startKey.split('-');
       var mon = parts[0], day = parseInt(parts[1]);
       var label = fmtRange({ start: { abbr: mon, d: day }, end: (function(){ var p2=endKey.split('-'); return {abbr:p2[0],d:parseInt(p2[1])}; })() });
-      if (!confirm('Finalize ' + label + ' as the official gathering dates?\nThis will move the gathering from Choosing Dates to Confirmed.')) return;
-      var before = safeCloneForEvent(g);
-      var endParts = endKey.split('-');
-      g.month = mon;
-      g.day = day;
-      g.endMonth = endParts[0];
-      g.endDay = parseInt(endParts[1], 10);
-      g.date_label = label;
-      g.finalized_at = nowISO();
-      g.status = 'upcoming';
-      g.updated_at = nowISO();
-      logActivity(DATA.me.id, 'finalized <strong>' + escapeHtml(g.name) + '</strong> for <strong>' + escapeHtml(label) + '</strong>', '📅');
-      recordEvent('gathering.dates_finalized', 'gathering', g.id, before, g, 'Finalized dates for ' + (g.name || 'gathering') + ': ' + label, '📅');
-      saveFlockState();
-      renderDetail(g);
-      if (document.getElementById('gatherings-list')) renderGatherings();
-      toast('🎉 Dates finalized: ' + label);
+      if (!confirm('Lock ' + label + ' as the official gathering dates?\nThis confirms the gathering, adds it to everyone\u2019s calendar, and asks the flock if they can make it.')) return;
+      // Stage 4 (lock) + Stage 5 (broadcast) now live in one reusable hinge.
+      if (typeof lockGatheringDate === 'function') {
+        lockGatheringDate(g, startKey, endKey, label);
+      }
     });
   });
 }
@@ -11729,6 +11728,426 @@ try {
 })();
 
 </script>
+
+<!-- ═══════════════════════════════════════════════
+   CALENDAR COMMUNICATION LAYER  (Sprint 32)
+   The "spine" a date travels: propose → collect →
+   recommend → lock → broadcast. This block adds the
+   lock hinge + the fan-out that makes a locked date
+   communicate all the way through flocks & gatherings.
+═══════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  // ── 1. LIGHTWEIGHT EVENT DISPATCHER ──────────────────
+  // One nervous system instead of every handler calling
+  // renderHome();renderMyWorld();renderGatherings() by hand.
+  // Surfaces subscribe once; flows just emit.
+  var KSUBS = {};
+  function kOn(type, fn){ (KSUBS[type] = KSUBS[type] || []).push(fn); }
+  function kEmit(type, payload){
+    (KSUBS[type] || []).forEach(function(fn){
+      try { fn(payload || {}); } catch(err){ console.warn('[Kinverly] subscriber failed for ' + type, err); }
+    });
+    (KSUBS['*'] || []).forEach(function(fn){
+      try { fn(type, payload || {}); } catch(err){}
+    });
+  }
+  window.kOn = kOn;
+  window.kEmit = kEmit;
+
+  // Repaint every calendar surface that exists right now.
+  function refreshSurfaces(){
+    if (typeof renderHome === 'function') try { renderHome(); } catch(e){}
+    if (typeof renderGatherings === 'function' && document.getElementById('gatherings-list')) try { renderGatherings(); } catch(e){}
+    if (typeof renderMyWorld === 'function') try { renderMyWorld(); } catch(e){}
+    if (typeof renderFlockSchedule === 'function') try { renderFlockSchedule(); } catch(e){}
+    renderNotificationBell();
+  }
+  function persist(){
+    if (typeof saveFlockState === 'function') saveFlockState();
+    else if (typeof saveLocal === 'function') saveLocal();
+  }
+
+  // Default subscribers: any spine event repaints + persists.
+  kOn('*', function(){ refreshSurfaces(); persist(); });
+
+  // ── 2. NOTIFICATIONS ─────────────────────────────────
+  // Model stays backward-compatible with the existing
+  // {to,text,ts,read} shape and adds kind/icon/gid/fid so
+  // the bell can render a real list, scoped per member.
+  function notifStore(flock){
+    flock = flock || (typeof getCurrentFlock === 'function' ? getCurrentFlock() : null);
+    if (!flock) return null;
+    if (!Array.isArray(flock._notifications)) flock._notifications = [];
+    return flock._notifications;
+  }
+  function pushNotification(toId, opts){
+    if (toId === undefined || toId === null || toId === '') return null;
+    var flock = (typeof getCurrentFlock === 'function') ? getCurrentFlock() : null;
+    var store = notifStore(flock);
+    if (!store) return null;
+    opts = opts || {};
+    var n = {
+      to: toId,
+      text: opts.text || '',
+      kind: opts.kind || 'general',
+      icon: opts.icon || '🔔',
+      gid: (opts.gid !== undefined ? opts.gid : null),
+      fid: (opts.fid !== undefined ? opts.fid : (flock ? flock.id : null)),
+      tab: opts.tab || 'overview',
+      ts: Date.now(),
+      read: false
+    };
+    store.push(n);
+    if (store.length > 60) store.splice(0, store.length - 60);
+    return n;
+  }
+  // Notify every active member of the current flock (optionally skip the actor).
+  function notifyActiveFlock(opts, exceptId){
+    var members = (typeof getActiveFlockMembers === 'function') ? getActiveFlockMembers() : [];
+    members.forEach(function(m){
+      if (!m || m.id === undefined || m.id === null) return;
+      if (exceptId !== undefined && String(m.id) === String(exceptId)) return;
+      pushNotification(m.id, opts);
+    });
+  }
+  window.pushNotification = pushNotification;
+  window.notifyActiveFlock = notifyActiveFlock;
+
+  // Collect notifications addressed to me across every flock I'm in.
+  function getMyNotifications(){
+    var meId = DATA.me && DATA.me.id;
+    if (meId === undefined || meId === null) return [];
+    var keys = (typeof getMyFlockKeys === 'function') ? getMyFlockKeys() : (currentFlockId ? [currentFlockId] : []);
+    var out = [];
+    keys.forEach(function(fid){
+      var f = FLOCKS[fid];
+      if (!f || !Array.isArray(f._notifications)) return;
+      f._notifications.forEach(function(n){
+        if (!n || String(n.to) !== String(meId)) return;
+        out.push(Object.assign({ _fid: fid, _flockName: f.name || '' }, n));
+      });
+    });
+    out.sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); });
+    return out;
+  }
+  function getMyUnreadCount(){
+    return getMyNotifications().filter(function(n){ return !n.read; }).length;
+  }
+
+  function renderNotificationBell(){
+    var btn = document.getElementById('notif-btn');
+    if (!btn) return;
+    var count = getMyUnreadCount();
+    var badge = btn.querySelector('.notif-badge');
+    if (count > 0){
+      if (!badge){
+        badge = document.createElement('span');
+        badge.className = 'notif-badge';
+        btn.appendChild(badge);
+      }
+      badge.textContent = count > 9 ? '9+' : String(count);
+    } else if (badge){
+      badge.remove();
+    }
+  }
+  window.renderNotificationBell = renderNotificationBell;
+
+  function timeAgo(ts){
+    if (!ts) return '';
+    var mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    if (mins < 1440) return Math.floor(mins/60) + 'h ago';
+    return Math.floor(mins/1440) + 'd ago';
+  }
+
+  function openNotificationPanel(){
+    var overlay = document.getElementById('kin-notif-overlay');
+    if (!overlay){
+      overlay = document.createElement('div');
+      overlay.className = 'overlay hidden';
+      overlay.id = 'kin-notif-overlay';
+      overlay.innerHTML =
+        '<div class="sheet">' +
+          '<div class="sheet-header">' +
+            '<div class="sheet-title">Notifications</div>' +
+            '<button class="sheet-close" id="kin-notif-close">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+            '</button>' +
+          '</div>' +
+          '<div class="sheet-body" id="kin-notif-body"></div>' +
+        '</div>';
+      document.getElementById('app').appendChild(overlay);
+      overlay.addEventListener('click', function(e){ if (e.target === overlay) closeNotificationPanel(); });
+      overlay.querySelector('#kin-notif-close').addEventListener('click', closeNotificationPanel);
+    }
+    var body = overlay.querySelector('#kin-notif-body');
+    var list = getMyNotifications();
+    if (!list.length){
+      body.innerHTML = '<div style="text-align:center;padding:30px 10px;color:var(--text3);font-weight:700">You\'re all caught up 🎉</div>';
+    } else {
+      body.innerHTML = list.map(function(n){
+        var unread = !n.read;
+        return '<div class="kin-notif-item' + (unread ? ' unread' : '') + '"' +
+            (n.gid != null ? ' data-fid="' + escapeHtml(String(n._fid)) + '" data-gid="' + escapeHtml(String(n.gid)) + '" data-tab="' + escapeHtml(n.tab || 'overview') + '"' : '') +
+            ' style="cursor:' + (n.gid != null ? 'pointer' : 'default') + '">' +
+          '<div class="kin-notif-icon">' + (n.icon || '🔔') + '</div>' +
+          '<div class="kin-notif-text">' +
+            '<div class="kin-notif-body-text">' + (n.text || '') + '</div>' +
+            '<div class="kin-notif-meta">' + escapeHtml(n._flockName || '') + ' · ' + timeAgo(n.ts) + '</div>' +
+          '</div>' +
+          (unread ? '<span class="kin-notif-dot"></span>' : '') +
+        '</div>';
+      }).join('');
+      body.querySelectorAll('.kin-notif-item[data-gid]').forEach(function(item){
+        item.addEventListener('click', function(){
+          var fid = item.dataset.fid, gid = item.dataset.gid, tab = item.dataset.tab || 'overview';
+          closeNotificationPanel();
+          if (typeof openCrossFlockTarget === 'function') openCrossFlockTarget(fid, isNaN(+gid) ? gid : +gid, tab);
+        });
+      });
+    }
+    overlay.classList.remove('hidden');
+    // Mark everything read once the panel is open.
+    var touched = false;
+    (typeof getMyFlockKeys === 'function' ? getMyFlockKeys() : [currentFlockId]).forEach(function(fid){
+      var f = FLOCKS[fid];
+      if (!f || !Array.isArray(f._notifications)) return;
+      f._notifications.forEach(function(n){
+        if (n && String(n.to) === String(DATA.me && DATA.me.id) && !n.read){ n.read = true; touched = true; }
+      });
+    });
+    if (touched){ persist(); renderNotificationBell(); }
+  }
+  function closeNotificationPanel(){
+    var overlay = document.getElementById('kin-notif-overlay');
+    if (overlay) overlay.classList.add('hidden');
+  }
+  window.openNotificationPanel = openNotificationPanel;
+
+  // ── 3. CROSS-FLOCK COLLISION CHECK ───────────────────
+  // Does this gathering's locked range overlap a CONFIRMED
+  // gathering in any of my OTHER flocks?
+  function gatheringRange(g){
+    if (!g || typeof dateFromMonthDay !== 'function') return null;
+    var start = dateFromMonthDay(g.month, g.day);
+    if (!start) return null;
+    var endM = g.endMonth || g.end_month || g.month;
+    var endD = g.endDay || g.end_day || g.day;
+    var end = dateFromMonthDay(endM, endD) || start;
+    if (end < start) end = start;
+    return { start: start, end: end };
+  }
+  function rangesOverlap(a, b){
+    if (!a || !b) return false;
+    return a.start <= b.end && b.start <= a.end;
+  }
+  function findCrossFlockCollisions(g){
+    var hits = [];
+    var thisRange = gatheringRange(g);
+    if (!thisRange) return hits;
+    var myFlocks = (typeof getMyFlockKeys === 'function') ? getMyFlockKeys() : [];
+    myFlocks.forEach(function(fid){
+      var f = FLOCKS[fid];
+      if (!f || !Array.isArray(f.gatherings)) return;
+      f.gatherings.forEach(function(other){
+        if (!other || other.deleted_at) return;
+        if (other.id === g.id && String(fid) === String(currentFlockId)) return;
+        if (other.status === 'planning' || other.status === 'archived' || other.status === 'completed') return;
+        var or = gatheringRange(other);
+        if (or && rangesOverlap(thisRange, or)){
+          hits.push({ flockId: fid, flockName: f.name || 'another flock', gathering: other });
+        }
+      });
+    });
+    return hits;
+  }
+  window.findCrossFlockCollisions = findCrossFlockCollisions;
+
+  // ── 4. THE LOCK HINGE ────────────────────────────────
+  // Stage 4. Converts a chosen/recommended window into the
+  // gathering's confirmed dates, flips status, clears the
+  // now-moot proposals, then fires the broadcast (stage 5).
+  function lockGatheringDate(g, startKey, endKey, label){
+    if (!g || !g.id) { if (typeof toast === 'function') toast('Open a gathering first.'); return false; }
+    var before = (typeof safeCloneForEvent === 'function') ? safeCloneForEvent(g) : JSON.parse(JSON.stringify(g));
+
+    var sParts = String(startKey || '').split('-');
+    var eParts = String(endKey || startKey || '').split('-');
+    var startMon = sParts[0];
+    var startDay = parseInt(sParts[1], 10);
+    var endMon = eParts[0] || startMon;
+    var endDay = parseInt(eParts[1], 10) || startDay;
+    if (!startMon || !startDay) { if (typeof toast === 'function') toast('That window is missing a date.'); return false; }
+
+    if (!label){
+      label = startMon === endMon
+        ? startMon + ' ' + startDay + (endDay && endDay !== startDay ? '–' + endDay : '')
+        : startMon + ' ' + startDay + ' – ' + endMon + ' ' + endDay;
+    }
+
+    g.month = startMon;
+    g.day = startDay;
+    g.endMonth = endMon;
+    g.endDay = endDay;
+    g.date_label = label;
+    g.finalized_at = nowISO();
+    g.locked_at = nowISO();
+    g.locked_by = DATA.me && DATA.me.id;
+    // Stage 4 → confirmed. 'next' if it's the soonest, else 'upcoming'.
+    g.status = 'next';
+    g.themePill = 'pill-brand';
+    g.updated_at = nowISO();
+    // Only one "next" per flock.
+    (DATA.gatherings || []).forEach(function(other){
+      if (other && other.id !== g.id && other.status === 'next') { other.status = 'upcoming'; other.themePill = 'pill-amber'; }
+    });
+    // Proposals have served their purpose — retire them so the
+    // gathering stops asking for availability it no longer needs.
+    if (Array.isArray(g.proposed_windows)){
+      g.proposed_windows.forEach(function(w){ if (w) w.deleted_at = w.deleted_at || nowISO(); });
+    }
+
+    // Re-open the SECOND question (availability ≠ attendance) without
+    // wiping anyone's shared dates. A flag the overview can act on.
+    g.attendance_reopened_at = nowISO();
+
+    if (typeof logActivity === 'function')
+      logActivity(DATA.me.id, 'locked <strong>' + escapeHtml(g.name || 'gathering') + '</strong> for <strong>' + escapeHtml(label) + '</strong>', '📅');
+    if (typeof recordEvent === 'function')
+      recordEvent('gathering.date_locked', 'gathering', g.id, before, g, 'Locked dates for ' + (g.name || 'gathering') + ': ' + label, '📅');
+
+    broadcastDateLocked(g, label);
+
+    // Persist immediately so a refresh can't revert the lock.
+    persist();
+    if (typeof renderDetail === 'function') try { renderDetail(g); } catch(e){}
+    kEmit('date.locked', { gathering: g, label: label });
+    if (typeof toast === 'function') toast('🎉 Dates locked: ' + label);
+    return true;
+  }
+  window.lockGatheringDate = lockGatheringDate;
+
+  // ── 5. THE BROADCAST FAN-OUT ─────────────────────────
+  // The moment that makes a date "communicate all the way
+  // through". Confirmed dates already flow onto every
+  // member's My Calendar (status !== 'planning'); here we
+  // push the notifications and run the collision check.
+  function broadcastDateLocked(g, label){
+    var flockName = (typeof getCurrentFlock === 'function' && getCurrentFlock()) ? getCurrentFlock().name : '';
+    // a) Tell the flock + ask the attendance question.
+    notifyActiveFlock({
+      text: '📅 <strong>' + escapeHtml(g.name || 'A gathering') + '</strong> is locked for <strong>' + escapeHtml(label) + '</strong>. Can you make it?',
+      kind: 'date_locked',
+      icon: '📅',
+      gid: g.id,
+      tab: 'overview'
+    }, DATA.me && DATA.me.id); // skip the actor — they just did it
+
+    // b) Cross-flock collision warning, scoped to ME (the only
+    //    member whose other flocks we can see in this client).
+    var collisions = findCrossFlockCollisions(g);
+    collisions.forEach(function(hit){
+      pushNotification(DATA.me && DATA.me.id, {
+        text: '⚠️ <strong>' + escapeHtml(label) + '</strong> for ' + escapeHtml(g.name || 'this gathering') +
+              ' overlaps <strong>' + escapeHtml(hit.gathering.name || 'another gathering') + '</strong> in ' + escapeHtml(hit.flockName) + '.',
+        kind: 'collision',
+        icon: '⚠️',
+        gid: hit.gathering.id,
+        fid: hit.flockId,
+        tab: 'overview'
+      });
+    });
+    if (collisions.length && typeof toast === 'function'){
+      toast('⚠️ Heads up — this overlaps ' + collisions.length + ' gathering' + (collisions.length > 1 ? 's' : '') + ' in your other flocks');
+    }
+  }
+  window.broadcastDateLocked = broadcastDateLocked;
+
+  // ── 6. THE LOOP-CLOSER ───────────────────────────────
+  // When a member adds a personal blackout AFTER they've
+  // already said a window "works", flag it and nudge them.
+  // This is what keeps My Calendar and gathering availability
+  // from drifting out of sync.
+  function runAvailabilityLoopCloser(ev){
+    if (!ev || !ev.is_blackout || !ev.start_date) return;
+    if (typeof parseLocalDateKey !== 'function') return;
+    var start = parseLocalDateKey(ev.start_date);
+    var end = parseLocalDateKey(ev.end_date || ev.start_date) || start;
+    if (!start) return;
+
+    // Build the set of month-day keys this blackout covers.
+    var blackoutKeys = {};
+    eachDateInRange(start, end, function(d){
+      var k = (typeof monthDayKeyFromDateObj === 'function') ? monthDayKeyFromDateObj(d) : null;
+      if (k) blackoutKeys[k] = true;
+    });
+
+    var meId = DATA.me && DATA.me.id;
+    var conflicts = [];
+    (DATA.gatherings || []).forEach(function(g){
+      if (!g || g.deleted_at || g.status !== 'planning') return;
+      var rd = (typeof getRsvpForMemberRecord === 'function') ? getRsvpForMemberRecord(g.id, DATA.me) : (rsvpData[g.id] && rsvpData[g.id][meId]);
+      if (!rd || !(rd.availSubmitted || rd.availability_submitted)) return;
+      var windows = (typeof getAvailabilityReviewWindows === 'function') ? getAvailabilityReviewWindows(g) : [];
+      var answers = rd.windowAnswers || rd.window_answers || {};
+      windows.forEach(function(win){
+        var ans = answers[win.id] || answers[String(win.id)];
+        if (ans !== 'works' && ans !== 'partial') return; // only care if they'd greenlit it
+        var hit = (win.keys || []).some(function(k){ return blackoutKeys[k]; });
+        if (hit) conflicts.push({ g: g, win: win, ans: ans });
+      });
+    });
+
+    conflicts.forEach(function(c){
+      pushNotification(meId, {
+        text: '🔁 Your new blackout (<strong>' + escapeHtml(ev.title || 'busy') + '</strong>) clashes with <strong>' +
+              escapeHtml(c.win.label || 'a date') + '</strong> you marked “' + (c.ans === 'works' ? 'works' : 'partial') +
+              '” for <strong>' + escapeHtml(c.g.name || 'a gathering') + '</strong>. Update it?',
+        kind: 'loop_closer',
+        icon: '🔁',
+        gid: c.g.id,
+        tab: 'overview'
+      });
+    });
+    if (conflicts.length){
+      if (typeof toast === 'function') toast('🔁 This clashes with ' + conflicts.length + ' date you already greenlit — check notifications');
+      renderNotificationBell();
+    }
+  }
+  window.runAvailabilityLoopCloser = runAvailabilityLoopCloser;
+
+  // ── 7. WIRING ────────────────────────────────────────
+  function wireBell(){
+    var btn = document.getElementById('notif-btn');
+    if (btn && !btn._kinWired){
+      btn._kinWired = true;
+      btn.addEventListener('click', openNotificationPanel);
+    }
+    renderNotificationBell();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireBell);
+  else wireBell();
+  // Keep the badge fresh after any spine event / flock switch.
+  kOn('*', function(){ renderNotificationBell(); });
+
+})();
+</script>
+
+<!-- Notification panel + bell badge styling -->
+<style>
+.kin-notif-item{display:flex;align-items:flex-start;gap:11px;padding:12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:9px;background:var(--surface);position:relative}
+.kin-notif-item.unread{background:#f3efff;border-color:rgba(61,43,110,.2)}
+.kin-notif-icon{width:34px;height:34px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.kin-notif-text{flex:1;min-width:0}
+.kin-notif-body-text{font-size:13px;font-weight:600;color:var(--text1);line-height:1.4}
+.kin-notif-body-text strong{font-weight:800}
+.kin-notif-meta{font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.kin-notif-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:5px}
+</style>
 
 
 <!-- GATHER CREATOR OVERLAY -->
