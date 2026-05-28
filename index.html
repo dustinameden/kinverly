@@ -1587,6 +1587,36 @@ img,svg{display:block}
 .expense-split-name{font-size:11px;font-weight:700;color:var(--brand)}
 .expense-split-amt{font-size:16px;font-weight:300;color:var(--text1);margin-top:2px}
 
+/* ── GATHERING WIZARD ──────────────────────────── */
+.wiz-progress{display:flex;gap:4px;margin-bottom:20px}
+.wiz-dot{flex:1;height:4px;border-radius:2px;background:var(--border);transition:background .3s}
+.wiz-dot.done{background:var(--brand)}
+.wiz-dot.active{background:var(--gold)}
+.wiz-step-title{font-family:'Fredoka One',cursive;font-size:22px;color:var(--text1);margin-bottom:4px}
+.wiz-step-sub{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5}
+.wiz-type-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.wiz-type-card{border:2px solid var(--border);border-radius:14px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface)}
+.wiz-type-card:hover{border-color:var(--brand2)}
+.wiz-type-card.selected{border-color:var(--brand);background:#ede8ff}
+.wiz-type-icon{font-size:28px;margin-bottom:6px}
+.wiz-type-name{font-size:13px;font-weight:800;color:var(--text1)}
+.wiz-type-hint{font-size:11px;color:var(--text3);margin-top:2px}
+.wiz-field{margin-bottom:14px}
+.wiz-field label{display:block;font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.wiz-field input,.wiz-field select,.wiz-field textarea{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:15px;font-weight:600;font-family:inherit;outline:none;box-sizing:border-box;transition:border-color .15s}
+.wiz-field input:focus,.wiz-field select:focus,.wiz-field textarea:focus{border-color:var(--brand2)}
+.wiz-member-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.wiz-member-chip{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:2px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s}
+.wiz-member-chip.selected{border-color:var(--green);background:var(--green-bg)}
+.wiz-member-chip .wiz-chip-name{font-size:12px;font-weight:700;color:var(--text1)}
+.wiz-member-chip .wiz-chip-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;transition:all .15s}
+.wiz-member-chip.selected .wiz-chip-check{background:var(--green);border-color:var(--green)}
+.wiz-btns{display:flex;gap:8px;margin-top:20px}
+.wiz-btn-next{flex:1;padding:14px;border-radius:14px;background:var(--brand);color:#fff;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.wiz-btn-next:active{opacity:.85}
+.wiz-btn-back{padding:14px 20px;border-radius:14px;background:var(--surface2);color:var(--text2);font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:inherit}
+.wiz-btn-skip{padding:14px;border-radius:14px;background:transparent;color:var(--text3);font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;text-decoration:underline}
+
 </style>
 </head>
 <body>
@@ -2000,7 +2030,7 @@ document.getElementById('detail-back').addEventListener('click', closeDetail);
 
 // New gathering btn
 document.getElementById('new-gathering-btn').addEventListener('click', function(){
-  openGatherCreator();
+  openCreateGathering();
 });
 
 // Add idea btn
@@ -2102,7 +2132,7 @@ function logActivity(memberId, text, icon) {
   });
   // Cap at 30
   if (DATA.activity.length > 30) DATA.activity.length = 30;
-  saveFlockState();
+  saveLocal();
 }
 
 function updateAlertCard() {
@@ -4525,6 +4555,38 @@ function openChangePassword() {
   overlay.classList.remove('hidden');
 }
 
+// Atomic member change — updates locally AND pushes to Firebase immediately
+function saveMemberChange(memberId, changes) {
+  var flock = FLOCKS[currentFlockId];
+  if (!flock || !flock.members || !flock.members[memberId]) return;
+  Object.keys(changes).forEach(function(key){
+    flock.members[memberId][key] = changes[key];
+  });
+  saveLocal();
+  // Direct member push + full sync
+  if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[memberId]);
+  pushToFirebase();
+}
+
+function removeMemberFromFlock(memberId) {
+  var flock = FLOCKS[currentFlockId];
+  if (!flock) return 'Unknown';
+  var memberName = (flock.members && flock.members[memberId]) ? flock.members[memberId].name : 'Unknown';
+  if (flock.members) delete flock.members[memberId];
+  var idx = (flock.memberIds||[]).indexOf(memberId);
+  if (idx >= 0) flock.memberIds.splice(idx, 1);
+  DATA.members = DATA.members.filter(function(m){ return m.id !== memberId; });
+  Object.keys(rsvpData).forEach(function(gId){
+    if (rsvpData[gId] && rsvpData[gId][memberId]) delete rsvpData[gId][memberId];
+  });
+  (DATA.gatherings||[]).forEach(function(g){
+    if (g.attending) g.attending = g.attending.filter(function(a){ return a !== memberId; });
+  });
+  saveLocal();
+  pushToFirebase();
+  return memberName;
+}
+
 function openAdminPanel() {
   var body = document.getElementById('edit-body');
   var overlay = document.getElementById('edit-overlay');
@@ -4568,96 +4630,62 @@ function openAdminPanel() {
 
   // Wire all admin panel buttons after a tick to ensure DOM is settled
   setTimeout(function(){
-    // Wire promote buttons
+    // Promote
     body.querySelectorAll('.admin-promote').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
-        if (flock.members[mid]) {
-          flock.members[mid].role = 'admin';
-          saveFlockState();
-          if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
-          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-          logActivity(DATA.me.id, 'made <strong>' + escapeHtml(flock.members[mid].name) + '</strong> an admin 🛡️', '🛡️');
-
-          // Add a notification for the promoted user
-          if (!flock._notifications) flock._notifications = [];
-          flock._notifications.push({
-            to: mid,
-            text: 'You\'ve been made an admin by ' + DATA.me.name + '! You now have access to the Admin panel on the Flock page.',
-            ts: Date.now(),
-            read: false
-          });
-
-          saveFlockState();
-          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-          openAdminPanel();
-          toast('Promoted to admin');
-        }
+        saveMemberChange(mid, {role: 'admin'});
+        logActivity(DATA.me.id, 'made <strong>' + escapeHtml((flock.members[mid]||{}).name||'someone') + '</strong> an admin 🛡️', '🛡️');
+        if (!flock._notifications) flock._notifications = [];
+        flock._notifications.push({to:mid, text:'You\'ve been made an admin by '+DATA.me.name+'! You now have access to the Admin panel on the Flock page.', ts:Date.now(), read:false});
+        saveFlockState();
+        openAdminPanel();
+        toast('Promoted to admin');
       });
     });
 
-    // Wire demote buttons
+    // Demote
     body.querySelectorAll('.admin-demote').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
-        if (flock.members[mid]) {
-          flock.members[mid].role = 'member';
-          saveFlockState();
-          if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
-          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-          logActivity(DATA.me.id, 'removed admin from <strong>' + escapeHtml(flock.members[mid].name) + '</strong>', '🛡️');
-          openAdminPanel();
-          toast('Removed admin role');
-        }
+        saveMemberChange(mid, {role: 'member'});
+        logActivity(DATA.me.id, 'removed admin from <strong>' + escapeHtml((flock.members[mid]||{}).name||'someone') + '</strong>', '🛡️');
+        openAdminPanel();
+        toast('Removed admin role');
       });
     });
 
-    // Wire reset password buttons
+    // Reset password
     body.querySelectorAll('.admin-reset-pw').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
-        var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
+        var memberName = (flock.members[mid]||{}).name || 'this member';
         if (confirm('Reset password for ' + memberName + '?')) {
-          if (flock.members[mid]) {
-            flock.members[mid].pw = '';
-            saveFlockState();
-            if (window.__saveMemberToFlock) window.__saveMemberToFlock(currentFlockId, flock.members[mid]);
-            if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
-            openAdminPanel();
-            toast('Password reset');
-          }
+          saveMemberChange(mid, {pw: ''});
+          openAdminPanel();
+          toast('Password reset');
         }
       });
     });
 
-    // Wire remove buttons
+    // Remove
     body.querySelectorAll('.admin-remove').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         var mid = btn.dataset.mid;
-        var memberName = flock.members[mid] ? flock.members[mid].name : 'this member';
+        var memberName = (flock.members[mid]||{}).name || 'this member';
         if (confirm('Remove ' + memberName + ' from the flock?')) {
-          delete flock.members[mid];
-          var idx = (flock.memberIds||[]).indexOf(mid);
-          if (idx >= 0) flock.memberIds.splice(idx, 1);
-          DATA.members = DATA.members.filter(function(m){ return m.id !== mid; });
-          Object.keys(rsvpData).forEach(function(gId){
-            if (rsvpData[gId] && rsvpData[gId][mid]) delete rsvpData[gId][mid];
-          });
-          (DATA.gatherings||[]).forEach(function(g){
-            if (g.attending) g.attending = g.attending.filter(function(a){ return a !== mid; });
-          });
-          logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(memberName) + '</strong> from the flock', '🚫');
+          var name = removeMemberFromFlock(mid);
+          logActivity(DATA.me.id, 'removed <strong>' + escapeHtml(name) + '</strong> from the flock', '🚫');
           saveFlockState();
-          if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
           openAdminPanel();
           renderHome();
           renderGatherings();
           renderFlockPage();
-          toast(memberName + ' removed');
+          toast(name + ' removed');
         }
       });
     });
@@ -5225,12 +5253,22 @@ function generateFlockId() {
   return 'flock_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
 
-function saveFlockState() {
+// ═══════════════════════════════════════════════
+//  DATA PERSISTENCE — TWO LAYERS
+//
+//  saveLocal()       → localStorage only, instant, always call this
+//  pushToFirebase()  → Firestore write, call ONLY after user actions
+//
+//  The listener NEVER writes — it only reads + renders.
+//  This eliminates all race conditions.
+// ═══════════════════════════════════════════════
+
+function saveLocal() {
   try {
     if (currentFlockId && FLOCKS[currentFlockId]) {
       var _f = FLOCKS[currentFlockId];
 
-      // Normalize gatherings — ensure all arrays exist before saving
+      // Normalize gatherings
       (DATA.gatherings||[]).forEach(function(g){
         if (!g.chat) g.chat = [];
         if (!g.notes) g.notes = [];
@@ -5248,11 +5286,10 @@ function saveFlockState() {
       if (!_f.members) _f.members = {};
       if (!_f.memberIds) _f.memberIds = [];
 
-      // Update ONLY the current user in flock members
-      // BUT: don't re-add self if we were removed by an admin
+      // Update self (but don't re-add if removed)
       if (DATA.me.id) {
-        var wasRemoved = _f.memberIds.length > 0 && _f.memberIds.indexOf(DATA.me.id) === -1 && Object.keys(_f.members).length > 0 && !_f.members[DATA.me.id];
-        if (!wasRemoved) {
+        var inFlock = _f.memberIds.indexOf(DATA.me.id) !== -1 || Object.keys(_f.members).length === 0;
+        if (inFlock || !_f.members[DATA.me.id] === undefined) {
           var myExisting = _f.members[DATA.me.id] || {};
           _f.members[DATA.me.id] = {
             id:DATA.me.id, name:DATA.me.name, animal:DATA.me.animal,
@@ -5263,32 +5300,39 @@ function saveFlockState() {
           if (_f.memberIds.indexOf(DATA.me.id)===-1) _f.memberIds.push(DATA.me.id);
         }
       }
-
-      // DO NOT re-add members from DATA.members into _f.members
-      // The flock document (synced from Firebase) is the authority for who's in the flock
-      // DATA.members is just the local display list
     }
     localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
     localStorage.setItem('kinverly_current_flock', currentFlockId || '');
     try { localStorage.setItem('kinverly_rsvp', JSON.stringify(rsvpData)); } catch(e2) {}
     try { localStorage.setItem('kinverly_notifs', JSON.stringify(NOTIFS)); } catch(e2) {}
-
-    // Sync to Firebase if available (debounced 500ms)
-    if (window._syncTimer) clearTimeout(window._syncTimer);
-    window._syncTimer = setTimeout(function(){
-      if (typeof syncFlockToFirebase === 'function') {
-        syncFlockToFirebase().then(function(){
-          // Show brief green checkmark
-          var ind = document.getElementById('sync-indicator');
-          if (ind) { ind.textContent = '✓ Saved'; ind.style.color = 'var(--green)'; ind.style.opacity = '1'; }
-          setTimeout(function(){ if(ind) ind.style.opacity = '0'; }, 2000);
-        }).catch(function(){
-          var ind = document.getElementById('sync-indicator');
-          if (ind) { ind.textContent = '⚠ Offline'; ind.style.color = 'var(--amber)'; ind.style.opacity = '1'; }
-        });
-      }
-    }, 500);
   } catch(e) {}
+}
+
+function pushToFirebase() {
+  if (typeof syncFlockToFirebase === 'function') {
+    syncFlockToFirebase().then(function(){
+      var ind = document.getElementById('sync-indicator');
+      if (ind) { ind.textContent = '✓ Saved'; ind.style.color = 'var(--green)'; ind.style.opacity = '1'; }
+      setTimeout(function(){ if(ind) ind.style.opacity = '0'; }, 2000);
+    }).catch(function(){
+      var ind = document.getElementById('sync-indicator');
+      if (ind) { ind.textContent = '⚠ Offline'; ind.style.color = 'var(--amber)'; ind.style.opacity = '1'; }
+    });
+  }
+}
+
+// Combined save + push for user actions
+function saveAndSync() {
+  saveLocal();
+  pushToFirebase();
+}
+
+// Backward compat — old code calls saveFlockState everywhere
+function saveFlockState() {
+  saveLocal();
+  // Debounced push — only for implicit saves (periodic, nav, etc)
+  if (window._syncTimer) clearTimeout(window._syncTimer);
+  window._syncTimer = setTimeout(pushToFirebase, 1500);
 }
 
 function loadPersistedExtras() {
@@ -5446,15 +5490,14 @@ function addMeToFlock(flockId) {
   // Log "X joined the flock!" activity
   logActivity(DATA.me.id, 'joined the flock! Welcome, <strong>' + escapeHtml(DATA.me.name) + '</strong> 🎉', '👋');
 
-  // Save to localStorage immediately
-  saveFlockState();
+  // Save + sync immediately
+  saveAndSync();
   persistMyProfile();
 
-  // Push to Firebase immediately (don't wait for debounce)
+  // Also push member directly to Firebase
   if (window.__saveMemberToFlock) {
     window.__saveMemberToFlock(flockId, me);
   } else {
-    // Firebase not loaded yet — queue it
     window._pendingMemberSave = { flockId: flockId, member: me };
   }
 }
@@ -5888,97 +5931,170 @@ function openCreateGathering() {
   var body = document.getElementById('create-gathering-body');
   if (!body) return;
 
-  var types = [
-    {id:'planned', icon:'&#127881;', label:'Planned', sub:'Regular family gathering'},
-    {id:'bonus',   icon:'&#9889;',   label:'Bonus',   sub:'Spontaneous extra event'},
-    {id:'beach',   icon:'&#127958;', label:'Trip',    sub:'Multi-day trip or vacation'},
-    {id:'holiday', icon:'&#127978;', label:'Holiday', sub:'Holiday celebration'},
+  var wiz = {
+    step: 1, type: 'dinner', name: '', month: '', day: 0,
+    location: '', host: DATA.me.id, theme: '',
+    inviteAll: true, invited: {}, bringStarters: [], firstNote: ''
+  };
+  (DATA.members||[]).forEach(function(m){ wiz.invited[m.id] = true; });
+
+  var TYPES = [
+    {id:'dinner',   icon:'\ud83c\udf7d\ufe0f', name:'Dinner party',   hint:'Cook together, eat together'},
+    {id:'weekend',  icon:'\ud83c\udfd5\ufe0f', name:'Weekend trip',    hint:'A few days away'},
+    {id:'holiday',  icon:'\ud83c\udf84', name:'Holiday',         hint:'Seasonal celebration'},
+    {id:'gamenight',icon:'\ud83c\udfb2', name:'Game night',      hint:'Cards, board games, fun'},
+    {id:'reunion',  icon:'\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66', name:'Family reunion', hint:'The whole crew together'},
+    {id:'custom',   icon:'\u2728', name:'Something else',  hint:'You name it'}
   ];
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  body.innerHTML = '';
-  var selectedType = 'planned';
+  function renderStep() {
+    body.innerHTML = '';
+    var prog = '<div class="wiz-progress">';
+    for (var i = 1; i <= 4; i++) prog += '<div class="wiz-dot ' + (i < wiz.step ? 'done' : '') + (i === wiz.step ? ' active' : '') + '"></div>';
+    prog += '</div>';
+    body.innerHTML = prog;
+    if (wiz.step === 1) renderStep1();
+    else if (wiz.step === 2) renderStep2();
+    else if (wiz.step === 3) renderStep3();
+    else if (wiz.step === 4) renderStep4();
+  }
 
-  // Type selector
-  var tl = document.createElement('div'); tl.className = 'field-label-sm'; tl.textContent = 'Type'; body.appendChild(tl);
-  var tg = document.createElement('div'); tg.className = 'gathering-type-grid';
-  types.forEach(function(t) {
-    var card = document.createElement('div');
-    card.className = 'gtype-card' + (t.id === selectedType ? ' selected' : '');
-    card.innerHTML = '<div class="gtype-icon">' + t.icon + '</div><div class="gtype-label">' + t.label + '</div><div class="gtype-sub">' + t.sub + '</div>';
-    card.addEventListener('click', function() {
-      selectedType = t.id;
-      tg.querySelectorAll('.gtype-card').forEach(function(c){ c.classList.remove('selected'); });
-      card.classList.add('selected');
+  function renderStep1() {
+    var step = document.createElement('div');
+    step.innerHTML = '<div class="wiz-step-title">What are we planning?</div><div class="wiz-step-sub">Pick a vibe and we\'ll set up the basics.</div><div class="wiz-type-grid">' +
+      TYPES.map(function(t){ return '<div class="wiz-type-card' + (wiz.type===t.id?' selected':'') + '" data-type="'+t.id+'"><div class="wiz-type-icon">'+t.icon+'</div><div class="wiz-type-name">'+t.name+'</div><div class="wiz-type-hint">'+t.hint+'</div></div>'; }).join('') + '</div>';
+    body.appendChild(step);
+    step.querySelectorAll('.wiz-type-card').forEach(function(card){
+      card.addEventListener('click', function(){
+        wiz.type = card.dataset.type;
+        step.querySelectorAll('.wiz-type-card').forEach(function(c){ c.classList.remove('selected'); });
+        card.classList.add('selected');
+        var nameMap = {dinner:'Family Dinner',weekend:'Weekend Getaway',holiday:'Holiday Gathering',gamenight:'Game Night',reunion:'Family Reunion',custom:''};
+        wiz.name = nameMap[wiz.type] || '';
+      });
     });
-    tg.appendChild(card);
-  });
-  body.appendChild(tg);
+    var btns = document.createElement('div'); btns.className = 'wiz-btns';
+    var nb = document.createElement('button'); nb.className = 'wiz-btn-next'; nb.textContent = 'Next \u2192';
+    nb.addEventListener('click', function(){ wiz.step = 2; renderStep(); });
+    btns.appendChild(nb); body.appendChild(btns);
+  }
 
-  // Name
-  var nl = document.createElement('div'); nl.className = 'field-group';
-  nl.innerHTML = '<div class="field-label-sm">Name</div><input class="input-field" id="cg-name" type="text" placeholder="e.g. Summer Cookout, Beach Week...">';
-  body.appendChild(nl);
+  function renderStep2() {
+    var tl = TYPES.find(function(t){ return t.id===wiz.type; });
+    var step = document.createElement('div');
+    step.innerHTML = '<div class="wiz-step-title">'+(tl?tl.icon:'\u2728')+' When and where?</div><div class="wiz-step-sub">Don\'t worry \u2014 you can change this later.</div>';
+    var nf = document.createElement('div'); nf.className = 'wiz-field'; nf.innerHTML = '<label>Give it a name</label>';
+    var ni = document.createElement('input'); ni.type='text'; ni.value=wiz.name; ni.placeholder='e.g. Providence in July, Annual Cookout...'; ni.maxLength=60;
+    ni.addEventListener('input', function(){ wiz.name=ni.value; }); nf.appendChild(ni); step.appendChild(nf);
+    var dr = document.createElement('div'); dr.style.cssText='display:flex;gap:8px';
+    var mf = document.createElement('div'); mf.className='wiz-field'; mf.style.flex='1'; mf.innerHTML='<label>Month</label>';
+    var ms = document.createElement('select'); ms.innerHTML='<option value="">Pick a month</option>'+MONTHS.map(function(m,i){return '<option value="'+i+'"'+(wiz.month===MONTHS[i]?' selected':'')+'>'+m+'</option>';}).join('');
+    ms.addEventListener('change', function(){ wiz.month=MONTHS[parseInt(ms.value)]||''; }); mf.appendChild(ms); dr.appendChild(mf);
+    var df = document.createElement('div'); df.className='wiz-field'; df.style.flex='1'; df.innerHTML='<label>Day (optional)</label>';
+    var di = document.createElement('input'); di.type='number'; di.min='1'; di.max='31'; di.value=wiz.day||''; di.placeholder='\u2014';
+    di.addEventListener('input', function(){ wiz.day=parseInt(di.value)||0; }); df.appendChild(di); dr.appendChild(df); step.appendChild(dr);
+    var lf = document.createElement('div'); lf.className='wiz-field'; lf.innerHTML='<label>Where</label>';
+    var li = document.createElement('input'); li.type='text'; li.value=wiz.location; li.placeholder="e.g. Mom\'s house, Providence RI, TBD..."; li.maxLength=60;
+    li.addEventListener('input', function(){ wiz.location=li.value; }); lf.appendChild(li); step.appendChild(lf);
+    body.appendChild(step);
+    var btns = document.createElement('div'); btns.className='wiz-btns';
+    var bb = document.createElement('button'); bb.className='wiz-btn-back'; bb.textContent='Back';
+    bb.addEventListener('click', function(){ wiz.step=1; renderStep(); }); btns.appendChild(bb);
+    var nb = document.createElement('button'); nb.className='wiz-btn-next'; nb.textContent='Next \u2192';
+    nb.addEventListener('click', function(){ if(!wiz.name.trim()){ni.focus();toast('Give your gathering a name');return;} wiz.name=wiz.name.trim(); wiz.location=wiz.location.trim()||'TBD'; wiz.step=3; renderStep(); });
+    btns.appendChild(nb); body.appendChild(btns);
+  }
 
-  // Date row
-  var dr = document.createElement('div'); dr.className = 'field-group';
-  dr.innerHTML = '<div class="field-label-sm">Date</div><div class="date-row"><input class="input-field" id="cg-month" type="text" placeholder="Month (e.g. Jul)"><input class="input-field" id="cg-day" type="number" placeholder="Day" min="1" max="31"></div>';
-  body.appendChild(dr);
+  function renderStep3() {
+    var step = document.createElement('div');
+    step.innerHTML = '<div class="wiz-step-title">\ud83d\udc65 Who\'s coming?</div><div class="wiz-step-sub">Tap to include or exclude. They\'ll each get a chance to RSVP.</div>';
+    var at = document.createElement('div');
+    at.style.cssText='display:flex;align-items:center;gap:10px;padding:12px;background:'+(wiz.inviteAll?'#ede8ff':'var(--surface)')+';border:2px solid '+(wiz.inviteAll?'var(--brand)':'var(--border)')+';border-radius:12px;cursor:pointer;margin-bottom:12px';
+    at.innerHTML='<div style="font-size:20px">\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66</div><div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--text1)">Invite the whole flock</div><div style="font-size:11px;color:var(--text3)">'+((DATA.members||[]).length+1)+' members</div></div>';
+    at.addEventListener('click', function(){ wiz.inviteAll=!wiz.inviteAll; if(wiz.inviteAll)(DATA.members||[]).forEach(function(m){wiz.invited[m.id]=true;}); renderStep(); });
+    step.appendChild(at);
+    if (!wiz.inviteAll) {
+      var grid = document.createElement('div'); grid.className='wiz-member-grid';
+      (DATA.members||[]).forEach(function(m){
+        var chip = document.createElement('div'); chip.className='wiz-member-chip'+(wiz.invited[m.id]?' selected':'');
+        chip.innerHTML=makeAv(m.animal||'bear',28)+'<span class="wiz-chip-name">'+escapeHtml(m.name)+'</span><span class="wiz-chip-check">'+(wiz.invited[m.id]?'\u2713':'')+'</span>';
+        chip.addEventListener('click', function(){ wiz.invited[m.id]=!wiz.invited[m.id]; chip.classList.toggle('selected'); chip.querySelector('.wiz-chip-check').textContent=wiz.invited[m.id]?'\u2713':''; });
+        grid.appendChild(chip);
+      });
+      step.appendChild(grid);
+    }
+    body.appendChild(step);
+    var btns = document.createElement('div'); btns.className='wiz-btns';
+    var bb = document.createElement('button'); bb.className='wiz-btn-back'; bb.textContent='Back';
+    bb.addEventListener('click', function(){ wiz.step=2; renderStep(); }); btns.appendChild(bb);
+    var nb = document.createElement('button'); nb.className='wiz-btn-next'; nb.textContent='Next \u2192';
+    nb.addEventListener('click', function(){ wiz.step=4; renderStep(); }); btns.appendChild(nb); body.appendChild(btns);
+  }
 
-  // Location
-  var ll = document.createElement('div'); ll.className = 'field-group';
-  ll.innerHTML = '<div class="field-label-sm">Location</div><input class="input-field" id="cg-location" type="text" placeholder="e.g. Atlanta, GA or TBD">';
-  body.appendChild(ll);
+  function renderStep4() {
+    var step = document.createElement('div');
+    step.innerHTML = '<div class="wiz-step-title">\ud83c\udfa8 Any finishing touches?</div><div class="wiz-step-sub">All optional \u2014 skip anything you\'re not sure about yet.</div>';
+    var tf = document.createElement('div'); tf.className='wiz-field'; tf.innerHTML='<label>Theme or vibe (optional)</label>';
+    var ti = document.createElement('input'); ti.type='text'; ti.value=wiz.theme; ti.placeholder='e.g. Taco night, 80s retro, fancy dress...'; ti.maxLength=60;
+    ti.addEventListener('input', function(){ wiz.theme=ti.value; }); tf.appendChild(ti); step.appendChild(tf);
+    var nof = document.createElement('div'); nof.className='wiz-field'; nof.innerHTML='<label>Add a note for the group (optional)</label>';
+    var noi = document.createElement('textarea'); noi.rows=2; noi.style.resize='none'; noi.value=wiz.firstNote;
+    noi.placeholder='e.g. Kids welcome! Parking on the street. BYOB.'; noi.maxLength=200;
+    noi.addEventListener('input', function(){ wiz.firstNote=noi.value; }); nof.appendChild(noi); step.appendChild(nof);
+    var bf = document.createElement('div'); bf.className='wiz-field';
+    bf.innerHTML='<label>Bring list starters (optional)</label><div style="font-size:11px;color:var(--text3);margin-bottom:6px">Add items the group will need \u2014 members can claim them later</div>';
+    var bw = document.createElement('div');
+    var EMOJIS=['\ud83c\udf55','\ud83e\udd57','\ud83c\udfae','\ud83c\udfd6\ufe0f','\ud83e\uddca','\ud83e\ude91','\ud83c\udfb5','\ud83c\udf7a','\ud83e\uddf8','\ud83c\udf92','\ud83d\udd0c','\ud83c\udf82','\ud83e\uddf4','\ud83c\udfd5\ufe0f','\ud83d\udecf\ufe0f'];
+    function rebuildBring(){bw.innerHTML='';wiz.bringStarters.forEach(function(item,i){var r=document.createElement('div');r.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';r.innerHTML='<span style="font-size:14px">'+item.emoji+'</span><span style="flex:1;font-size:13px;font-weight:600;color:var(--text1)">'+escapeHtml(item.name)+'</span>';var d=document.createElement('button');d.style.cssText='width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px';d.textContent='\u00d7';d.addEventListener('click',function(){wiz.bringStarters.splice(i,1);rebuildBring();});r.appendChild(d);bw.appendChild(r);});}
+    rebuildBring(); bf.appendChild(bw);
+    var ar = document.createElement('div'); ar.style.cssText='display:flex;gap:6px';
+    var ai = document.createElement('input'); ai.type='text'; ai.placeholder='Add an item...'; ai.maxLength=40;
+    ai.style.cssText='flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text1);font-size:13px;font-weight:600;font-family:inherit;outline:none;box-sizing:border-box';
+    var ab = document.createElement('button');
+    ab.style.cssText='padding:8px 14px;border-radius:8px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit;flex-shrink:0';
+    ab.textContent='Add';
+    ab.addEventListener('click', function(){ var v=ai.value.trim(); if(!v)return; wiz.bringStarters.push({name:v,emoji:EMOJIS[Math.floor(Math.random()*EMOJIS.length)]}); ai.value=''; rebuildBring(); });
+    ai.addEventListener('keydown', function(e){ if(e.key==='Enter')ab.click(); });
+    ar.appendChild(ai); ar.appendChild(ab); bf.appendChild(ar); step.appendChild(bf);
+    body.appendChild(step);
+    var btns = document.createElement('div'); btns.className='wiz-btns'; btns.style.flexDirection='column';
+    var cb = document.createElement('button'); cb.className='wiz-btn-next'; cb.style.background='var(--green)'; cb.textContent='\ud83c\udf89 Create gathering';
+    cb.addEventListener('click', doCreate); btns.appendChild(cb);
+    var row2 = document.createElement('div'); row2.style.cssText='display:flex;gap:8px';
+    var bb = document.createElement('button'); bb.className='wiz-btn-back'; bb.style.flex='1'; bb.textContent='Back';
+    bb.addEventListener('click', function(){ wiz.step=3; renderStep(); }); row2.appendChild(bb);
+    var sb = document.createElement('button'); sb.className='wiz-btn-skip'; sb.textContent='Skip details & create';
+    sb.addEventListener('click', doCreate); row2.appendChild(sb);
+    btns.appendChild(row2); body.appendChild(btns);
+  }
 
-  // Host
-  var hl = document.createElement('div'); hl.className = 'field-group';
-  var memberOpts = DATA.members.map(function(m){
-    return '<option value="'+m.id+'">'+m.name+'</option>';
-  }).join('');
-  hl.innerHTML = '<div class="field-label-sm">Host</div><select class="input-field" id="cg-host"><option value="'+DATA.me.id+'">' + (DATA.me.name || 'Me') + ' (me)</option><option value="rotating">Rotating — decide later</option>' + memberOpts + '</select>';
-  body.appendChild(hl);
-
-  // Save button
-  var sb = document.createElement('button');
-  sb.className = 'btn-primary';
-  sb.style.marginTop = '8px';
-  sb.style.marginBottom = '32px';
-  sb.textContent = 'Add to calendar';
-  sb.addEventListener('click', function() {
-    var name = document.getElementById('cg-name').value.trim();
-    var month = document.getElementById('cg-month').value.trim();
-    var day = parseInt(document.getElementById('cg-day').value) || 1;
-    var location = document.getElementById('cg-location').value.trim() || 'TBD';
-    var host = document.getElementById('cg-host').value;
-
-    if (!name) { toast('Please enter a name'); return; }
-    if (!month) { toast('Please enter a month'); return; }
-
+  function doCreate() {
     var id = 'g_' + Date.now().toString(36);
+    var typeMap = {dinner:'planned',weekend:'planned',holiday:'planned',gamenight:'bonus',reunion:'planned',custom:'planned'};
     var newG = {
-      id: id, name: name, month: month, day: day,
-      location: location, host: host,
-      type: selectedType === 'bonus' ? 'bonus' : 'planned',
-      beachMode: selectedType === 'beach',
-      status: 'upcoming', theme: 'Planning starts now',
-      themePill: 'pill-amber', progress: 0,
-      attending: [], tasks: [],
-      chat: [], notes: [], polls: [], bringList: [], expenses: [], photos: [],
-      _createdAt: Date.now()
+      id:id, name:wiz.name, month:wiz.month||'', day:wiz.day||0,
+      location:wiz.location||'TBD', host:wiz.host||DATA.me.id,
+      type:typeMap[wiz.type]||'planned', beachMode:wiz.type==='weekend',
+      status:wiz.month?'upcoming':'planning', theme:wiz.theme||'',
+      themePill:'pill-amber', progress:0, hybrid:false, virtual:false,
+      attending:[], tasks:[], chat:[], notes:[], polls:[], bringList:[], expenses:[], photos:[], _createdAt:Date.now()
     };
-
+    if (wiz.firstNote.trim()) newG.notes.push({id:'note_'+Date.now().toString(36),text:wiz.firstNote.trim(),author:DATA.me.id,authorName:DATA.me.name,pinned:true,ts:Date.now()});
+    wiz.bringStarters.forEach(function(item){ newG.bringList.push({id:'bring_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:item.name,emoji:item.emoji,claimedBy:null,claimedName:null,addedBy:DATA.me.id}); });
     DATA.gatherings.unshift(newG);
     saveFlockState();
-
+    logActivity(DATA.me.id, 'created <strong>'+escapeHtml(wiz.name)+'</strong> \ud83c\udf89', '\ud83d\udcc5');
     document.getElementById('create-gathering-overlay').classList.add('hidden');
-    renderGatherings();
-    renderHome();
-    toast('&#127881; ' + name + ' added!');
+    renderGatherings(); renderHome();
+    toast('\ud83c\udf89 '+wiz.name+' is live!');
     showDetail(id);
-  });
-  body.appendChild(sb);
+  }
 
+  renderStep();
   document.getElementById('create-gathering-overlay').classList.remove('hidden');
 }
+
 
 document.getElementById('create-gathering-close').addEventListener('click', function(){
   document.getElementById('create-gathering-overlay').classList.add('hidden');
@@ -6117,7 +6233,7 @@ function openRSVP(gatheringId) {
       }
       DATA.gatherings[gIdx].attending = attending;
       DATA.gatherings[gIdx].mode = selectedStatus === 'virtual' ? 'virtual' : 'in-person';
-      saveFlockState();
+      saveAndSync();
     }
 
     // RSVP syncs to all users via flock document (saveFlockState triggers syncFlockToFirebase)
@@ -7176,8 +7292,8 @@ function renderGatheringChat(gatheringId) {
     // Re-render chat list
     renderChatMessages(msgList, g);
 
-    // Save + sync (this triggers Firebase sync via saveFlockState)
-    saveFlockState();
+    // Save + sync immediately so other users see the message
+    saveAndSync();
 
     // Log to activity feed (but only every 5th message to avoid spam)
     if (g.chat.length % 5 === 1) {
@@ -7732,16 +7848,16 @@ function renderFlockSchedule() {
   window.addEventListener('beforeunload', function() {
     if (DATA.me.id) {
       persistMyProfile();
-      saveFlockState();
-      // Attempt immediate Firebase sync (best-effort, browser may cancel)
+      saveLocal();
+      // Best-effort Firebase push on close
       if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase();
     }
   });
 
-  // Also auto-save periodically (every 30 seconds)
+  // Periodic local save (every 30s) — just localStorage, no Firebase push
   setInterval(function() {
     if (DATA.me.id && currentFlockId) {
-      saveFlockState();
+      saveLocal();
     }
   }, 30000);
 })();
@@ -8531,7 +8647,7 @@ try {
       }
 
       logActivity(DATA.me.id, 'updated <strong>' + escapeHtml(name) + '</strong>');
-      saveFlockState();
+      saveAndSync();
 
       document.getElementById('gather-edit-overlay').classList.add('hidden');
 
