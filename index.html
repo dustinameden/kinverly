@@ -7388,22 +7388,47 @@ function loadPersistedExtras() {
   } catch(e) {}
 }
 
+function resolveFlockKey(flockId) {
+  if (flockId === null || flockId === undefined) return null;
+  var raw = String(flockId);
+  if (FLOCKS && FLOCKS[raw]) return raw;
+  var keys = Object.keys(FLOCKS || {});
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var f = FLOCKS[k];
+    if (!f) continue;
+    if (String(f.id) === raw) return k;
+    if (f.flock_id !== undefined && String(f.flock_id) === raw) return k;
+    if (f.uid !== undefined && String(f.uid) === raw) return k;
+  }
+  return null;
+}
+
 function loadFlockState() {
   try {
     var s = localStorage.getItem('kinverly_flocks');
     if (s) FLOCKS = JSON.parse(s);
     currentFlockId = localStorage.getItem('kinverly_current_flock') || null;
+    var resolved = resolveFlockKey(currentFlockId);
+    if (resolved) currentFlockId = resolved;
+    else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
   } catch(e) {}
 }
 
 function getCurrentFlock() {
-  return currentFlockId ? FLOCKS[currentFlockId] : null;
+  var key = resolveFlockKey(currentFlockId);
+  return key ? FLOCKS[key] : null;
 }
 
 function switchToFlock(flockId) {
-  currentFlockId = flockId;
-  var flock = FLOCKS[flockId];
-  if (!flock) return;
+  var resolvedKey = resolveFlockKey(flockId);
+  if (!resolvedKey || !FLOCKS[resolvedKey]) {
+    console.warn('[Kinverly] Could not switch flock. Unknown flock id/key:', flockId);
+    toast('Could not open that flock yet');
+    return false;
+  }
+  currentFlockId = resolvedKey;
+  var flock = FLOCKS[resolvedKey];
   normalizeKinverlySchema(flock);
 
   var nameEl = document.getElementById('topbar-flock-name');
@@ -7431,6 +7456,7 @@ function switchToFlock(flockId) {
   renderFlockPage();
   renderProfile();
   toast((flock.emoji || '👥') + ' ' + flock.name);
+  return true;
 }
 
 function createFlock(name, emoji) {
@@ -7839,7 +7865,7 @@ function renderFlockJoined(flock) {
 function showFlockSheet() {
   var body = document.getElementById('flock-sheet-body');
   body.innerHTML = '';
-  var list = Object.values(FLOCKS);
+  var list = Object.keys(FLOCKS || {}).map(function(key){ return { key:key, flock:FLOCKS[key] }; }).filter(function(x){ return !!x.flock; });
 
   if (list.length === 0) {
     var em = document.createElement('div');
@@ -7847,11 +7873,13 @@ function showFlockSheet() {
     em.textContent = 'You haven\'t joined any flocks yet.';
     body.appendChild(em);
   } else {
-    list.forEach(function(flock) {
+    list.forEach(function(entry) {
+      var flockKey = entry.key;
+      var flock = entry.flock;
       var item = document.createElement('div');
-      item.className = 'flock-list-item' + (flock.id === currentFlockId ? ' active' : '');
+      item.className = 'flock-list-item' + (flockKey === currentFlockId ? ' active' : '');
       var mc = flock.memberIds ? flock.memberIds.length : 1;
-      var isActive = flock.id === currentFlockId;
+      var isActive = flockKey === currentFlockId;
       item.innerHTML =
         '<div class="flock-list-icon">'+flock.emoji+'</div>'+
         '<div style="flex:1;min-width:0">'+
@@ -7896,7 +7924,7 @@ function showFlockSheet() {
 
       item.addEventListener('click', function() {
         document.getElementById('flock-sheet-overlay').classList.add('hidden');
-        if (!isActive) switchToFlock(flock.id);
+        if (!isActive) switchToFlock(flockKey);
       });
       body.appendChild(item);
 
