@@ -5166,14 +5166,7 @@ function buildStandardDetail(g) {
     '<div class="detail-stats">' + statsHtml + '</div>' +
   '</div>' +
 
-  buildDecisionCard(g) +
-
-  (g.status === 'completed' ? '' : rsvpBannerHtml) +
-
-  (g.status === 'completed' ? '' :
-    '<button class="rsvp-big-btn" id="rsvp-btn">' +
-      (iHaveRsvpd ? '\u270f\ufe0f Change my RSVP' : '\ud83c\udf89 RSVP to this gathering') +
-    '</button>') +
+  buildQuietGatheringCard(g) +
 
   '<div class="section-title" style="margin-top:4px">Who\'s coming</div>' +
   '<div class="card"><div>' + rsvpRows + '</div></div>' +
@@ -5238,7 +5231,7 @@ function buildBeachDetail(g) {
     '</div>'+
     (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
   '</div>'+
-  buildDecisionCard(g)+
+  buildQuietGatheringCard(g)+
   '<div class="collab-box">'+
     '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
     '<div><div class="collab-title">Review your availability</div><div class="collab-sub">My Calendar checks your unavailable dates first. Confirm them here for this gathering.</div></div>'+
@@ -12147,6 +12140,302 @@ try {
 .kin-notif-body-text strong{font-weight:800}
 .kin-notif-meta{font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
 .kin-notif-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:5px}
+</style>
+
+
+<!-- ═══════════════════════════════════════════════
+   QUIET GATHERING CARD  (Sprint 33)
+   One sentence, one action. The dashboard (heatmap,
+   percentages, alternates) is preserved but tucked
+   behind a "details" drawer. Progressive disclosure.
+═══════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  function resolveG(gid){
+    if (gid && typeof gid === 'object') return gid;
+    var g = (typeof getLiveGathering === 'function') ? getLiveGathering(gid) : null;
+    if (g) return g;
+    var list = (DATA && DATA.gatherings) || [];
+    return list.find(function(x){ return x && (String(x.id) === String(gid)); }) || null;
+  }
+
+  // ── Friendly name lists: "Grandma", "Grandma & Maya", "Grandma + 2 others"
+  function nameList(members){
+    var names = (members || []).map(function(x){
+      var m = x && x.member ? x.member : x;
+      if (!m) return null;
+      return (DATA.me && m.id === DATA.me.id) ? 'You' : (m.name || 'Someone');
+    }).filter(Boolean);
+    if (!names.length) return '';
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return names[0] + ' and ' + names[1];
+    return names[0] + ' and ' + (names.length - 1) + ' others';
+  }
+
+  function iAmOrganizer(g){
+    if (g && DATA.me && g.host === DATA.me.id) return true;
+    if (typeof can === 'function') return !!(can('finalize_gathering') || can('edit_gathering'));
+    return false;
+  }
+  function myRsvpFor(g){
+    return (rsvpData[g.id] && (rsvpData[g.id][DATA.me.id] || rsvpData[g.id][String(DATA.me.id)])) || null;
+  }
+  function iSubmittedAvailability(g){
+    var r = (typeof getRsvpForMemberRecord === 'function') ? getRsvpForMemberRecord(g.id, DATA.me) : myRsvpFor(g);
+    return !!(r && (r.availSubmitted || r.availability_submitted));
+  }
+
+  // ── 1. THE MODEL ─────────────────────────────────────
+  // Reads the gathering's lifecycle state, returns one
+  // plain sentence + the single most useful action.
+  function computeGatheringNextAction(g){
+    var state = (typeof deriveGatheringState === 'function') ? deriveGatheringState(g) : { totalMembers:0, submittedCount:0, pendingAvailabilityMembers:[], pendingReplyMembers:[], confirmedMembers:[], attendingCount:0 };
+    var gid = escapeHtml(String(g.id));
+
+    // ---- COMPLETED ----
+    if (g.status === 'completed'){
+      return {
+        tone: 'gray',
+        pill: 'completed',
+        sentence: 'This one\u2019s in the books. \ud83d\udcf8',
+        actions: [],
+        footer: (state.attendingCount || state.confirmedMembers.length || 0) + ' came along',
+        hideDrawer: true
+      };
+    }
+
+    // ---- LOCKED / CONFIRMED (next or upcoming) ----
+    if (g.status === 'next' || g.status === 'upcoming'){
+      var dates = (typeof getGatheringDateDisplay === 'function') ? getGatheringDateDisplay(g).replace('Confirmed: ', '') : (g.date_label || 'the set dates');
+      var mine = myRsvpFor(g);
+      var collisions = (typeof findCrossFlockCollisions === 'function') ? findCrossFlockCollisions(g) : [];
+      var collisionHtml = '';
+      if (collisions.length){
+        var hit = collisions[0];
+        collisionHtml = 'Heads up \u2014 this overlaps <strong>' + escapeHtml(hit.gathering.name || 'another gathering') +
+          '</strong> in your ' + escapeHtml(hit.flockName) + '.';
+      }
+      if (mine && mine.status === 'yes'){
+        return { tone:'brand', pill: dates, sentence:'You\u2019re in for <strong>' + escapeHtml(dates) + '</strong>. \ud83c\udf89',
+          actions:[{ label:'Change my reply', onclick:"openRSVP('"+gid+"')" }],
+          footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
+      }
+      if (mine && mine.status === 'virtual'){
+        return { tone:'brand', pill: dates, sentence:'You\u2019re joining <strong>' + escapeHtml(dates) + '</strong> virtually. \ud83d\udcbb',
+          actions:[{ label:'Change my reply', onclick:"openRSVP('"+gid+"')" }],
+          footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
+      }
+      if (mine && mine.status === 'no'){
+        return { tone:'gray', pill: dates, sentence:'You\u2019ve said you can\u2019t make <strong>' + escapeHtml(dates) + '</strong>.',
+          actions:[{ label:'Actually, I can come', onclick:"quickRSVP('"+gid+"','yes')", primary:true }],
+          footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
+      }
+      // Not replied yet → the second question.
+      return { tone:'brand', pill: dates, sentence:'It\u2019s set for <strong>' + escapeHtml(dates) + '</strong>. Can you make it?',
+        actions:[
+          { label:'Yes, I\u2019m in', onclick:"quickRSVP('"+gid+"','yes')", primary:true },
+          { label:'Can\u2019t make it', onclick:"quickRSVP('"+gid+"','no')" }
+        ],
+        footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
+    }
+
+    // ---- PLANNING (collecting / ready) ----
+    var total = Math.max(state.totalMembers, 1);
+    var submitted = state.submittedCount || 0;
+    var pending = state.pendingAvailabilityMembers || [];
+
+    // First: have *I* shared my own dates? That's my job before nudging.
+    if (!iSubmittedAvailability(g)){
+      return { tone:'info', pill:'choosing dates',
+        sentence:'When are you free? Share your dates so we can find a weekend that works.',
+        actions:[{ label:'Share when I\u2019m free', onclick:"openAvailModal(resolveQuietG('"+gid+"'))", primary:true }],
+        footer: submitted + ' of ' + total + ' shared \u00b7 see who\u2019s free' };
+    }
+
+    // Everyone in? → ready to decide.
+    if (submitted >= total){
+      var live = (typeof computeLiveWindowSummaries === 'function') ? computeLiveWindowSummaries(g) : [];
+      var best = live.find(function(w){ return w.isRecommended; });
+      if (best && best.score >= 50){
+        if (iAmOrganizer(g)){
+          return { tone:'success', pill:'ready',
+            sentence:'Everyone\u2019s free <strong>' + escapeHtml(best.label) + '</strong>. \ud83c\udf89',
+            actions:[{ label:'Lock these dates', onclick:"lockRecommendedWindow('"+gid+"')", primary:true }],
+            footer: total + ' of ' + total + ' shared \u00b7 see other options' };
+        }
+        return { tone:'success', pill:'ready',
+          sentence:'Looks like <strong>' + escapeHtml(best.label) + '</strong> works for everyone.',
+          actions:[{ label:'Update my dates', onclick:"openAvailModal(resolveQuietG('"+gid+"'))" }],
+          footer:'Waiting for the host to lock it in \u00b7 see options' };
+      }
+      // Everyone shared but no clean window.
+      return { tone:'amber', pill:'tricky',
+        sentence:'No single date works for everyone yet \u2014 take a look at the closest options.',
+        actions:[{ label:'See the options', onclick:"quietOpenPlanning()", primary:true }],
+        footer: total + ' of ' + total + ' shared \u00b7 see details' };
+    }
+
+    // Still waiting on people → nudge.
+    var who = nameList(pending);
+    return { tone:'info', pill:'choosing dates',
+      sentence:'<strong>' + escapeHtml(who) + '</strong> ' + (pending.length === 1 ? 'hasn\u2019t' : 'haven\u2019t') + ' shared when they\u2019re free yet.',
+      actions:[{ label:'Send a friendly nudge', onclick:"nudgeGatheringById('"+gid+"')", primary:true }],
+      footer: submitted + ' of ' + total + ' shared \u00b7 see who\u2019s free' };
+  }
+  window.computeGatheringNextAction = computeGatheringNextAction;
+
+  // ── 2. THE CARD ──────────────────────────────────────
+  function buildQuietGatheringCard(g){
+    if (!g) return '';
+    var m = computeGatheringNextAction(g);
+    var actionsHtml = (m.actions || []).map(function(a){
+      var cls = a.primary ? 'qcard-btn qcard-btn-primary' : 'qcard-btn';
+      return '<button class="' + cls + '" onclick="' + a.onclick + '">' + escapeHtml(a.label) + '</button>';
+    }).join('');
+
+    var collisionHtml = m.collision
+      ? '<div class="qcard-collision">' +
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+          '<span>' + m.collision + '</span>' +
+        '</div>'
+      : '';
+
+    // The dashboard you used to see first now lives in here.
+    var drawerHtml = m.hideDrawer ? '' :
+      '<details class="qcard-details">' +
+        '<summary class="qcard-summary"><span>' + escapeHtml(m.footer || 'See details') + '</span>' +
+          '<svg class="qcard-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+        '</summary>' +
+        '<div class="qcard-drawer">' +
+          (typeof buildDecisionCard === 'function' ? buildDecisionCard(g) : '') +
+          (g.status === 'planning'
+            ? '<button class="qcard-link" onclick="quietOpenPlanning()">Open the full availability view \u2192</button>'
+            : '<button class="qcard-link" onclick="openRSVP(\'' + escapeHtml(String(g.id)) + '\')">See everyone\u2019s replies \u2192</button>') +
+        '</div>' +
+      '</details>';
+
+    return '<div class="qcard qcard-' + (m.tone || 'info') + '">' +
+      '<div class="qcard-pill qcard-pill-' + (m.tone || 'info') + '">' + escapeHtml(m.pill || '') + '</div>' +
+      '<div class="qcard-sentence">' + m.sentence + '</div>' +
+      (actionsHtml ? '<div class="qcard-actions">' + actionsHtml + '</div>' : '') +
+      collisionHtml +
+      drawerHtml +
+    '</div>';
+  }
+  window.buildQuietGatheringCard = buildQuietGatheringCard;
+
+  // ── 3. THE ONE-TAP ACTIONS ───────────────────────────
+  window.resolveQuietG = resolveG;
+
+  function quietOpenPlanning(){
+    var tab = document.querySelector('.gtab[data-tab="planning"]');
+    if (tab) tab.click();
+  }
+  window.quietOpenPlanning = quietOpenPlanning;
+
+  // Nudge everyone who still hasn't shared / replied — and actually
+  // route it through the notification spine, not just a toast.
+  function nudgeGatheringById(gid){
+    var g = resolveG(gid);
+    if (!g) return;
+    var planning = g.status === 'planning';
+    var pending = (typeof getActiveFlockMembers === 'function' ? getActiveFlockMembers() : []).filter(function(mem){
+      var rd = (typeof getRsvpForMemberRecord === 'function') ? getRsvpForMemberRecord(g.id, mem) : (rsvpData[g.id] && rsvpData[g.id][mem.id]);
+      return planning ? !(rd && (rd.availSubmitted || rd.availability_submitted)) : !(rd && rd.status);
+    });
+    if (!pending.length){ toast(planning ? 'Everyone\u2019s shared their dates \u2713' : 'Everyone\u2019s replied \u2713'); return; }
+    pending.forEach(function(mem){
+      if (typeof pushNotification === 'function' && mem.id !== (DATA.me && DATA.me.id)){
+        pushNotification(mem.id, {
+          text: (planning ? 'Quick reminder \u2014 share when you\u2019re free for ' : 'Quick reminder \u2014 RSVP for ') +
+                '<strong>' + escapeHtml(g.name || 'a gathering') + '</strong>.',
+          kind: 'nudge', icon: '\ud83d\udc4b', gid: g.id, tab: 'overview'
+        });
+      }
+    });
+    if (typeof logActivity === 'function') logActivity(DATA.me.id, 'nudged ' + pending.length + ' member' + (pending.length === 1 ? '' : 's') + ' about <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', '\ud83d\udc4b');
+    if (typeof kEmit === 'function') kEmit('gathering.nudged', { gathering: g });
+    toast('\ud83d\udc4b Nudge sent to ' + pending.map(function(mem){ return DATA.me && mem.id === DATA.me.id ? 'you' : mem.name; }).join(', '));
+  }
+  window.nudgeGatheringById = nudgeGatheringById;
+
+  // One tap to confirm/decline attendance — preserves any shared
+  // availability, mirrors how the RSVP modal writes data.
+  function quickRSVP(gid, status){
+    var g = resolveG(gid);
+    if (!g) return;
+    var meId = DATA.me && DATA.me.id;
+    if (!rsvpData[g.id]) rsvpData[g.id] = {};
+    var mine = Object.assign({}, rsvpData[g.id][meId] || rsvpData[g.id][String(meId)] || {});
+    mine.id = meId; mine.member_id = meId;
+    mine.status = status;
+    mine.updated_at = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
+    if (!mine.created_at) mine.created_at = mine.updated_at;
+    rsvpData[g.id][meId] = mine;
+    rsvpData[g.id][String(meId)] = mine;
+
+    // Keep the gathering's attending list in sync (same as the modal).
+    var attending = (g.attending || []).slice();
+    if (status === 'yes' || status === 'virtual'){ if (attending.indexOf(meId) === -1) attending.push(meId); }
+    else { attending = attending.filter(function(id){ return id !== meId; }); }
+    g.attending = attending;
+    if (typeof touchEntity === 'function') touchEntity(g);
+
+    if (typeof logActivity === 'function'){
+      var verb = status === 'yes' ? 'is coming to' : status === 'virtual' ? 'is joining virtually' : 'can\u2019t make';
+      logActivity(meId, verb + ' <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', status === 'yes' ? '\ud83c\udf89' : status === 'virtual' ? '\ud83d\udcbb' : '\ud83d\udc94');
+    }
+    if (typeof recordEvent === 'function') recordEvent('rsvp.updated', 'rsvp', g.id, null, mine, 'RSVP: ' + status, '\ud83c\udf89');
+    if (typeof kEmit === 'function') kEmit('rsvp.updated', { gathering: g, status: status });
+    else { if (typeof saveFlockState === 'function') saveFlockState(); }
+    if (typeof renderDetail === 'function') try { renderDetail(g); } catch(e){}
+    toast(status === 'yes' ? '\ud83c\udf89 You\u2019re in!' : status === 'virtual' ? '\ud83d\udcbb You\u2019re joining virtually' : 'Got it \u2014 you\u2019ll be missed');
+  }
+  window.quickRSVP = quickRSVP;
+
+  // Lock the engine's recommended window in one tap.
+  function lockRecommendedWindow(gid){
+    var g = resolveG(gid);
+    if (!g) return;
+    var live = (typeof computeLiveWindowSummaries === 'function') ? computeLiveWindowSummaries(g) : [];
+    var best = live.find(function(w){ return w.isRecommended; }) || live[0];
+    if (!best || !best.keys || !best.keys.length){ toast('No window to lock yet \u2014 collect a little more availability.'); return; }
+    var startKey = best.keys[0];
+    var endKey = best.keys[best.keys.length - 1];
+    if (!confirm('Lock ' + best.label + ' as the official dates?\nThis confirms the gathering, adds it to everyone\u2019s calendar, and asks the flock if they can make it.')) return;
+    if (typeof lockGatheringDate === 'function') lockGatheringDate(g, startKey, endKey, best.label);
+  }
+  window.lockRecommendedWindow = lockRecommendedWindow;
+
+})();
+</script>
+
+<style>
+.qcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px}
+.qcard-amber{border-color:rgba(200,120,32,.3)}
+.qcard-pill{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:4px 11px;border-radius:20px;margin-bottom:11px}
+.qcard-pill-info{background:var(--blue-bg);color:var(--blue)}
+.qcard-pill-success{background:var(--green-bg);color:var(--green)}
+.qcard-pill-amber{background:var(--amber-bg);color:var(--amber)}
+.qcard-pill-brand{background:var(--brand);color:#fff}
+.qcard-pill-gray{background:#ece9f5;color:var(--text2)}
+.qcard-sentence{font-size:17px;font-weight:700;line-height:1.4;color:var(--text1)}
+.qcard-sentence strong{font-weight:800}
+.qcard-actions{display:flex;gap:9px;margin-top:14px}
+.qcard-btn{flex:1;padding:12px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;transition:transform .08s}
+.qcard-btn:active{transform:scale(.98)}
+.qcard-btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.qcard-collision{display:flex;align-items:flex-start;gap:8px;margin-top:12px;background:var(--amber-bg);color:var(--amber);padding:10px 12px;border-radius:var(--radius);font-size:13px;font-weight:600;line-height:1.45}
+.qcard-collision strong{font-weight:800}
+.qcard-details{margin-top:14px;border-top:1px solid var(--border);padding-top:4px}
+.qcard-summary{display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;padding:9px 2px 5px;font-size:13px;font-weight:700;color:var(--text2)}
+.qcard-summary::-webkit-details-marker{display:none}
+.qcard-chev{transition:transform .2s;color:var(--text3);flex-shrink:0}
+.qcard-details[open] .qcard-chev{transform:rotate(180deg)}
+.qcard-drawer{padding-top:8px;animation:fadeUp .18s ease}
+.qcard-link{width:100%;margin-top:4px;padding:11px;border:none;background:none;color:var(--brand);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;text-align:center}
 </style>
 
 
