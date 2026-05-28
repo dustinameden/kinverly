@@ -4822,6 +4822,303 @@ function saveMemberChange(memberId, changes) {
   pushToFirebase();
 }
 
+
+// ── Admin exports ──────────────────────────────
+function markLastSyncedAt(ts) {
+  window._lastSyncedAt = ts || Date.now();
+  try { localStorage.setItem('kinverly_last_synced_at', String(window._lastSyncedAt)); } catch(e) {}
+}
+
+function getLastSyncedAt() {
+  if (window._lastSyncedAt) return window._lastSyncedAt;
+  try {
+    var raw = localStorage.getItem('kinverly_last_synced_at');
+    if (raw) return parseInt(raw, 10) || null;
+  } catch(e) {}
+  return null;
+}
+
+function formatExportDate(ts) {
+  if (!ts) return 'Not synced this session';
+  try {
+    return new Date(ts).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+  } catch(e) {
+    return 'Unknown';
+  }
+}
+
+function safeExportText(v) {
+  if (v === null || typeof v === 'undefined') return '';
+  return String(v).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+}
+
+function sanitizeFilenamePart(v) {
+  return safeExportText(v || 'kinverly').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'kinverly';
+}
+
+function csvEscape(v) {
+  var s = safeExportText(v);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function buildCsv(rows, columns) {
+  var header = columns.map(function(c){ return csvEscape(c.label || c.key); }).join(',');
+  var body = rows.map(function(row){
+    return columns.map(function(c){
+      var val = typeof c.value === 'function' ? c.value(row) : row[c.key];
+      return csvEscape(val);
+    }).join(',');
+  }).join('\n');
+  return header + (body ? '\n' + body : '');
+}
+
+function downloadTextFile(filename, content, mimeType) {
+  var blob = new Blob([content], {type: mimeType || 'text/plain;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){
+    URL.revokeObjectURL(url);
+    if (a && a.parentNode) a.parentNode.removeChild(a);
+  }, 0);
+}
+
+function getAllFlockMembersForExport() {
+  var flock = FLOCKS[currentFlockId] || {};
+  var map = {};
+  if (flock.members) {
+    Object.keys(flock.members).forEach(function(id){ if (flock.members[id]) map[id] = flock.members[id]; });
+  }
+  if (DATA.me && DATA.me.id) map[DATA.me.id] = Object.assign({}, map[DATA.me.id] || {}, DATA.me);
+  (DATA.members || []).forEach(function(m){ if (m && m.id) map[m.id] = Object.assign({}, map[m.id] || {}, m); });
+  return Object.values(map);
+}
+
+function getMemberNameForExport(memberId) {
+  var m = getMember(memberId) || (FLOCKS[currentFlockId] && FLOCKS[currentFlockId].members && FLOCKS[currentFlockId].members[memberId]);
+  return m ? m.name : (memberId || '');
+}
+
+function normalizeGatheringForExport(g) {
+  var rsvps = (rsvpData && rsvpData[g.id]) || {};
+  var recommendation = null;
+  try {
+    if (typeof computeGatheringRecommendation === 'function') recommendation = computeGatheringRecommendation(g);
+  } catch(e) {}
+
+  return {
+    id: g.id || '',
+    title: g.name || g.title || '',
+    status: g.status || '',
+    type: g.type || '',
+    location: g.location || '',
+    month: g.month || '',
+    day: g.day || '',
+    date: g.date || g.startDate || '',
+    endDate: g.endDate || '',
+    details: g.details || g.description || g.notesText || '',
+    host: g.host || '',
+    hostName: getMemberNameForExport(g.host),
+    attendingIds: g.attending || [],
+    attendingNames: (g.attending || []).map(getMemberNameForExport),
+    tasks: (g.tasks || []).map(function(t){
+      return Object.assign({}, t, {
+        ownerName: getMemberNameForExport(t.owner || t.assignedTo || '')
+      });
+    }),
+    rsvps: Object.keys(rsvps).map(function(memberId){
+      return Object.assign({
+        memberId: memberId,
+        memberName: getMemberNameForExport(memberId)
+      }, rsvps[memberId] || {});
+    }),
+    chat: (g.chat || []).map(function(c){
+      return Object.assign({}, c, { memberName: getMemberNameForExport(c.member || c.memberId || c.userId || '') });
+    }),
+    photos: (g.photos || []).map(function(ph){
+      return {
+        id: ph.id || '',
+        uploader: ph.uploader || ph.member || '',
+        uploaderName: getMemberNameForExport(ph.uploader || ph.member || ''),
+        caption: ph.caption || '',
+        ts: ph.ts || ph.createdAt || '',
+        hasImageData: !!ph.dataUrl
+      };
+    }),
+    recommendation: recommendation
+  };
+}
+
+function buildExportPayload(scope, gatheringId) {
+  var flock = FLOCKS[currentFlockId] || {};
+  var gatherings = (DATA.gatherings || []).slice();
+  if (scope === 'one' && gatheringId) gatherings = gatherings.filter(function(g){ return g.id === gatheringId; });
+
+  return {
+    exportedAt: new Date().toISOString(),
+    lastSyncedAt: getLastSyncedAt() ? new Date(getLastSyncedAt()).toISOString() : null,
+    scope: scope || 'all',
+    flock: {
+      id: flock.id || currentFlockId || '',
+      name: flock.name || '',
+      emoji: flock.emoji || '',
+      inviteCode: flock.inviteCode || '',
+      createdBy: flock.createdBy || ''
+    },
+    members: getAllFlockMembersForExport().map(function(m){
+      return {
+        id: m.id || '',
+        name: m.name || '',
+        animal: m.animal || '',
+        location: m.location || '',
+        role: m.role || 'member',
+        stats: m.stats || {},
+        prefs: m.prefs || {}
+      };
+    }),
+    gatherings: gatherings.map(normalizeGatheringForExport),
+    activity: (DATA.activity || []).map(function(a){
+      return {
+        memberId: a.member || '',
+        memberName: getMemberNameForExport(a.member || ''),
+        text: safeExportText(a.text || ''),
+        icon: a.icon || '',
+        time: a.time || '',
+        ts: a.ts || ''
+      };
+    })
+  };
+}
+
+function buildGatheringSummaryRows(payload) {
+  var rows = [];
+  (payload.gatherings || []).forEach(function(g){
+    var rsvpByMember = {};
+    (g.rsvps || []).forEach(function(r){ rsvpByMember[r.memberId] = r; });
+    (payload.members || []).forEach(function(m){
+      var r = rsvpByMember[m.id] || {};
+      var assigned = (g.tasks || []).filter(function(t){ return (t.owner || t.assignedTo) === m.id; });
+      var completed = assigned.filter(function(t){ return !!t.done; });
+      var messages = (g.chat || []).filter(function(c){ return (c.member || c.memberId || c.userId) === m.id; }).length;
+      rows.push({
+        flock_id: payload.flock.id,
+        flock_name: payload.flock.name,
+        gathering_id: g.id,
+        gathering_title: g.title,
+        gathering_status: g.status,
+        gathering_date: g.date || ((g.month || '') + ' ' + (g.day || '')).trim(),
+        gathering_location: g.location,
+        member_id: m.id,
+        member_name: m.name,
+        member_role: m.role,
+        rsvp_status: r.status || '',
+        guests: r.guests || 0,
+        availability_submitted: r.availSubmitted ? 'yes' : 'no',
+        arrive_date: r.arriveDate || '',
+        depart_date: r.departDate || '',
+        tasks_assigned: assigned.length,
+        tasks_completed: completed.length,
+        messages_sent: messages,
+        is_host: g.host === m.id ? 'yes' : 'no',
+        recommendation_score: g.recommendation && typeof g.recommendation.score !== 'undefined' ? g.recommendation.score : ''
+      });
+    });
+  });
+  return rows;
+}
+
+function exportGatheringsJson(scope, gatheringId) {
+  var payload = buildExportPayload(scope || 'all', gatheringId || null);
+  var nameBase = sanitizeFilenamePart(payload.flock.name || 'kinverly');
+  var suffix = scope === 'one' && payload.gatherings[0] ? '-' + sanitizeFilenamePart(payload.gatherings[0].title) : '-all-gatherings';
+  downloadTextFile(nameBase + suffix + '.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+  logActivity(DATA.me.id, 'exported ' + (scope === 'one' ? 'a gathering' : 'all gatherings') + ' as JSON', '📦');
+  saveFlockState();
+  toast('JSON export downloaded');
+}
+
+function exportGatheringsCsv(scope, gatheringId) {
+  var payload = buildExportPayload(scope || 'all', gatheringId || null);
+  var rows = buildGatheringSummaryRows(payload);
+  var columns = [
+    {key:'flock_id', label:'Flock ID'},
+    {key:'flock_name', label:'Flock'},
+    {key:'gathering_id', label:'Gathering ID'},
+    {key:'gathering_title', label:'Gathering'},
+    {key:'gathering_status', label:'Status'},
+    {key:'gathering_date', label:'Date'},
+    {key:'gathering_location', label:'Location'},
+    {key:'member_id', label:'Member ID'},
+    {key:'member_name', label:'Member'},
+    {key:'member_role', label:'Role'},
+    {key:'rsvp_status', label:'RSVP'},
+    {key:'guests', label:'Guests'},
+    {key:'availability_submitted', label:'Availability Submitted'},
+    {key:'arrive_date', label:'Arrive Date'},
+    {key:'depart_date', label:'Depart Date'},
+    {key:'tasks_assigned', label:'Tasks Assigned'},
+    {key:'tasks_completed', label:'Tasks Completed'},
+    {key:'messages_sent', label:'Messages Sent'},
+    {key:'is_host', label:'Hosted'},
+    {key:'recommendation_score', label:'Recommendation Score'}
+  ];
+  var nameBase = sanitizeFilenamePart(payload.flock.name || 'kinverly');
+  var suffix = scope === 'one' && payload.gatherings[0] ? '-' + sanitizeFilenamePart(payload.gatherings[0].title) : '-all-gatherings';
+  downloadTextFile(nameBase + suffix + '.csv', buildCsv(rows, columns), 'text/csv;charset=utf-8');
+  logActivity(DATA.me.id, 'exported ' + (scope === 'one' ? 'a gathering' : 'all gatherings') + ' as CSV', '📊');
+  saveFlockState();
+  toast('CSV export downloaded');
+}
+
+function exportMemberDirectoryCsv() {
+  var payload = buildExportPayload('members', null);
+  var rows = payload.members.map(function(m){
+    return {
+      member_id: m.id,
+      member_name: m.name,
+      role: m.role,
+      animal: m.animal,
+      location: m.location,
+      attended: (m.stats && m.stats.attended) || 0,
+      hosted: (m.stats && m.stats.hosted) || 0,
+      ideas: (m.stats && m.stats.ideas) || 0
+    };
+  });
+  var csv = buildCsv(rows, [
+    {key:'member_id', label:'Member ID'},
+    {key:'member_name', label:'Member'},
+    {key:'role', label:'Role'},
+    {key:'animal', label:'Animal'},
+    {key:'location', label:'Location'},
+    {key:'attended', label:'Gatherings Attended'},
+    {key:'hosted', label:'Gatherings Hosted'},
+    {key:'ideas', label:'Ideas'}
+  ]);
+  downloadTextFile(sanitizeFilenamePart(payload.flock.name || 'kinverly') + '-member-directory.csv', csv, 'text/csv;charset=utf-8');
+  logActivity(DATA.me.id, 'exported the member directory', '👥');
+  saveFlockState();
+  toast('Member directory downloaded');
+}
+
+function exportActivityLogCsv() {
+  var payload = buildExportPayload('activity', null);
+  var csv = buildCsv(payload.activity || [], [
+    {key:'ts', label:'Timestamp'},
+    {key:'time', label:'Relative Time'},
+    {key:'memberName', label:'Member'},
+    {key:'icon', label:'Icon'},
+    {key:'text', label:'Activity'}
+  ]);
+  downloadTextFile(sanitizeFilenamePart(payload.flock.name || 'kinverly') + '-activity-log.csv', csv, 'text/csv;charset=utf-8');
+  logActivity(DATA.me.id, 'exported the activity log', '🧾');
+  saveFlockState();
+  toast('Activity log downloaded');
+}
+
 async function removeMemberFromFlock(memberId) {
   var flock = FLOCKS[currentFlockId];
   if (!flock) return 'Unknown';
@@ -4906,15 +5203,52 @@ function openAdminPanel() {
     '</div>';
   }).join('');
 
+  var currentDetailId = window._currentDetailGathering && window._currentDetailGathering.id ? window._currentDetailGathering.id : '';
+  var lastSyncedLabel = formatExportDate(getLastSyncedAt());
+
   body.innerHTML =
     '<div style="padding:4px 0">'+
-      '<div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5">Manage members, roles, and passwords for <strong>' + escapeHtml(flock.name) + '</strong>.</div>'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Manage members, roles, passwords, and exports for <strong>' + escapeHtml(flock.name) + '</strong>.</div>'+
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:16px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">'+
+          '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Admin exports</div>'+
+          '<div style="font-size:10px;color:var(--text3);font-weight:700">Last synced: ' + escapeHtml(lastSyncedLabel) + '</div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
+          '<button class="admin-export-csv" data-scope="all" style="padding:10px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Export all CSV</button>'+
+          '<button class="admin-export-json" data-scope="all" style="padding:10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Export all JSON</button>'+ 
+          (currentDetailId ? '<button class="admin-export-csv" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">This gathering CSV</button>' : '')+
+          (currentDetailId ? '<button class="admin-export-json" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">This gathering JSON</button>' : '')+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+          '<button class="admin-export-members" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Member directory</button>'+
+          '<button class="admin-export-activity" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Activity log</button>'+
+        '</div>'+ 
+        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">CSV is built for Excel/Tableau. JSON is a fuller backup/debug export.</div>'+ 
+      '</div>'+ 
       '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + allMembers.length + ')</div>'+
       '<div>' + memberRows + '</div>'+
     '</div>';
 
   // Wire all admin panel buttons after a tick to ensure DOM is settled
   setTimeout(function(){
+    body.querySelectorAll('.admin-export-csv').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        exportGatheringsCsv(btn.dataset.scope || 'all', btn.dataset.gid || null);
+      });
+    });
+    body.querySelectorAll('.admin-export-json').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        exportGatheringsJson(btn.dataset.scope || 'all', btn.dataset.gid || null);
+      });
+    });
+    var membersBtn = body.querySelector('.admin-export-members');
+    if (membersBtn) membersBtn.addEventListener('click', function(e){ e.stopPropagation(); exportMemberDirectoryCsv(); });
+    var activityBtn = body.querySelector('.admin-export-activity');
+    if (activityBtn) activityBtn.addEventListener('click', function(e){ e.stopPropagation(); exportActivityLogCsv(); });
+
     // Promote
     body.querySelectorAll('.admin-promote').forEach(function(btn){
       btn.addEventListener('click', function(e){
@@ -5815,6 +6149,7 @@ async function saveFlockToFirebase(flock, creator) {
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
+    markLastSyncedAt(Date.now());
   } catch(e) { console.warn('[Kinverly] Flock save offline:', e.message); }
 }
 
@@ -5854,6 +6189,7 @@ async function syncFlockToFirebase() {
     };
     if (h.serverTimestamp) data.updatedAt = h.serverTimestamp();
     await h.setDoc(h.doc(window.__db, 'flocks', flock.id), data);
+    markLastSyncedAt(Date.now());
   } catch(e) {
     console.warn('[Kinverly] Sync offline:', e.message);
   }
@@ -8405,6 +8741,7 @@ try {
         localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
         localStorage.setItem('kinverly_rsvp', JSON.stringify(rsvpData));
       } catch(e){}
+      markLastSyncedAt(Date.now());
 
       // Update topbar
       var nameEl = document.getElementById('topbar-flock-name');
