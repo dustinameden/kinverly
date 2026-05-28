@@ -2579,6 +2579,7 @@ function normalizeKinverlySchema(flock) {
     if (!Array.isArray(g.expenses)) g.expenses = [];
     if (!Array.isArray(g.attending)) g.attending = [];
     g.flock_id = flock.id;
+    ensureGatheringSharedWithActiveMembers(g, flock, 'schema_normalization');
     reserveMax(meta, 'next_gathering_id', g.gathering_id);
     (g.tasks || []).forEach(function(t){
       ensureAuditFields(t, g.created_at);
@@ -2700,6 +2701,159 @@ function deriveWorldState(memberId) {
   return { member_id: memberId || (DATA.me && DATA.me.id), flocks: flocks, gatherings: gatherings };
 }
 function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
+
+
+// ═══════════════════════════════════════════════
+//  GATHERING ACCESS / SHARE HELPERS
+//  A flock gathering should be visible to every active flock member unless
+//  explicitly removed. These helpers make that relationship explicit so
+//  nudges/shares also repair user access records.
+// ═══════════════════════════════════════════════
+function getActiveMembersForFlockRecord(flock) {
+  if (!flock || !flock.members) return [];
+  return Object.keys(flock.members).map(function(k){ return flock.members[k]; }).filter(function(m){ return isActiveMemberRecord(m); });
+}
+function memberAccessKey(m) {
+  if (!m) return '';
+  return String(m.member_id !== undefined && m.member_id !== null && m.member_id !== '' ? m.member_id : (m.id || m.uid || m.email || ''));
+}
+function gatheringAccessRowId(g, m) {
+  return String(g && (g.gathering_id || g.id || 'g')) + '_' + memberAccessKey(m);
+}
+function ensureGatheringSharedWithActiveMembers(g, flock, source) {
+  if (!g || !flock) return g;
+  ensureAuditFields(g, flock.created_at || nowISO());
+  if (!Array.isArray(g.memberIds)) g.memberIds = [];
+  if (!Array.isArray(g.gathering_member_ids)) g.gathering_member_ids = [];
+  if (!Array.isArray(g.gathering_members)) g.gathering_members = [];
+
+  var activeMembers = getActiveMembersForFlockRecord(flock);
+  var activeKeys = {};
+  activeMembers.forEach(function(m){
+    var accessId = memberAccessKey(m);
+    if (!accessId) return;
+    activeKeys[String(accessId)] = true;
+    if (g.memberIds.map(String).indexOf(String(m.id)) < 0) g.memberIds.push(m.id);
+    if (g.gathering_member_ids.map(String).indexOf(String(accessId)) < 0) g.gathering_member_ids.push(accessId);
+
+    var existing = g.gathering_members.find(function(row){
+      return row && (String(row.member_id) === String(accessId) || String(row.member_key) === String(m.id));
+    });
+    if (!existing) {
+      existing = ensureAuditFields({
+        id: gatheringAccessRowId(g, m),
+        flock_id: flock.id || flock.flock_id || '',
+        flock_key: flock.firestore_id || flock.storage_key || flock.uid || currentFlockId || '',
+        gathering_id: g.gathering_id || g.id,
+        gathering_key: g.id,
+        member_id: typeof m.member_id === 'number' ? m.member_id : accessId,
+        member_key: m.id,
+        member_name: m.name || '',
+        role: m.role || 'member',
+        status: 'shared',
+        source: source || 'flock_default',
+        deleted_at: null
+      }, g.created_at);
+      g.gathering_members.push(existing);
+    } else {
+      existing.member_id = typeof m.member_id === 'number' ? m.member_id : accessId;
+      existing.member_key = m.id;
+      existing.member_name = m.name || existing.member_name || '';
+      existing.role = m.role || existing.role || 'member';
+      existing.status = existing.status === 'removed' ? 'shared' : (existing.status || 'shared');
+      existing.deleted_at = null;
+      existing.updated_at = nowISO();
+    }
+  });
+
+  // Historical rows stay for export, but inactive/removed members cannot be pending/nudged/visible-active.
+  g.gathering_members.forEach(function(row){
+    if (!row) return;
+    var key = String(row.member_id !== undefined && row.member_id !== null ? row.member_id : row.member_key || '');
+    if (key && !activeKeys[key] && row.status !== 'removed') {
+      row.status = 'removed';
+      row.deleted_at = row.deleted_at || nowISO();
+      row.updated_at = nowISO();
+    }
+  });
+
+  g.memberIds = g.memberIds.filter(function(id){
+    return activeMembers.some(function(m){ return String(m.id) === String(id); });
+  });
+  g.gathering_member_ids = g.gathering_member_ids.filter(function(id){ return !!activeKeys[String(id)]; });
+  g.shared_with_all_active_members = true;
+  g.shared_member_count = activeMembers.length;
+  g.access_updated_at = nowISO();
+  return g;
+}
+async function writeUserGatheringAccessRecords(g, flock, members, reason) {
+  if (!window.__db || !window.__firestoreHelpers) return;
+  var h = window.__firestoreHelpers;
+  if (!h.setDoc || !h.doc) return;
+  var docId = getFlockFirestoreDocId(currentFlockId, flock);
+  var stamp = nowISO();
+  await Promise.all((members || []).map(function(m){
+    if (!m || !m.id || !isActiveMemberRecord(m)) return Promise.resolve();
+    var patch = { id:m.id, name:m.name || '', updated_at:stamp, flocks:{}, gatherings:{} };
+    patch.flocks[docId] = {
+      flock_key: docId,
+      flock_id: typeof flock.id === 'number' ? flock.id : '',
+      member_id: typeof m.member_id === 'number' ? m.member_id : '',
+      status: 'active',
+      role: m.role || 'member',
+      updated_at: stamp
+    };
+    patch.gatherings[String(g.id)] = {
+      flock_key: docId,
+      flock_id: typeof flock.id === 'number' ? flock.id : '',
+      gathering_key: g.id,
+      gathering_id: typeof g.gathering_id === 'number' ? g.gathering_id : '',
+      status: 'shared',
+      shared_reason: reason || 'shared_with_flock',
+      updated_at: stamp,
+      deleted_at: null
+    };
+    return h.setDoc(h.doc(window.__db, 'users', m.id), patch, { merge:true });
+  }));
+}
+async function shareGatheringWithActiveFlockMembers(gatheringId, reason) {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  if (!flock) return false;
+  normalizeKinverlySchema(flock);
+  var g = (flock.gatherings || DATA.gatherings || []).find(function(x){ return x && String(x.id) === String(gatheringId); });
+  if (!g) return false;
+  ensureGatheringSharedWithActiveMembers(g, flock, reason || 'manual_share');
+  touchEntity(g);
+  var activeMembers = getActiveMembersForFlockRecord(flock);
+  try { await writeUserGatheringAccessRecords(g, flock, activeMembers, reason || 'manual_share'); } catch(e) { console.warn('[Kinverly] user gathering access write failed:', e && e.message); }
+
+  // Patch the canonical flock document immediately so all users listening to the flock get the same gathering.
+  if (window.__db && window.__firestoreHelpers && window.__firestoreHelpers.setDoc && window.__firestoreHelpers.doc) {
+    var h = window.__firestoreHelpers;
+    var docId = getFlockFirestoreDocId(currentFlockId, flock);
+    var remote = null;
+    if (h.getDoc) {
+      try { var snap = await h.getDoc(h.doc(window.__db, 'flocks', docId)); if (snap && snap.exists && snap.exists()) remote = snap.data() || null; } catch(_e) {}
+    }
+    var baseGatherings = remote && Array.isArray(remote.gatherings) ? remote.gatherings.slice() : (flock.gatherings || []).slice();
+    var found = false;
+    baseGatherings = baseGatherings.map(function(x){ if (x && String(x.id) === String(g.id)) { found = true; return sanitizeGatheringForFirestore(g); } return x; });
+    if (!found) baseGatherings.unshift(sanitizeGatheringForFirestore(g));
+    await h.setDoc(h.doc(window.__db, 'flocks', docId), {
+      gatherings: baseGatherings,
+      memberIds: (flock.memberIds || []).filter(function(id){ return flock.members && isActiveMemberRecord(flock.members[id]); }),
+      updated_at: nowISO(),
+      updatedAt: h.serverTimestamp ? h.serverTimestamp() : undefined
+    }, { merge:true });
+    flock.gatherings = baseGatherings;
+  } else {
+    saveFlockState();
+  }
+  saveLocal();
+  return true;
+}
+window.ensureGatheringSharedWithActiveMembers = ensureGatheringSharedWithActiveMembers;
+window.shareGatheringWithActiveFlockMembers = shareGatheringWithActiveFlockMembers;
 function activeOnly(arr) { return (arr || []).filter(function(x){ return x && !x.deleted_at; }); }
 
 
@@ -9444,8 +9598,9 @@ function openCreateGathering() {
       type:typeMap[wiz.type]||'planned', beachMode:wiz.type==='weekend',
       status:wiz.month?'upcoming':'planning', theme:wiz.theme||'',
       themePill:'pill-amber', progress:0, hybrid:false, virtual:false,
-      attending:[], tasks:[], chat:[], notes:[], polls:[], bringList:[], expenses:[], photos:[], _createdAt:Date.now()
+      attending:[], tasks:[], chat:[], notes:[], polls:[], bringList:[], expenses:[], photos:[], memberIds:[], gathering_member_ids:[], gathering_members:[], _createdAt:Date.now()
     };
+    if (currentFlockId && FLOCKS[currentFlockId]) ensureGatheringSharedWithActiveMembers(newG, FLOCKS[currentFlockId], 'create_gathering');
     if (wiz.firstNote.trim()) newG.notes.push({id:'note_'+Date.now().toString(36),text:wiz.firstNote.trim(),author:DATA.me.id,authorName:DATA.me.name,pinned:true,ts:Date.now()});
     wiz.bringStarters.forEach(function(item){ newG.bringList.push({id:'bring_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:item.name,emoji:item.emoji,claimedBy:null,claimedName:null,addedBy:DATA.me.id}); });
     DATA.gatherings.unshift(newG);
@@ -11955,11 +12110,14 @@ try {
       bringList:[],
       expenses: [],
       photos:   [],
+      memberIds: [], gathering_member_ids: [], gathering_members: [],
       _createdAt: Date.now(),
       created_at: createdAt,
       updated_at: createdAt,
       deleted_at: null
     }, createdAt);
+
+    ensureGatheringSharedWithActiveMembers(newG, flockForGathering, 'create_gathering');
 
     // Add to DATA
     if (!DATA.gatherings) DATA.gatherings = [];
@@ -13188,9 +13346,15 @@ try {
 
   // Nudge everyone who still hasn't shared / replied — and actually
   // route it through the notification spine, not just a toast.
-  function nudgeGatheringById(gid){
+  async function nudgeGatheringById(gid){
     var g = resolveG(gid);
     if (!g) return;
+    try {
+      if (typeof shareGatheringWithActiveFlockMembers === 'function') {
+        await shareGatheringWithActiveFlockMembers(g.id, 'nudge_repair');
+        g = resolveG(gid) || g;
+      }
+    } catch(_shareErr) { console.warn('[Kinverly] gathering access repair failed before nudge:', _shareErr && _shareErr.message); }
     var planning = g.status === 'planning';
     var pending = (typeof getActiveFlockMembers === 'function' ? getActiveFlockMembers() : []).filter(function(mem){
       var rd = (typeof getRsvpForMemberRecord === 'function') ? getRsvpForMemberRecord(g.id, mem) : (rsvpData[g.id] && rsvpData[g.id][mem.id]);
