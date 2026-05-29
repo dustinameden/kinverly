@@ -2193,10 +2193,10 @@ img,svg{display:block}
     <!-- AVAILABILITY -->
     <div class="page" id="page-availability">
       <div class="myworld-hero">
-        <div class="myworld-title">My Availability</div>
-        <div class="myworld-sub">Your unavailable time, pending availability requests, and RSVP needs across every flock.</div>
+        <div class="myworld-title">Availability</div>
+        <div class="myworld-sub">Manage conflicts, respond to gathering requests, and keep your family informed.</div>
       </div>
-      <div id="availability-content"></div>
+      <div id="availability-content"><div class="xflock-empty">Loading availability…</div></div>
     </div>
 
     <!-- GATHERINGS -->
@@ -2210,7 +2210,7 @@ img,svg{display:block}
       <div id="gatherings-subtitle" style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:8px"></div>
       <div class="mode-row" id="gatherings-filter">
         <button class="mode-btn active" data-filter="active">Active</button>
-        <button class="mode-btn" data-filter="completed">Completed</button>
+        <button class="mode-btn" data-filter="completed">Memories</button>
         <button class="mode-btn" data-filter="all">All</button>
       </div>
       <!-- Flock Schedule Summary -->
@@ -4793,59 +4793,144 @@ function getAvailabilityParticipationSummary() {
   return summary;
 }
 
+function getAvailabilityPattern() {
+  try {
+    var fid = currentFlockId && FLOCKS[currentFlockId] ? currentFlockId : getMyFlockKeys()[0];
+    var flock = fid ? FLOCKS[fid] : null;
+    ensureFlockMeta(flock);
+    if (!flock.member_preferences) flock.member_preferences = {};
+    var key = DATA.me && DATA.me.id ? DATA.me.id : 'me';
+    if (!flock.member_preferences[key]) flock.member_preferences[key] = {};
+    return flock.member_preferences[key].availability_pattern || 'flexible';
+  } catch(err) { return 'flexible'; }
+}
+function setAvailabilityPattern(pattern) {
+  try {
+    getMyFlockKeys().forEach(function(fid){
+      var flock = FLOCKS[fid];
+      ensureFlockMeta(flock);
+      if (!flock.member_preferences) flock.member_preferences = {};
+      var key = DATA.me && DATA.me.id ? DATA.me.id : 'me';
+      if (!flock.member_preferences[key]) flock.member_preferences[key] = {};
+      flock.member_preferences[key].availability_pattern = pattern;
+      flock.member_preferences[key].updated_at = nowISO();
+    });
+    saveFlockState();
+  } catch(err) { console.warn('[Kinverly] could not save availability pattern', err); }
+}
+function renderAvailabilityFallback(message) {
+  return '<div class="decision-card">' +
+    '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Manage conflicts, respond to gathering requests, and keep your family informed.</div></div></div>' +
+    (message ? '<div class="avail-review-note">' + escapeHtml(message) + '</div>' : '') +
+    '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
+    '<div class="chip-group" id="availability-pattern-chips">' +
+      '<button class="chip selected" data-pattern="flexible">Mostly flexible</button>' +
+      '<button class="chip" data-pattern="weekends">Weekends best</button>' +
+      '<button class="chip" data-pattern="evenings">Weekday evenings</button>' +
+      '<button class="chip" data-pattern="rarely">Rarely available</button>' +
+    '</div>' +
+  '</div>' +
+  '<div class="section-title">Known conflicts</div>' +
+  '<div class="xflock-empty">No known conflicts yet. Add travel, work blocks, busy weekends, or personal conflicts here.</div>' +
+  '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add conflict</button>' +
+  '<div class="section-title">Needs your response</div>' +
+  '<div class="xflock-empty">No availability or RSVP requests right now.</div>' +
+  '<div class="section-title">Upcoming commitments</div>' +
+  '<div class="xflock-empty">Gatherings you RSVP to will appear here.</div>' +
+  '<div class="section-title">Family scheduler insights</div>' +
+  '<div class="xflock-empty">Kinverly will surface conflicts and deciding-vote reminders here.</div>';
+}
 function renderAvailability() {
   var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
   if (!el) return;
-  var myFlocks = getMyFlockKeys();
-  if (!myFlocks.length) {
-    el.innerHTML = '<div class="xflock-empty">Join or create a flock to manage your availability.</div>';
-    return;
-  }
+  try {
+    var myFlocks = getMyFlockKeys();
+    if (!myFlocks.length) {
+      el.innerHTML = renderAvailabilityFallback('Join or create a flock to manage your availability.');
+      bindAvailabilityPageEvents(el);
+      return;
+    }
 
-  var unavailable = getUpcomingUnavailableEvents(12);
-  var unavailableHtml = unavailable.length ? unavailable.map(function(ev){
-    return '<div class="xflock-card availability-edit-card" data-fid="' + escapeHtml(ev.fid || '') + '" data-event-id="' + escapeHtml(ev.id || ev.calendar_event_id || '') + '">' +
-      '<div class="xflock-top"><div class="xflock-icon">🚫</div><div class="xflock-body">' +
-      '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable') + '</div>' +
-      '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
-      '<div class="xflock-link">Tap to edit or delete →</div>' +
-      '</div></div></div>';
-  }).join('') : '<div class="xflock-empty">No known conflicts yet. Add travel, work blocks, busy weekends, or personal conflicts here.</div>';
+    var pattern = getAvailabilityPattern();
+    var unavailable = getUpcomingUnavailableEvents(12);
+    var unavailableHtml = unavailable.length ? unavailable.map(function(ev){
+      return '<div class="xflock-card availability-edit-card" data-fid="' + escapeHtml(ev.fid || '') + '" data-event-id="' + escapeHtml(ev.id || ev.calendar_event_id || '') + '">' +
+        '<div class="xflock-top"><div class="xflock-icon">🚫</div><div class="xflock-body">' +
+        '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable') + '</div>' +
+        '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
+        '<div class="xflock-link">Tap to edit or delete →</div>' +
+        '</div></div></div>';
+    }).join('') : '<div class="xflock-empty">No known conflicts yet. Add travel, work blocks, busy weekends, or personal conflicts here.</div>';
 
-  var requests = getAvailabilityRequests();
-  var requestsHtml = requests.length ? requests.map(function(t){
-    return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(t.fid) + '" data-gid="' + escapeHtml(t.gid) + '" data-tab="overview">' +
-      '<div class="xflock-top"><div class="xflock-icon">' + (t.action === 'Availability' ? '📅' : '🎉') + '</div><div class="xflock-body">' +
-      '<div class="xflock-title">' + escapeHtml(t.gathering || t.text || 'Gathering') + '</div>' +
-      '<div class="xflock-meta">' + escapeHtml(t.sub) + ' · ' + escapeHtml(t.flock || 'Flock') + '</div>' +
-      '<div class="xflock-link">' + escapeHtml(t.label) + ' →</div>' +
-      '</div></div></div>';
-  }).join('') : '<div class="xflock-empty">No availability or RSVP requests right now.</div>';
+    var requests = [];
+    try { requests = getAvailabilityRequests(); } catch(reqErr) { console.warn('[Kinverly] availability requests failed', reqErr); }
+    var requestsHtml = requests.length ? requests.map(function(t){
+      return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(t.fid || '') + '" data-gid="' + escapeHtml(t.gid || '') + '" data-tab="overview">' +
+        '<div class="xflock-top"><div class="xflock-icon">' + (t.action === 'Availability' ? '📅' : '🎉') + '</div><div class="xflock-body">' +
+        '<div class="xflock-title">' + escapeHtml(t.gathering || t.text || 'Gathering') + '</div>' +
+        '<div class="xflock-meta">' + escapeHtml(t.sub || 'Waiting for your response') + ' · ' + escapeHtml(t.flock || 'Flock') + '</div>' +
+        '<div class="xflock-link">' + escapeHtml(t.label || 'Respond') + ' →</div>' +
+        '</div></div></div>';
+    }).join('') : '<div class="xflock-empty">No availability or RSVP requests right now.</div>';
 
-  var s = getAvailabilityParticipationSummary();
-  var statsHtml = '<div class="decision-score-row" style="grid-template-columns:repeat(4,1fr);margin-top:0">' +
-    '<div class="decision-score"><div class="decision-score-n">' + s.upcoming + '</div><div class="decision-score-l">upcoming</div></div>' +
-    '<div class="decision-score"><div class="decision-score-n">' + s.availabilitySubmitted + '</div><div class="decision-score-l">answered</div></div>' +
-    '<div class="decision-score"><div class="decision-score-n">' + s.rsvpPending + '</div><div class="decision-score-l">RSVP due</div></div>' +
-    '<div class="decision-score"><div class="decision-score-n">' + s.conflicts + '</div><div class="decision-score-l">conflicts</div></div>' +
-    '</div>';
+    var commitments = [];
+    getMyFlockKeys().forEach(function(fid){
+      var flock = FLOCKS[fid];
+      ((flock && flock.gatherings) || []).forEach(function(g){
+        if (!g || g.deleted_at || g.archived_at || g.status === 'completed') return;
+        var bucket = (rsvpData && rsvpData[g.id]) || {};
+        var mine = bucket[DATA.me && DATA.me.id] || null;
+        if (mine && (mine.status === 'yes' || mine.status === 'confirmed' || mine.status === 'virtual')) {
+          commitments.push({ fid:fid, gid:g.id, flock:flock.name || 'Flock', name:g.name || 'Gathering', date:g.date_label || g.date || g.start_date || '', status:mine.status });
+        }
+      });
+    });
+    var commitmentsHtml = commitments.length ? commitments.slice(0,6).map(function(c){
+      return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(c.fid) + '" data-gid="' + escapeHtml(c.gid) + '" data-tab="overview">' +
+        '<div class="xflock-top"><div class="xflock-icon">✅</div><div class="xflock-body">' +
+        '<div class="xflock-title">' + escapeHtml(c.name) + '</div>' +
+        '<div class="xflock-meta">' + escapeHtml(c.date || 'Upcoming') + ' · ' + escapeHtml(c.flock) + '</div>' +
+        '<div class="xflock-link">View gathering →</div>' +
+        '</div></div></div>';
+    }).join('') : '<div class="xflock-empty">Gatherings you RSVP to will appear here.</div>';
 
-  el.innerHTML =
-    '<div class="decision-card">' +
-      '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Keep this simple: set your general pattern, then add the dates you definitely cannot make. Kinverly uses conflicts to help recommend gathering dates.</div></div></div>' +
-      '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
-      '<div class="chip-group" id="availability-pattern-chips">' +
-        '<button class="chip selected" data-pattern="flexible">Mostly flexible</button>' +
-        '<button class="chip" data-pattern="weekends">Weekends best</button>' +
-        '<button class="chip" data-pattern="evenings">Weekday evenings</button>' +
-        '<button class="chip" data-pattern="rarely">Rarely available</button>' +
+    var s = getAvailabilityParticipationSummary();
+    var insight = s.conflicts ? 'You have ' + s.conflicts + ' known conflict' + (s.conflicts === 1 ? '' : 's') + ' saved. Kinverly will use these when recommending dates.' : 'No conflicts yet. Add only the dates you definitely cannot make.';
+    var statsHtml = '<div class="decision-score-row" style="grid-template-columns:repeat(4,1fr);margin-top:0">' +
+      '<div class="decision-score"><div class="decision-score-n">' + s.upcoming + '</div><div class="decision-score-l">upcoming</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + s.availabilitySubmitted + '</div><div class="decision-score-l">answered</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + s.rsvpPending + '</div><div class="decision-score-l">RSVP due</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + s.conflicts + '</div><div class="decision-score-l">conflicts</div></div>' +
+      '</div>';
+
+    el.innerHTML =
+      '<div class="decision-card">' +
+        '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Manage conflicts, respond to gathering requests, and keep your family informed.</div></div></div>' +
+        '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
+        '<div class="chip-group" id="availability-pattern-chips">' +
+          '<button class="chip ' + (pattern === 'flexible' ? 'selected' : '') + '" data-pattern="flexible">Mostly flexible</button>' +
+          '<button class="chip ' + (pattern === 'weekends' ? 'selected' : '') + '" data-pattern="weekends">Weekends best</button>' +
+          '<button class="chip ' + (pattern === 'evenings' ? 'selected' : '') + '" data-pattern="evenings">Weekday evenings</button>' +
+          '<button class="chip ' + (pattern === 'rarely' ? 'selected' : '') + '" data-pattern="rarely">Rarely available</button>' +
+        '</div>' +
       '</div>' +
-    '</div>' +
-    '<div class="section-title">Known conflicts</div>' + unavailableHtml +
-    '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add conflict</button>' +
-    '<div class="section-title">Needs your response</div>' + requestsHtml +
-    '<div class="section-title">Quick summary</div>' + statsHtml;
+      '<div class="section-title">Known conflicts</div>' + unavailableHtml +
+      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add conflict</button>' +
+      '<div class="section-title">Needs your response</div>' + requestsHtml +
+      '<div class="section-title">Upcoming commitments</div>' + commitmentsHtml +
+      '<div class="section-title">Family scheduler insights</div>' +
+      '<div class="avail-review-card"><div class="avail-review-title">' + escapeHtml(insight) + '</div><div class="avail-review-sub" style="margin-bottom:0">This page is a simple dashboard, not a calendar. Add conflicts only when they matter for family planning.</div></div>' +
+      '<div class="section-title">Quick summary</div>' + statsHtml;
 
+    bindAvailabilityPageEvents(el);
+  } catch(err) {
+    console.error('[Kinverly] renderAvailability failed', err);
+    el.innerHTML = renderAvailabilityFallback('Availability had trouble loading, so Kinverly is showing the safe view.');
+    bindAvailabilityPageEvents(el);
+  }
+}
+function bindAvailabilityPageEvents(el) {
+  if (!el) return;
   var addBtn = el.querySelector('#availability-add-unavailable');
   if (addBtn) addBtn.addEventListener('click', function(){
     openAvailabilityConflictSheet({ mode: 'add', date: isoDateKey(new Date()) });
@@ -4862,6 +4947,7 @@ function renderAvailability() {
     btn.addEventListener('click', function(){
       el.querySelectorAll('#availability-pattern-chips .chip').forEach(function(x){ x.classList.remove('selected'); });
       btn.classList.add('selected');
+      setAvailabilityPattern(btn.dataset.pattern || 'flexible');
       toast('Availability pattern saved');
     });
   });
@@ -5509,7 +5595,7 @@ function renderGatherings() {
       subEl.style.display = '';
       subEl.textContent = total + ' gathering' + (total!==1?'s':'') +
         (active ? ' · ' + active + ' active' : '') +
-        (completed ? ' · ' + completed + ' completed' : '');
+        (completed ? ' · ' + completed + ' memories' : '');
     }
   }
 
@@ -5555,7 +5641,7 @@ function renderGatheringsList() {
 
     var pills = '<span class="pill '+g.themePill+'">'+g.theme+'</span>';
     if (g.hybrid) pills += ' <span class="pill pill-blue">Hybrid</span>';
-    if (g.status==='completed') pills += ' <span class="pill pill-gray">Completed</span>';
+    if (g.status==='completed') pills += ' <span class="pill pill-gray">Memory</span>';
     if (g.status==='next') pills += ' <span class="pill pill-green">Next up</span>';
     if (isBonus) pills += ' <span class="pill pill-amber">? Bonus</span>';
     if (g.status==='planning') pills += ' <span class="pill pill-amber">Collecting dates</span>';
@@ -5599,7 +5685,7 @@ function renderGatheringsList() {
 
   if (filtered.length === 0) {
     var emptyMsg = _gatheringsFilter === 'completed'
-      ? { icon:'✅', title:'No completed gatherings', sub:'Once a gathering wraps up, it\'ll appear here with photos and memories.' }
+      ? { icon:'📸', title:'No memories yet', sub:'After a gathering happens, move it here to preserve photos, chat, recap, and planning history.' }
       : { icon:'📅', title:'No gatherings yet', sub:'Create your first gathering and start planning something your whole flock will love.' };
     list.innerHTML =
       '<div style="text-align:center;padding:40px 20px">'+
@@ -6310,8 +6396,8 @@ function getGatheringDateDisplay(g) {
 function getGatheringPhaseLabel(g) {
   if (!g) return 'Gathering';
   if (g.status === 'planning') return 'Choosing Availability';
-  if (g.status === 'completed') return 'Completed';
-  if (g.status === 'archived') return 'Archived';
+  if (g.status === 'completed') return 'Memory';
+  if (g.status === 'archived') return 'Memory';
   return 'Confirmed';
 }
 
@@ -6621,13 +6707,13 @@ function wireDetailButtons(g) {
       var liveG = getLiveGathering(g.id) || g;
       liveG.status = 'completed';
       liveG.themePill = 'pill-gray';
-      logActivity(DATA.me.id, 'marked <strong>' + escapeHtml(liveG.name) + '</strong> as complete ✅', '✅');
+      logActivity(DATA.me.id, 'moved <strong>' + escapeHtml(liveG.name) + '</strong> to Memories 📸', '📸');
       saveFlockState();
       window._currentDetailGathering = liveG;
       renderDetail(liveG);
       renderGatherings();
       renderHome();
-      toast('🎉 ' + liveG.name + ' moved to Memories');
+      toast('📸 ' + liveG.name + ' moved to Memories');
     });
   }
 
@@ -6828,12 +6914,12 @@ function buildCoordinatorSections(g) {
 function buildManageGatheringFooter(g) {
   var canManage = g.host === DATA.me.id || can('finalize_gathering') || can('edit_gathering');
   if (!canManage) return '';
-  if (g.status === 'completed') return '<button class="btn-secondary" id="reopen-gathering-btn" style="margin-top:16px;border-color:var(--brand);color:var(--brand)">↩️ Reopen this gathering</button>';
-  return '<div class="gathering-archive-footer" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)"><button id="complete-gathering-btn" style="width:100%;padding:14px;border-radius:14px;background:var(--green);color:#fff;font-size:15px;font-weight:900;border:none;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">Archive Gathering</button><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px">Moves this gathering to Memories. Photos, chat, and recap remain available.</div></div>';
+  if (g.status === 'completed') return '<button class="btn-secondary" id="reopen-gathering-btn" style="margin-top:16px;border-color:var(--brand);color:var(--brand)">↩️ Move back to Upcoming</button>';
+  return '<div class="gathering-archive-footer" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)"><button id="complete-gathering-btn" style="width:100%;padding:14px;border-radius:14px;background:var(--green);color:#fff;font-size:15px;font-weight:900;border:none;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">Move to Memories</button><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px">Photos, chat, recap, and planning history will be preserved.</div></div>';
 }
 
 function buildGatheringHero(g, state, mode, isBeach) {
-  var eyebrow = mode === 'collecting_availability' ? '✨ Collecting availability' : mode === 'completed' ? '✅ Completed' : '✅ Date selected';
+  var eyebrow = mode === 'collecting_availability' ? '✨ Collecting availability' : mode === 'completed' ? '📸 Memory' : '✅ Date selected';
   var sub = mode === 'collecting_availability'
     ? 'Choosing dates · ' + escapeHtml(g.theme || 'Gathering') + ' · ' + escapeHtml(g.location || 'Location TBD')
     : cleanConfirmedDateLabel(g) + ' · ' + escapeHtml(g.location || 'Location TBD');
@@ -13864,7 +13950,7 @@ try {
           {id:'upcoming',label:'Upcoming',   icon:'📅',desc:'On the calendar'},
           {id:'next',    label:'Next up',    icon:'⭐',desc:'Featured gathering'},
           {id:'planning',label:'Planning',   icon:'🗓️',desc:'Collecting dates'},
-          {id:'completed',label:'Completed', icon:'✅',desc:'Already happened'},
+          {id:'completed',label:'Memory', icon:'📸',desc:'Preserved after it happens'},
         ].map(function(s){
           return '<button class="gc-type-btn ge-status-btn'+(g.status===s.id?' selected':'')+'" data-status="'+s.id+'" style="padding:10px 8px;text-align:center">' +
             '<span style="font-size:18px;display:block;margin-bottom:3px">'+s.icon+'</span>' +
@@ -14781,8 +14867,8 @@ try {
     if (g.status === 'completed'){
       return {
         tone: 'gray',
-        pill: 'completed',
-        sentence: 'This one\u2019s in the books. \ud83d\udcf8',
+        pill: 'memory',
+        sentence: 'This gathering is now a Memory. \ud83d\udcf8',
         actions: [],
         footer: (state.attendingCount || state.confirmedMembers.length || 0) + ' came along',
         hideDrawer: true
