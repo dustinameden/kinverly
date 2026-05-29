@@ -2630,8 +2630,8 @@ function renderReminderQueueCard(g) {
       (due.length ? due.length + ' reminder' + (due.length === 1 ? ' is' : 's are') + ' ready to send now.' : 'Next reminder scheduled for ' + formatReminderTime(next && next.next_ts) + '.') +
     '</div>' +
     '<div style="display:flex;gap:8px">' +
-      '<button class="btn-primary" style="flex:1" onclick="nudgeGatheringById('' + escapeHtml(String(g.id)) + '')">Send now</button>' +
-      '<button class="btn-secondary" style="flex:1" onclick="toast('Reminder left in queue')">Skip for now</button>' +
+      '<button class="btn-primary" style="flex:1" data-nudge-gathering-id="' + escapeHtml(String(g.id)) + '">Send now</button>' +
+      '<button class="btn-secondary" style="flex:1" data-reminder-skip="1">Skip for now</button>' +
     '</div>' +
   '</div>';
 }
