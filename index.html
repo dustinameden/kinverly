@@ -16789,15 +16789,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       }
     });
   }
-
-  // Mutation observer keeps dynamic re-renders clean without duplicating page content.
-  const observer = new MutationObserver(() => cleanNavLabels());
-  document.addEventListener('DOMContentLoaded', function(){
-    cleanNavLabels();
-    setTimeout(renderAvailabilitySingle, 200);
-    setTimeout(renderAvailabilitySingle, 900);
-    observer.observe(document.body, {childList:true, subtree:true});
-  });
+  cleanNavLabels();
 
   setInterval(function(){
     cleanNavLabels();
@@ -16806,6 +16798,177 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       renderAvailabilitySingle();
     }
   }, 1000);
+})();
+</script>
+
+
+<script>
+/* ── SPRINT 38: CLICK / NAVIGATION RECOVERY ─────────────────
+   Fixes frozen tabs/buttons caused by dynamic Availability refactor.
+   This layer does not mutate nav HTML repeatedly; it only handles clicks safely.
+*/
+(function(){
+  function normalizePageName(raw){
+    const value = String(raw || '').trim().toLowerCase();
+    if (!value) return '';
+    if (value.includes('home')) return 'home';
+    if (value.includes('availability') || value.includes('my world') || value.includes('myworld')) return 'availability';
+    if (value.includes('gathering')) return 'gatherings';
+    if (value.includes('idea')) return 'ideas';
+    if (value.includes('flock') || value.includes('family')) return 'flocks';
+    if (value.includes('profile')) return 'profile';
+    return value.replace(/\s+/g,'-');
+  }
+
+  function normalizeLegacyPageName(page){
+    if (page === 'myworld' || page === 'my-world') return 'availability';
+    return page;
+  }
+
+  function findPageEl(page){
+    const candidates = [
+      '#' + page + '-page',
+      '#' + page,
+      '[data-page="' + page + '"]'
+    ];
+    if (page === 'availability'){
+      candidates.push('#myworld-page', '[data-page="myworld"]');
+    }
+    for (const sel of candidates){
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function setActiveBottomNav(page){
+    document.querySelectorAll('.bottom-nav .nav-btn, .bottom-nav button').forEach(btn => {
+      const txt = normalizePageName(btn.textContent);
+      const attr = normalizeLegacyPageName(normalizePageName(btn.getAttribute('data-page') || btn.getAttribute('data-nav') || btn.dataset?.page || ''));
+      const isActive = txt === page || attr === page;
+      btn.classList.toggle('active', isActive);
+    });
+  }
+
+  function manualShowPage(page){
+    const normalized = normalizeLegacyPageName(page);
+    const pageEl = findPageEl(normalized);
+    if (!pageEl) return false;
+
+    document.querySelectorAll('.page, .subpage').forEach(el => {
+      if (el === pageEl) return;
+      // Only hide top-level pages, not active modal/sheet content.
+      if (el.parentElement && !el.closest('.sheet')) el.classList.remove('active');
+    });
+
+    pageEl.classList.add('active');
+    setActiveBottomNav(normalized);
+
+    try {
+      localStorage.setItem('kinverly_active_tab', normalized);
+      localStorage.setItem('kinverly_last_tab', normalized);
+    } catch(e){}
+
+    if (normalized === 'availability' && typeof window.renderAvailabilitySingle === 'function'){
+      setTimeout(() => window.renderAvailabilitySingle(), 0);
+    }
+
+    return true;
+  }
+
+  function routeToPage(page){
+    const normalized = normalizeLegacyPageName(page);
+
+    try{
+      if (typeof window.showPage === 'function'){
+        window.showPage(normalized);
+        setActiveBottomNav(normalized);
+        if (normalized === 'availability' && typeof window.renderAvailabilitySingle === 'function'){
+          setTimeout(() => window.renderAvailabilitySingle(), 50);
+        }
+        return true;
+      }
+    }catch(err){
+      console.warn('showPage failed, using manual routing', err);
+    }
+
+    return manualShowPage(normalized);
+  }
+
+  function relabelNavOnce(){
+    document.querySelectorAll('.bottom-nav .nav-btn, .bottom-nav button').forEach(btn => {
+      if (btn.textContent && btn.textContent.includes('My World')){
+        btn.innerHTML = btn.innerHTML.replace(/My World/g, 'Availability');
+      }
+      const dp = btn.getAttribute('data-page');
+      const dn = btn.getAttribute('data-nav');
+      if (dp === 'myworld') btn.setAttribute('data-page', 'availability');
+      if (dn === 'myworld') btn.setAttribute('data-nav', 'availability');
+    });
+  }
+
+  // Capture bottom-nav clicks before any stale handler can swallow them.
+  document.addEventListener('click', function(e){
+    const navBtn = e.target.closest('.bottom-nav .nav-btn, .bottom-nav button');
+    if (!navBtn) return;
+
+    const attrPage = navBtn.getAttribute('data-page') || navBtn.getAttribute('data-nav') || navBtn.dataset?.page || navBtn.dataset?.nav;
+    const page = normalizePageName(attrPage || navBtn.textContent);
+
+    if (!page) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    routeToPage(page);
+  }, true);
+
+  // Recovery for gathering inner tabs if stale render lost inline handlers.
+  document.addEventListener('click', function(e){
+    const tab = e.target.closest('.gtab, [data-gathering-tab]');
+    if (!tab || tab.closest('.bottom-nav')) return;
+
+    const tabName = tab.getAttribute('data-tab') || tab.getAttribute('data-gathering-tab') || normalizePageName(tab.textContent);
+    if (!tabName) return;
+
+    const tabsWrap = tab.closest('.gathering-tabs') || tab.parentElement;
+    if (tabsWrap){
+      tabsWrap.querySelectorAll('.gtab, [data-gathering-tab]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    }
+
+    try{
+      if (typeof window.setGatheringTab === 'function'){
+        e.preventDefault();
+        window.setGatheringTab(tabName);
+      } else if (typeof window.renderGatheringDetail === 'function'){
+        e.preventDefault();
+        window.activeGatheringTab = tabName;
+        window.renderGatheringDetail();
+      }
+    }catch(err){
+      console.warn('Gathering tab recovery failed', err);
+    }
+  }, true);
+
+  // Make sure the app is not left behind an invisible overlay.
+  function removeEmptyBlockingOverlays(){
+    document.querySelectorAll('.overlay').forEach(ov => {
+      const visible = !ov.classList.contains('hidden') && getComputedStyle(ov).display !== 'none';
+      if (!visible) return;
+      const hasSheet = ov.querySelector('.sheet, .modal, .task-sheet');
+      const id = ov.id || '';
+      if (!hasSheet && !id.includes('overlay')) ov.remove();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    relabelNavOnce();
+    removeEmptyBlockingOverlays();
+    setTimeout(relabelNavOnce, 250);
+    setTimeout(removeEmptyBlockingOverlays, 500);
+  });
+
+  window.routeToKinverlyPage = routeToPage;
 })();
 </script>
 
