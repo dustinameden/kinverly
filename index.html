@@ -2598,8 +2598,8 @@ function renderReminderQueueCard(g) {
       (due.length ? due.length + ' reminder' + (due.length === 1 ? ' is' : 's are') + ' ready to send now.' : 'Next reminder scheduled for ' + formatReminderTime(next && next.next_ts) + '.') +
     '</div>' +
     '<div style="display:flex;gap:8px">' +
-      '<button class="btn-primary" style="flex:1" onclick="nudgeGatheringById('' + escapeHtml(String(g.id)) + '')">Send now</button>' +
-      '<button class="btn-secondary" style="flex:1" onclick="toast('Reminder left in queue')">Skip for now</button>' +
+      '<button class="btn-primary" style="flex:1" onclick="nudgeGatheringById(\'' + escapeHtml(String(g.id)) + '\')">Send now</button>' +
+      '<button class="btn-secondary" style="flex:1" onclick="toast(\'Reminder left in queue\')">Skip for now</button>' +
     '</div>' +
   '</div>';
 }
@@ -4520,19 +4520,6 @@ function openMemberProfile(m) {
 var _gatheringsFilter = 'active';
 
 function renderGatherings() {
-  // Always render from the active flock source, not a stale DATA shell.
-  // This prevents a blank Gatherings page while the topbar has the correct flock.
-  try {
-    var fs = (typeof deriveFlockState === 'function') ? deriveFlockState(currentFlockId) : null;
-    if (fs && fs.flock) {
-      DATA.gatherings = fs.gatherings || [];
-      DATA.ideas = fs.ideas || DATA.ideas || [];
-      DATA.activity = fs.activity || DATA.activity || [];
-      DATA.events = fs.events || DATA.events || [];
-      DATA.members = (fs.activeMembers || []).filter(function(m){ return getCanonicalUserId(m) !== getCanonicalUserId(DATA.me); });
-    }
-  } catch(_rgStateErr) { console.warn('[Kinverly] renderGatherings state refresh warning', _rgStateErr && _rgStateErr.message); }
-
   // Render cross-gathering schedule panel first
   renderFlockSchedule();
 
@@ -7171,41 +7158,8 @@ function getRoleLabel(role) {
 
 function getCurrentMemberRecord() {
   var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
-  if (!flock || !DATA.me) return DATA.me || null;
-  var members = flock.members || {};
-  if (DATA.me.id && members[DATA.me.id]) return members[DATA.me.id];
-  var myKeys = getMemberIdentityKeys ? getMemberIdentityKeys(DATA.me) : [DATA.me.id];
-  var myUid = getCanonicalUserId ? getCanonicalUserId(DATA.me) : DATA.me.id;
-  var found = null;
-  Object.keys(members).some(function(k){
-    var m = members[k];
-    if (!m) return false;
-    if (myUid && getCanonicalUserId && getCanonicalUserId(m, k) === myUid) { found = m; return true; }
-    var keys = getMemberIdentityKeys ? getMemberIdentityKeys(m) : [m.id, k];
-    for (var i=0;i<keys.length;i++) { if (myKeys.indexOf(keys[i]) >= 0 || myKeys.indexOf(String(keys[i])) >= 0) { found = m; return true; } }
-    return false;
-  });
-  return found || DATA.me || null;
-}
-function findCurrentMemberInMembersMap(members) {
-  members = members || {};
-  if (!DATA || !DATA.me) return null;
-  if (DATA.me.id && members[DATA.me.id]) return members[DATA.me.id];
-  var myUid = getCanonicalUserId ? getCanonicalUserId(DATA.me) : DATA.me.id;
-  var myKeys = getMemberIdentityKeys ? getMemberIdentityKeys(DATA.me) : [DATA.me.id];
-  var found = null;
-  Object.keys(members).some(function(k){
-    var m = members[k];
-    if (!m) return false;
-    ensureMemberUserIdentity && ensureMemberUserIdentity(m, k);
-    if (myUid && getCanonicalUserId && getCanonicalUserId(m, k) === myUid) { found = m; return true; }
-    var keys = getMemberIdentityKeys ? getMemberIdentityKeys(m) : [m.id, k];
-    for (var i=0;i<keys.length;i++) {
-      if (myKeys.indexOf(keys[i]) >= 0 || myKeys.indexOf(String(keys[i])) >= 0) { found = m; return true; }
-    }
-    return false;
-  });
-  return found;
+  if (!flock || !DATA.me) return null;
+  return (flock.members && flock.members[DATA.me.id]) || DATA.me || null;
 }
 
 function getCurrentRole() {
@@ -8886,9 +8840,6 @@ function saveLocal() {
   try {
     // If kicked from flock, don't save anything flock-related
     if (window._kickedFromFlock) return;
-    // During startup Firebase hydration, do not let an empty/stale local shell
-    // overwrite the real shared flock document before the first remote snapshot arrives.
-    if (window._suppressLocalFlockSave) return;
 
     if (currentFlockId && FLOCKS[currentFlockId]) {
       normalizeAppState();
@@ -11994,7 +11945,6 @@ try {
 
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', docId), function(snap) {
       if (!snap.exists()) return;
-      window._suppressLocalFlockSave = false;
 
       var remote = snap.data() || {};
       var myId = DATA.me.id;
@@ -12049,25 +11999,18 @@ try {
         local.memberIds = Object.keys(merged).filter(function(mid){ return isActiveMemberRecord(merged[mid]); });
         DATA.members = getActiveMembersForFlockRecord(local).filter(function(m){ return getCanonicalUserId(m) !== getCanonicalUserId(DATA.me); });
 
-        // Also update DATA.me if my own data changed remotely (e.g. admin changed my role).
-        // Resolve by user_id/aliases, not just the legacy member map key.
-        var myRemote = (typeof findCurrentMemberInMembersMap === 'function') ? findCurrentMemberInMembersMap(merged) : (merged[myId] || null);
-        if (myRemote) {
+        // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
+        if (merged[myId]) {
+          var myRemote = merged[myId];
           if (myRemote.role && myRemote.role !== (DATA.me.role || 'member')) {
             DATA.me.role = myRemote.role;
             persistMyProfile();
-          }
-          // Keep a local alias keyed by DATA.me.id so legacy code paths do not lose the current user.
-          if (myId && !merged[myId] && !isRemovedMemberRecord(myRemote)) {
-            merged[myId] = Object.assign({}, myRemote, { id: myRemote.id || myId });
-            local.members = merged;
           }
         }
 
         // Detect if I was REMOVED from the flock. A removed member may still
         // exist in the database as a historical record, so check deleted_at/status too.
-        // IMPORTANT: resolve by canonical user_id/aliases, not only members[DATA.me.id].
-        if (myId && (((!myRemote && Object.keys(merged).length > 0)) || (myRemote && isRemovedMemberRecord(myRemote)))) {
+        if (myId && ((!merged[myId] && Object.keys(merged).length > 0) || isRemovedMemberRecord(merged[myId]))) {
           // Set flag FIRST — prevents any save/sync from re-adding us
           window._kickedFromFlock = true;
 
@@ -12273,112 +12216,7 @@ try {
     });
   };
 
-  // Hydrate from Firestore before trusting localStorage. Some older accounts have
-  // a local flock shell with the right name but no gatherings. The canonical source
-  // is the shared /flocks/{docId} document referenced by users/{user_id}.flocks.
-  async function hydrateFlocksForCurrentUser() {
-    var uid = (typeof getCanonicalUserId === 'function' ? getCanonicalUserId(DATA.me) : (DATA.me && DATA.me.id)) || (DATA.me && DATA.me.id);
-    if (!uid) return false;
-    var loaded = {};
-    async function loadDocId(docId) {
-      if (!docId || loaded[docId]) return;
-      try {
-        var snap = await getDoc(doc(db, 'flocks', String(docId)));
-        if (!snap || !snap.exists()) return;
-        var remote = snap.data() || {};
-        remote.firestore_id = snap.id;
-        remote.storage_key = snap.id;
-        remote.uid = remote.uid || snap.id;
-        var local = window.FLOCKS && window.FLOCKS[snap.id] ? window.FLOCKS[snap.id] : {};
-        var merged = (typeof mergeCanonicalFlockRecords === 'function') ? mergeCanonicalFlockRecords(remote, local) : Object.assign({}, local, remote);
-        merged.firestore_id = snap.id;
-        merged.storage_key = snap.id;
-        merged.uid = snap.id;
-        window.FLOCKS[snap.id] = merged;
-        loaded[snap.id] = true;
-      } catch(e) { console.warn('[Kinverly] Could not hydrate flock', docId, e && e.message); }
-    }
-
-    // 1) Preferred: user membership record.
-    try {
-      var userSnap = await getDoc(doc(db, 'users', String(uid)));
-      if (userSnap && userSnap.exists()) {
-        var u = userSnap.data() || {};
-        var flocks = u.flocks || u.flock_memberships || {};
-        if (Array.isArray(flocks)) {
-          for (var i=0;i<flocks.length;i++) {
-            var row = flocks[i] || {};
-            var status = String(row.status || row.membership_status || 'active').toLowerCase();
-            if (status === 'removed' || status === 'archived' || row.deleted_at || row.removed_at) continue;
-            await loadDocId(row.flock_key || row.firestore_id || row.flock_firestore_id || row.id || row.flock_id);
-          }
-        } else {
-          var keys = Object.keys(flocks || {});
-          for (var j=0;j<keys.length;j++) {
-            var r = flocks[keys[j]] || {};
-            var st = String(r.status || r.membership_status || 'active').toLowerCase();
-            if (st === 'removed' || st === 'archived' || r.deleted_at || r.removed_at) continue;
-            await loadDocId(r.flock_key || r.firestore_id || r.flock_firestore_id || keys[j]);
-          }
-        }
-      }
-    } catch(e1) { console.warn('[Kinverly] User membership hydration failed', e1 && e1.message); }
-
-    // 2) Fallback/repair: scan flock docs and include any where this user is an active member.
-    // This repairs accounts whose users/{id} record is missing/stale.
-    try {
-      var all = await getDocs(collection(db, 'flocks'));
-      all.forEach(function(snap){
-        var f = snap.data() || {};
-        var members = f.members || {};
-        var found = false;
-        Object.keys(members).some(function(k){
-          var m = members[k];
-          if (!m) return false;
-          try { ensureMemberUserIdentity(m, k); } catch(_idErr) {}
-          var same = false;
-          try { same = getCanonicalUserId(m, k) === uid || (getMemberIdentityKeys(m).indexOf(uid) >= 0); } catch(_sameErr) { same = (k === uid || m.id === uid); }
-          if (same && (!isRemovedMemberRecord || !isRemovedMemberRecord(m)) && (!isActiveMemberRecord || isActiveMemberRecord(m))) { found = true; return true; }
-          return false;
-        });
-        if (found) {
-          f.firestore_id = snap.id; f.storage_key = snap.id; f.uid = f.uid || snap.id;
-          var local = window.FLOCKS && window.FLOCKS[snap.id] ? window.FLOCKS[snap.id] : {};
-          window.FLOCKS[snap.id] = (typeof mergeCanonicalFlockRecords === 'function') ? mergeCanonicalFlockRecords(f, local) : Object.assign({}, local, f);
-          window.FLOCKS[snap.id].firestore_id = snap.id;
-          window.FLOCKS[snap.id].storage_key = snap.id;
-          window.FLOCKS[snap.id].uid = snap.id;
-          loaded[snap.id] = true;
-        }
-      });
-    } catch(e2) { console.warn('[Kinverly] Flock scan hydration failed', e2 && e2.message); }
-
-    var ids = Object.keys(loaded);
-    if (!ids.length) return false;
-    var preferred = resolveFlockKey(localStorage.getItem('kinverly_current_flock')) || ids[0];
-    if (!loaded[preferred]) preferred = ids[0];
-    currentFlockId = preferred;
-    window.currentFlockId = preferred;
-    try {
-      localStorage.setItem('kinverly_current_flock', preferred);
-      localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
-    } catch(_storeErr) {}
-    switchToFlock(preferred);
-    return true;
-  }
-
-  window._suppressLocalFlockSave = true;
-  setTimeout(function(){ window._suppressLocalFlockSave = false; }, 10000);
-  hydrateFlocksForCurrentUser().then(function(ok){
-    if (!ok) {
-      window._suppressLocalFlockSave = false;
-      window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
-    }
-  }).catch(function(err){
-    window._suppressLocalFlockSave = false;
-    console.warn('[Kinverly] Hydration bootstrap failed:', err && err.message);
-    window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
-  });
+  window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
 
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
