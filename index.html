@@ -1725,7 +1725,7 @@ img,svg{display:block}
 
 
 
-/* ── MY WORLD / CROSS-FLOCK DASHBOARD ───────────────── */
+/* ── AVAILABILITY / PERSONAL PLANNING ───────────────── */
 .myworld-hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:var(--radius-lg);padding:18px;margin-bottom:14px;color:#fff}
 .myworld-title{font-family:'Fredoka One',cursive;font-size:26px;margin-bottom:4px}
 .myworld-sub{font-size:13px;color:rgba(255,255,255,.65);line-height:1.45}
@@ -1756,7 +1756,7 @@ img,svg{display:block}
 .mw-cal-legend{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
 .mw-cal-leg{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:var(--text2)}
 .mw-cal-leg-dot{width:9px;height:9px;border-radius:50%}
-.mw-cal-leg-dot.blackout{background:var(--red)}
+.mw-cal-leg-dot.unavailable{background:var(--red)}
 .mw-cal-leg-dot.confirmed{background:var(--green)}
 .mw-cal-leg-dot.pending{background:var(--brand2)}
 .mw-cal-leg-dot.recommended{background:var(--gold)}
@@ -1770,7 +1770,7 @@ img,svg{display:block}
 .mw-cal-date-num{position:relative;z-index:2}
 .mw-cal-markers{position:absolute;left:4px;right:4px;bottom:4px;display:flex;gap:2px;align-items:center;justify-content:center;overflow:hidden}
 .mw-cal-marker{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.mw-cal-marker.blackout{background:var(--red)}
+.mw-cal-marker.unavailable{background:var(--red)}
 .mw-cal-marker.confirmed{background:var(--green)}
 .mw-cal-marker.pending{background:var(--brand2)}
 .mw-cal-marker.recommended{background:var(--gold)}
@@ -1781,7 +1781,7 @@ img,svg{display:block}
 .mw-cal-event:hover{border-color:var(--brand2)}
 .mw-cal-event-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
 .mw-cal-event-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.mw-cal-event-dot.blackout{background:var(--red)}
+.mw-cal-event-dot.unavailable{background:var(--red)}
 .mw-cal-event-dot.confirmed{background:var(--green)}
 .mw-cal-event-dot.pending{background:var(--brand2)}
 .mw-cal-event-dot.recommended{background:var(--gold)}
@@ -1796,7 +1796,7 @@ img,svg{display:block}
 .mw-cal-event-dot.personal{background:var(--blue)}
 .mw-cal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .mw-cal-action-btn{border:none;border-radius:12px;padding:11px 10px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer;background:#ede8ff;color:var(--brand)}
-.mw-cal-action-btn.blackout{background:var(--red-bg);color:var(--red)}
+.mw-cal-action-btn.unavailable{background:var(--red-bg);color:var(--red)}
 .mw-cal-note{background:#fbf8e8;border:1px solid rgba(200,120,32,.18);border-radius:12px;padding:9px 10px;margin-top:8px;font-size:11px;font-weight:700;color:var(--amber);line-height:1.4}
 
 /* ── CONTEXT BAR: mobile-readable location bar ───────── */
@@ -1913,13 +1913,13 @@ img,svg{display:block}
     </div>
 
 
-    <!-- MY WORLD -->
-    <div class="page" id="page-myworld">
+    <!-- AVAILABILITY -->
+    <div class="page" id="page-availability">
       <div class="myworld-hero">
-        <div class="myworld-title">My World</div>
-        <div class="myworld-sub">A friendly home base for your tasks, messages, and flock updates across every group.</div>
+        <div class="myworld-title">My Availability</div>
+        <div class="myworld-sub">Your unavailable time, pending availability requests, and RSVP needs across every flock.</div>
       </div>
-      <div id="myworld-content"></div>
+      <div id="availability-content"></div>
     </div>
 
     <!-- GATHERINGS -->
@@ -2019,22 +2019,22 @@ img,svg{display:block}
       <div id="avail-gathering-label" style="font-size:13px;color:var(--text2);margin-bottom:8px;font-weight:700"></div>
       <div class="avail-review-card">
         <div class="avail-review-title">Availability Review</div>
-        <div class="avail-review-sub">Answer one simple question: which proposed dates work for you? My Calendar pre-fills conflicts, and you can adjust before confirming.</div>
+        <div class="avail-review-sub">Answer one simple question: which proposed dates work for you? Your unavailable time pre-fills conflicts, and you can adjust before confirming.</div>
       </div>
 
       <div class="avail-review-section-title">1. Proposed dates</div>
       <div id="avail-window-list" class="avail-window-list"></div>
 
-      <div class="avail-review-section-title">2. Conflicts from My Calendar</div>
+      <div class="avail-review-section-title">2. Conflicts from your unavailable time</div>
       <div class="avail-review-card">
         <div id="avail-conflicts"></div>
         <button class="avail-mini-btn" id="avail-add-unavailable">+ Add unavailable time</button>
       </div>
 
       <div class="avail-review-section-title">3. Confirm for this gathering</div>
-      <div class="avail-review-note">These answers only update this gathering. Your unavailable times stay saved in My Calendar.</div>
+      <div class="avail-review-note">These answers only update this gathering. Your unavailable times stay saved in Availability.</div>
       <button type="button" class="btn-primary" id="avail-submit" onclick="if(window.confirmAvailabilityReview){window.confirmAvailabilityReview(event);}" style="margin-top:4px">Confirm availability</button>
-      <button class="avail-link-btn" id="avail-manage-calendar">Manage full calendar in My World</button>
+      <button class="avail-link-btn" id="avail-manage-calendar">Manage unavailable time in Availability</button>
     </div>
   </div>
 </div>
@@ -3695,7 +3695,8 @@ function restoreNavigationCache(opts) {
   _restoringNavState = true;
   try {
     var page = state.page || 'home';
-    if (!['home','myworld','gatherings','ideas','flock','profile'].includes(page)) page = 'home';
+    if (page === 'myworld') page = 'availability';
+    if (!['home','availability','gatherings','ideas','flock','profile'].includes(page)) page = 'home';
     showPage(page);
     renderPage(page);
 
@@ -3729,7 +3730,7 @@ function getCurrentMemberNameForContext() {
 }
 
 function getPageLabelForContext(name) {
-  var labels = {home:'Home', myworld:'My World', gatherings:'Gatherings', ideas:'Idea Bank', flock:'Flocks', profile:'Profile'};
+  var labels = {home:'Home', availability:'Availability', myworld:'Availability', gatherings:'Gatherings', ideas:'Idea Bank', flock:'Flocks', profile:'Profile'};
   return labels[name] || 'Home';
 }
 
@@ -3741,7 +3742,7 @@ function updateContextBar(opts) {
 
   var crumbs = [];
   if (opts.world) {
-    crumbs.push({label:'My World', page:'myworld'});
+    crumbs.push({label:'Availability', page:'availability'});
   } else {
     crumbs.push({label:getCurrentFlockNameForContext(), page:'home'});
     if (opts.page && opts.page !== 'home') crumbs.push({label:getPageLabelForContext(opts.page), page:opts.page});
@@ -3784,6 +3785,7 @@ function updateContextBar(opts) {
 }
 
 function showPage(name) {
+  if (name === 'myworld') name = 'availability';
   // Save scroll position of current page
   var pw = document.querySelector('.page-wrap');
   if (pw && currentPage) scrollPositions[currentPage] = pw.scrollTop;
@@ -3810,7 +3812,7 @@ function showPage(name) {
     b.classList.toggle('active', b.dataset.page === name);
   });
   currentDetailTab = null;
-  updateContextBar({page:name, world:name === 'myworld'});
+  updateContextBar({page:name, world:name === 'availability'});
 }
 
 function showDetail(gatheringId, openTab) {
@@ -3888,7 +3890,7 @@ document.getElementById('add-idea-btn').addEventListener('click', function(){
 function renderPage(name) {
   normalizeCurrentFlockSchema();
   if (name === 'home')       renderHome();
-  if (name === 'myworld')    renderMyWorld();
+  if (name === 'availability' || name === 'myworld') renderAvailability();
   if (name === 'gatherings') renderGatherings();
   if (name === 'ideas')      renderIdeas();
   if (name === 'flock')      renderFlockPage();
@@ -3896,7 +3898,7 @@ function renderPage(name) {
 }
 
 
-// -- MY WORLD / CROSS-FLOCK DASHBOARD -------------------
+// -- AVAILABILITY / PERSONAL PLANNING -------------------
 function getMyFlockKeys() {
   var keys = Object.keys(FLOCKS || {});
   return keys.filter(function(fid){
@@ -3947,7 +3949,7 @@ function buildCrossFlockTodos() {
         out.push({ fid:fid, gid:g.id, tab:'overview', action:'RSVP', icon:'🎉', priority:1, flock:flock.name, gathering:g.name, text:'RSVP to ' + g.name });
       }
       if (g.status === 'planning' && (!myR || !myR.availSubmitted)) {
-        out.push({ fid:fid, gid:g.id, tab:'overview', action:'Dates', icon:'📅', priority:1, flock:flock.name, gathering:g.name, text:'Share your dates for ' + g.name });
+        out.push({ fid:fid, gid:g.id, tab:'overview', action:'Availability', icon:'📅', priority:1, flock:flock.name, gathering:g.name, text:'Confirm availability for ' + g.name });
       }
       (g.tasks || []).forEach(function(t){
         if (!t || t.deleted_at || t.done || t.status === 'done') return;
@@ -4001,10 +4003,11 @@ function buildCrossFlockActivity(limit) {
 }
 
 
-var myWorldCalendarState = { offset: 0, selectedKey: null };
+var availabilityState = { offset: 0, selectedKey: null };
+var myWorldCalendarState = availabilityState;
 
 // Personal calendar events live with the flock record, but are member-owned.
-// They power My Calendar first, then prefill gathering availability as suggested blackout dates.
+// They power Availability first, then prefill gathering availability as suggested unavailable time.
 function ensurePersonalCalendarStore(flock) {
   if (!flock) return [];
   if (!Array.isArray(flock.calendar_events)) flock.calendar_events = [];
@@ -4057,7 +4060,7 @@ function createPersonalCalendarEvent(opts) {
     title: (opts && opts.title) || 'Personal event',
     description: (opts && opts.description) || '',
     event_type: (opts && opts.event_type) || 'personal',
-    is_blackout: !!(opts && opts.is_blackout),
+    is_unavailable: !!(opts && opts.is_unavailable),
     start_date: (opts && opts.start_date) || isoDateKey(new Date()),
     end_date: (opts && opts.end_date) || ((opts && opts.start_date) || isoDateKey(new Date())),
     visibility: 'private',
@@ -4067,19 +4070,19 @@ function createPersonalCalendarEvent(opts) {
     deleted_at: null
   }, now);
   list.push(ev);
-  recordEvent('calendar_event.created', 'calendar_event', ev.id, null, ev, 'Added ' + (ev.is_blackout ? 'blackout' : 'personal') + ' calendar event: ' + ev.title, ev.is_blackout ? '🚫' : '📌');
+  recordEvent('calendar_event.created', 'calendar_event', ev.id, null, ev, 'Added ' + (ev.is_unavailable ? 'unavailable' : 'personal') + ' calendar event: ' + ev.title, ev.is_unavailable ? '🚫' : '📌');
   saveFlockState();
-  // Loop-closer: a new blackout may now clash with a date this member
+  // Loop-closer: a new unavailable may now clash with a date this member
   // already greenlit on a planning gathering — flag it immediately.
-  if (ev.is_blackout && typeof runAvailabilityLoopCloser === 'function') {
+  if (ev.is_unavailable && typeof runAvailabilityLoopCloser === 'function') {
     try { runAvailabilityLoopCloser(ev); } catch(err) { console.warn('[Kinverly] loop-closer failed', err); }
   }
   return ev;
 }
-function getPersonalBlackoutDateKeysForGathering(g) {
+function getPersonalUnavailableDateKeysForGathering(g) {
   var keys = {};
   getMemberPersonalCalendarEventsAcrossFlocks().forEach(function(ev){
-    if (!ev.is_blackout || !ev.start_date) return;
+    if (!ev.is_unavailable || !ev.start_date) return;
     var start = parseLocalDateKey(ev.start_date);
     var end = parseLocalDateKey(ev.end_date || ev.start_date) || start;
     if (!start) return;
@@ -4090,18 +4093,18 @@ function getPersonalBlackoutDateKeysForGathering(g) {
   });
   return keys;
 }
-function addPersonalEventFromCalendar(selectedKey, asBlackout) {
-  var start = promptDateKey(selectedKey || isoDateKey(new Date()), asBlackout ? 'Blackout start date (YYYY-MM-DD)' : 'Event start date (YYYY-MM-DD)');
+function addPersonalEventFromCalendar(selectedKey, asUnavailable) {
+  var start = promptDateKey(selectedKey || isoDateKey(new Date()), asUnavailable ? 'Unavailable start date (YYYY-MM-DD)' : 'Event start date (YYYY-MM-DD)');
   if (!start) return;
-  var end = promptDateKey(start, asBlackout ? 'Blackout end date (YYYY-MM-DD)' : 'Event end date (YYYY-MM-DD)');
+  var end = promptDateKey(start, asUnavailable ? 'Unavailable end date (YYYY-MM-DD)' : 'Event end date (YYYY-MM-DD)');
   if (!end) return;
-  var title = prompt(asBlackout ? 'What should we call this blackout?' : 'What should we call this event?', asBlackout ? 'Busy / unavailable' : 'Personal plan');
+  var title = prompt(asUnavailable ? 'What should we call this unavailable time?' : 'What should we call this event?', asUnavailable ? 'Busy / unavailable' : 'Personal plan');
   if (title === null) return;
-  var ev = createPersonalCalendarEvent({ title: title || (asBlackout ? 'Busy / unavailable' : 'Personal plan'), start_date: start, end_date: end, event_type: asBlackout ? 'blackout' : 'personal', is_blackout: !!asBlackout });
+  var ev = createPersonalCalendarEvent({ title: title || (asUnavailable ? 'Busy / unavailable' : 'Personal plan'), start_date: start, end_date: end, event_type: asUnavailable ? 'unavailable' : 'personal', is_unavailable: !!asUnavailable });
   if (ev) {
-    myWorldCalendarState.selectedKey = start;
-    renderMyWorld();
-    toast(asBlackout ? 'Blackout added to My Calendar' : 'Personal event added');
+    availabilityState.selectedKey = start;
+    renderAvailability();
+    toast(asUnavailable ? 'Unavailable time added' : 'Personal event added');
   }
 }
 
@@ -4156,13 +4159,13 @@ function getMyCalendarEventsAcrossFlocks() {
     eachDateInRange(start, end, function(d){
       events.push({
         key: isoDateKey(d),
-        type: ev.is_blackout ? 'blackout' : 'personal',
-        title: ev.title || (ev.is_blackout ? 'Blackout date' : 'Personal event'),
-        meta: (ev.is_blackout ? 'Personal blackout' : 'Personal plan') + ' · My Calendar' + (ev.flock_name ? ' · saved in ' + ev.flock_name : ''),
+        type: ev.is_unavailable ? 'unavailable' : 'personal',
+        title: ev.title || (ev.is_unavailable ? 'Unavailable time' : 'Personal event'),
+        meta: (ev.is_unavailable ? 'Unavailable time' : 'Personal plan') + ' · Availability' + (ev.flock_name ? ' · saved in ' + ev.flock_name : ''),
         fid: ev.fid || '',
         gid: null,
         tab: '',
-        sort: ev.is_blackout ? 0 : 1
+        sort: ev.is_unavailable ? 0 : 1
       });
     });
   });
@@ -4175,15 +4178,15 @@ function getMyCalendarEventsAcrossFlocks() {
       var gid = g.id;
       var r = (rsvpData && rsvpData[gid] && rsvpData[gid][memberId]) || null;
 
-      // Personal blackout dates submitted through the gathering availability tool.
-      if (r && r.blockedDates && r.blockedDates.length) {
-        r.blockedDates.forEach(function(k){
+      // Unavailable time dates submitted through the gathering availability tool.
+      if (r && r.blockedAvailability && r.blockedAvailability.length) {
+        r.blockedAvailability.forEach(function(k){
           var dk = normalizeCalendarDateKey(k, g);
           if (!dk) return;
           events.push({
             key: dk,
-            type: 'blackout',
-            title: 'Blackout date',
+            type: 'unavailable',
+            title: 'Unavailable time',
             meta: (g.name || 'Gathering') + ' · ' + (flock.name || 'Flock'),
             fid: fid,
             gid: gid,
@@ -4269,11 +4272,11 @@ function getMyCalendarEventsAcrossFlocks() {
 function renderMyWorldCalendar() {
   var events = getMyCalendarEventsAcrossFlocks();
   var now = new Date();
-  var view = new Date(now.getFullYear(), now.getMonth() + (myWorldCalendarState.offset || 0), 1);
+  var view = new Date(now.getFullYear(), now.getMonth() + (availabilityState.offset || 0), 1);
   var y = view.getFullYear(), m = view.getMonth();
   var monthName = fullMonthName(m) + ' ' + y;
   var todayKey = isoDateKey(now);
-  if (!myWorldCalendarState.selectedKey) myWorldCalendarState.selectedKey = todayKey;
+  if (!availabilityState.selectedKey) availabilityState.selectedKey = todayKey;
   var monthEvents = events.filter(function(e){ return e.key && e.key.slice(0,7) === y + '-' + pad2(m + 1); });
   var eventsByKey = {};
   monthEvents.forEach(function(e){ if (!eventsByKey[e.key]) eventsByKey[e.key] = []; eventsByKey[e.key].push(e); });
@@ -4282,11 +4285,11 @@ function renderMyWorldCalendar() {
   var first = new Date(y, m, 1).getDay();
   var dim = new Date(y, m + 1, 0).getDate();
   var html = '<div class="mw-cal-card">' +
-    '<div class="mw-cal-head"><div><div class="mw-cal-title">My calendar</div>' +
+    '<div class="mw-cal-head"><div><div class="mw-cal-title">Unavailable time</div>' +
     '<div class="mw-cal-sub">Your unavailable dates, personal plans, confirmed gatherings, and possible dates across every flock.</div></div>' +
     '<div class="mw-cal-nav"><button class="mw-cal-btn" id="mw-cal-prev">‹</button><div class="mw-cal-month">' + escapeHtml(monthName) + '</div><button class="mw-cal-btn" id="mw-cal-next">›</button></div></div>' +
     '<div class="mw-cal-legend">' +
-      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot blackout"></span>Unavailable</span>' +
+      '<span class="mw-cal-leg"><span class="mw-cal-leg-dot unavailable"></span>Unavailable</span>' +
       '<span class="mw-cal-leg"><span class="mw-cal-leg-dot personal"></span>Personal</span>' +
       '<span class="mw-cal-leg"><span class="mw-cal-leg-dot confirmed"></span>Gathering</span>' +
       '<span class="mw-cal-leg"><span class="mw-cal-leg-dot recommended"></span>Recommended</span>' +
@@ -4298,16 +4301,16 @@ function renderMyWorldCalendar() {
   for (var day=1; day<=dim; day++) {
     var key = y + '-' + pad2(m + 1) + '-' + pad2(day);
     var evs = eventsByKey[key] || [];
-    var classes = 'mw-cal-day' + (evs.length ? ' has-events' : '') + (key === todayKey ? ' today' : '') + (key === myWorldCalendarState.selectedKey ? ' selected' : '');
+    var classes = 'mw-cal-day' + (evs.length ? ' has-events' : '') + (key === todayKey ? ' today' : '') + (key === availabilityState.selectedKey ? ' selected' : '');
     html += '<div class="' + classes + '" data-date="' + key + '"><span class="mw-cal-date-num">' + day + '</span>';
     if (evs.length) {
       html += '<div class="mw-cal-markers">' + evs.slice(0,4).map(function(ev){ return '<span class="mw-cal-marker ' + ev.type + '"></span>'; }).join('') + '</div>';
     }
     html += '</div>';
   }
-  html += '</div><div id="mw-cal-details">' + renderMyWorldCalendarDetails(myWorldCalendarState.selectedKey, events) + '</div>' +
-    '<div class="mw-cal-actions"><button class="mw-cal-action-btn blackout" id="mw-cal-add-blackout">+ Unavailable</button><button class="mw-cal-action-btn" id="mw-cal-add-event">+ Personal event</button></div>' +
-    '<button class="mw-cal-cta" id="mw-cal-share">Use availability for a gathering</button>' +
+  html += '</div><div id="mw-cal-details">' + renderMyWorldCalendarDetails(availabilityState.selectedKey, events) + '</div>' +
+    '<div class="mw-cal-actions"><button class="mw-cal-action-btn unavailable" id="mw-cal-add-unavailable">+ Unavailable</button><button class="mw-cal-action-btn" id="mw-cal-add-event">+ Personal event</button></div>' +
+    '<button class="mw-cal-cta" id="mw-cal-share">Confirm availability for a gathering</button>' +
     '<div class="mw-cal-note">Unavailable dates you add here prefill each gathering availability check. You still confirm before sharing them with the flock.</div>' +
     '</div>';
   return html;
@@ -4326,77 +4329,113 @@ function renderMyWorldCalendarDetails(dateKey, events) {
     '</div>';
   }).join('') + '</div>';
 }
-function renderMyWorld() {
-  var el = document.getElementById('myworld-content');
+function formatAvailabilityRange(ev) {
+  if (!ev) return '';
+  var s = ev.start_date || '';
+  var e = ev.end_date || s;
+  if (!s) return '';
+  if (s === e) return s;
+  return s + ' → ' + e;
+}
+
+function getUpcomingUnavailableEvents(limit) {
+  var today = isoDateKey(new Date());
+  var rows = getMemberPersonalCalendarEventsAcrossFlocks().filter(function(ev){
+    if (!ev || ev.deleted_at) return false;
+    var end = ev.end_date || ev.start_date || '';
+    return end >= today;
+  });
+  rows.sort(function(a,b){ return String(a.start_date || '').localeCompare(String(b.start_date || '')); });
+  return rows.slice(0, limit || 8);
+}
+
+function getAvailabilityRequests() {
+  return buildCrossFlockTodos().filter(function(t){
+    return t && (t.action === 'Availability' || t.action === 'RSVP');
+  }).map(function(t){
+    return Object.assign({}, t, {
+      label: t.action === 'Availability' ? 'Confirm Availability' : 'RSVP',
+      sub: t.action === 'Availability' ? 'Waiting for your availability' : 'Waiting for your RSVP'
+    });
+  });
+}
+
+function getAvailabilityParticipationSummary() {
+  var summary = { upcoming:0, availabilitySubmitted:0, rsvpPending:0, conflicts:0 };
+  var today = isoDateKey(new Date());
+  getMyFlockKeys().forEach(function(fid){
+    var flock = FLOCKS[fid];
+    ((flock && flock.gatherings) || []).forEach(function(g){
+      if (!g || g.deleted_at || g.archived_at || g.status === 'completed') return;
+      summary.upcoming++;
+      var bucket = (rsvpData && rsvpData[g.id]) || {};
+      var mine = bucket[DATA.me && DATA.me.id] || null;
+      if (mine && mine.availSubmitted) summary.availabilitySubmitted++;
+      if (!mine || !mine.status) summary.rsvpPending++;
+    });
+  });
+  summary.conflicts = getUpcomingUnavailableEvents(100).filter(function(ev){
+    return (ev.end_date || ev.start_date || today) >= today;
+  }).length;
+  return summary;
+}
+
+function renderAvailability() {
+  var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
   if (!el) return;
   var myFlocks = getMyFlockKeys();
   if (!myFlocks.length) {
-    el.innerHTML = '<div class="xflock-empty">Join or create a flock to see your cross-flock dashboard.</div>';
+    el.innerHTML = '<div class="xflock-empty">Join or create a flock to manage your availability.</div>';
     return;
   }
 
-  var strip = '<div class="myworld-flock-strip">' + myFlocks.map(function(fid){
-    var f = FLOCKS[fid];
-    return '<button class="myworld-flock-chip' + (fid === currentFlockId ? ' active' : '') + '" data-fid="' + escapeHtml(fid) + '"><span>' + escapeHtml(f.emoji === 'HOME' ? '🏠' : (f.emoji || '👥')) + '</span>' + escapeHtml(f.name || 'Flock') + '</button>';
-  }).join('') + '</div>';
-
-  var todos = buildCrossFlockTodos();
-  var todoHtml = todos.length ? todos.slice(0, 12).map(function(t){
-    return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(t.fid) + '" data-gid="' + escapeHtml(t.gid) + '" data-tab="' + escapeHtml(t.tab) + '">' +
-      '<div class="xflock-top"><div class="xflock-icon">' + t.icon + '</div><div class="xflock-body">' +
-      '<div class="xflock-title">' + escapeHtml(t.text) + '</div>' +
-      '<div class="xflock-meta">' + escapeHtml(t.flock) + ' · ' + escapeHtml(t.gathering) + '</div>' +
-      '<div class="xflock-link">Open ' + escapeHtml(t.action) + ' →</div>' +
+  var unavailable = getUpcomingUnavailableEvents(8);
+  var unavailableHtml = unavailable.length ? unavailable.map(function(ev){
+    return '<div class="xflock-card" data-fid="' + escapeHtml(ev.fid || '') + '">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + (ev.is_unavailable || ev.is_blackout ? '🚫' : '📌') + '</div><div class="xflock-body">' +
+      '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable time') + '</div>' +
+      '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
       '</div></div></div>';
-  }).join('') : '<div class="xflock-empty">All clear — nothing needs you right now. Enjoy the quiet 🫶</div>';
+  }).join('') : '<div class="xflock-empty">No upcoming unavailable time yet. Add travel, work blocks, or personal conflicts here.</div>';
 
-  var acts = buildCrossFlockActivity(12);
-  var actHtml = acts.length ? acts.map(function(a){
-    var canOpen = !!a.gid;
-    return '<div class="xflock-card xflock-activity" data-fid="' + escapeHtml(a.fid) + '" data-gid="' + escapeHtml(a.gid || '') + '" data-tab="' + escapeHtml(a.tab || 'overview') + '">' +
-      '<div class="xflock-top"><div class="xflock-icon">' + escapeHtml(a.icon) + '</div><div class="xflock-body">' +
-      '<div class="xflock-title"><strong>' + escapeHtml(a.actor) + '</strong> ' + a.text + '</div>' +
-      '<div class="xflock-meta">' + escapeHtml(a.flock) + (a.gathering ? ' · ' + escapeHtml(a.gathering) : '') + (a.time ? ' · ' + escapeHtml(a.time) : '') + '</div>' +
-      (canOpen ? '<div class="xflock-link">Open referenced gathering/chat →</div>' : '<div class="xflock-link">Open flock →</div>') +
+  var requests = getAvailabilityRequests();
+  var requestsHtml = requests.length ? requests.map(function(t){
+    return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(t.fid) + '" data-gid="' + escapeHtml(t.gid) + '" data-tab="overview">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + (t.action === 'Availability' ? '📅' : '🎉') + '</div><div class="xflock-body">' +
+      '<div class="xflock-title">' + escapeHtml(t.gathering || t.text || 'Gathering') + '</div>' +
+      '<div class="xflock-meta">' + escapeHtml(t.sub) + ' · ' + escapeHtml(t.flock || 'Flock') + '</div>' +
+      '<div class="xflock-link">' + escapeHtml(t.label) + ' →</div>' +
       '</div></div></div>';
-  }).join('') : '<div class="xflock-empty">No updates yet. When someone plans, chats, or changes a gathering, it will show up here.</div>';
+  }).join('') : '<div class="xflock-empty">No availability or RSVP requests right now.</div>';
 
-  el.innerHTML = strip +
-    renderMyWorldCalendar() +
-    '<div class="section-title">Your to-do across flocks</div>' + todoHtml +
-    '<div class="section-title">Recent activity across flocks</div>' + actHtml;
+  var s = getAvailabilityParticipationSummary();
+  var statsHtml = '<div class="decision-score-row" style="grid-template-columns:repeat(4,1fr);margin-top:0">' +
+    '<div class="decision-score"><div class="decision-score-n">' + s.upcoming + '</div><div class="decision-score-l">upcoming</div></div>' +
+    '<div class="decision-score"><div class="decision-score-n">' + s.availabilitySubmitted + '</div><div class="decision-score-l">available</div></div>' +
+    '<div class="decision-score"><div class="decision-score-n">' + s.rsvpPending + '</div><div class="decision-score-l">RSVP due</div></div>' +
+    '<div class="decision-score"><div class="decision-score-n">' + s.conflicts + '</div><div class="decision-score-l">conflicts</div></div>' +
+    '</div>';
 
-  var prev = el.querySelector('#mw-cal-prev');
-  var next = el.querySelector('#mw-cal-next');
-  if (prev) prev.addEventListener('click', function(){ myWorldCalendarState.offset = (myWorldCalendarState.offset || 0) - 1; renderMyWorld(); });
-  if (next) next.addEventListener('click', function(){ myWorldCalendarState.offset = (myWorldCalendarState.offset || 0) + 1; renderMyWorld(); });
-  el.querySelectorAll('.mw-cal-day[data-date]').forEach(function(day){
-    day.addEventListener('click', function(){ myWorldCalendarState.selectedKey = day.dataset.date; renderMyWorld(); });
-  });
-  el.querySelectorAll('.mw-cal-event').forEach(function(ev){
-    ev.addEventListener('click', function(){
-      if (!ev.dataset.gid) { toast('Personal calendar item'); return; }
-      openCrossFlockTarget(ev.dataset.fid, ev.dataset.gid || null, ev.dataset.tab || 'overview');
-    });
-  });
-  var share = el.querySelector('#mw-cal-share');
-  if (share) share.addEventListener('click', function(){
-    var planning = buildCrossFlockTodos().find(function(t){ return t.action === 'Dates'; });
-    if (planning) openCrossFlockTarget(planning.fid, planning.gid, 'overview');
-    else toast('No pending blackout date requests right now ✓');
-  });
-  var addBlackout = el.querySelector('#mw-cal-add-blackout');
-  if (addBlackout) addBlackout.addEventListener('click', function(){ addPersonalEventFromCalendar(myWorldCalendarState.selectedKey, true); });
-  var addEvent = el.querySelector('#mw-cal-add-event');
-  if (addEvent) addEvent.addEventListener('click', function(){ addPersonalEventFromCalendar(myWorldCalendarState.selectedKey, false); });
+  el.innerHTML =
+    '<div class="decision-card">' +
+      '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">When you are free</div><div class="decision-sub">Unavailable time lives here. Gatherings use it to prefill availability, but Home stays focused on what is happening in the flock.</div></div></div>' +
+    '</div>' +
+    '<div class="section-title">Unavailable time</div>' + unavailableHtml +
+    '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add unavailable time</button>' +
+    '<div class="section-title">Pending requests</div>' + requestsHtml +
+    '<div class="section-title">Participation summary</div>' + statsHtml;
 
-  el.querySelectorAll('.myworld-flock-chip').forEach(function(btn){
-    btn.addEventListener('click', function(){ switchToFlock(btn.dataset.fid); showPage('gatherings'); renderGatherings(); });
+  var addBtn = el.querySelector('#availability-add-unavailable');
+  if (addBtn) addBtn.addEventListener('click', function(){
+    addPersonalEventFromCalendar(isoDateKey(new Date()), true);
+    renderAvailability();
   });
-  el.querySelectorAll('.xflock-card').forEach(function(card){
+  el.querySelectorAll('.xflock-todo').forEach(function(card){
     card.addEventListener('click', function(){ openCrossFlockTarget(card.dataset.fid, card.dataset.gid || null, card.dataset.tab || 'overview'); });
   });
 }
+
+function renderMyWorld() { renderAvailability(); }
 
 // -- HOME ----------------------------------------
 function kinverlyActionTs(a) {
@@ -4574,7 +4613,7 @@ function updateAlertCard() {
   if (planningG) {
     ico.textContent = '📅';
     ttl.textContent = planningG.name + ' · dates needed';
-    sub.textContent = 'Mark your blackout dates so ' + (planningG.host === DATA.me.id || planningG.host === 'me' ? 'you' : planningG.host || 'the host') + ' can find the best window — takes 2 min.';
+    sub.textContent = 'Mark your unavailable time so ' + (planningG.host === DATA.me.id || planningG.host === 'me' ? 'you' : planningG.host || 'the host') + ' can find the best window — takes 2 min.';
     go.onclick = function(){ showPage('gatherings'); renderGatherings(); setTimeout(function(){ showDetail(planningG.id); }, 100); };
     el.style.display = '';
   } else if (unRsvpd) {
@@ -4749,7 +4788,7 @@ function renderHome() {
     if (g.status !== 'planning') return;
     var myR = rsvpData[g.id] && rsvpData[g.id][DATA.me.id];
     if (!myR || !myR.availSubmitted) {
-      todos.push({icon:'📅', text:'Share your dates for <strong>'+escapeHtml(g.name)+'</strong>', action:'detail', gId:g.id, priority:1});
+      todos.push({icon:'📅', text:'Confirm availability for <strong>'+escapeHtml(g.name)+'</strong>', action:'detail', gId:g.id, priority:1});
     }
   });
 
@@ -5336,7 +5375,7 @@ function buildPlanningTab(g) {
   var activeMembers = state.activeMembers;
   var totalMembers = state.totalMembers || 0;
   var availSubmitted = state.submittedCount;
-  var hasFinalDates = !!(g.status !== 'planning' && (g.date_label || g.month || g.day));
+  var hasFinalAvailability = !!(g.status !== 'planning' && (g.date_label || g.month || g.day));
   var replies = state.repliedCount;
   var tasks = (g.tasks || []).filter(function(t){ return !t.deleted_at; });
   var tasksDone = tasks.filter(function(t){ return t.done; }).length;
@@ -5356,12 +5395,12 @@ function buildPlanningTab(g) {
 
   var steps = '';
   if (planningMode) {
-    steps += step(1, 'Share blackout dates', availSubmitted + '/' + totalMembers + ' submitted availability', availSubmitted ? 'done' : 'active');
-    steps += step(2, 'Choose final dates', hasFinalDates ? getGatheringDateDisplay(g) : 'Use the recommended window below', availSubmitted ? 'active' : '');
+    steps += step(1, 'Share unavailable time', availSubmitted + '/' + totalMembers + ' submitted availability', availSubmitted ? 'done' : 'active');
+    steps += step(2, 'Choose final dates', hasFinalAvailability ? getGatheringDateDisplay(g) : 'Use the recommended window below', availSubmitted ? 'active' : '');
     steps += step(3, 'Confirm attendance', 'RSVP opens once dates are finalized', '');
     steps += step(4, 'Plan who brings what', taskCount ? taskCount + ' open task' + (taskCount === 1 ? '' : 's') : 'No open tasks yet', '');
   } else {
-    steps += step(1, 'Dates are set', getGatheringDateDisplay(g), 'done');
+    steps += step(1, 'Availability are set', getGatheringDateDisplay(g), 'done');
     steps += step(2, 'Confirm attendance', replies + '/' + totalMembers + ' replied', replies >= totalMembers ? 'done' : 'active');
     steps += step(3, 'Finish shared plans', tasksDone + '/' + tasks.length + ' tasks done', tasks.length && tasksDone >= tasks.length ? 'done' : 'active');
   }
@@ -5838,7 +5877,7 @@ function getGatheringDateDisplay(g) {
 
 function getGatheringPhaseLabel(g) {
   if (!g) return 'Gathering';
-  if (g.status === 'planning') return 'Choosing Dates';
+  if (g.status === 'planning') return 'Choosing Availability';
   if (g.status === 'completed') return 'Completed';
   if (g.status === 'archived') return 'Archived';
   return 'Confirmed';
@@ -5850,8 +5889,8 @@ function computeConflicts(gId, allFlock) {
   allFlock.forEach(function(m) {
     if (!m) return;
     var rd = rsvpData[gId] && rsvpData[gId][m.id];
-    if (!rd || !rd.blockedDates) return;
-    rd.blockedDates.forEach(function(k) {
+    if (!rd || !rd.blockedAvailability) return;
+    rd.blockedAvailability.forEach(function(k) {
       if (!map[k]) map[k] = { count: 0, who: [] };
       map[k].count++;
       map[k].who.push(m.name || m.id);
@@ -5972,7 +6011,7 @@ function renderDateWindowPanel(g, panel) {
     if (!m) return '';
     var rd  = getRsvpForMember(g.id, m.id);
     var done = rd && rd.availSubmitted;
-    var bc  = rd && rd.blockedDates ? rd.blockedDates.length : 0;
+    var bc  = rd && rd.blockedAvailability ? rd.blockedAvailability.length : 0;
     return '<div class="dw-resp-row">' +
       makeAv(m.animal, 28) +
       '<div class="dw-resp-name">' + (m.id === DATA.me.id ? 'You' : m.name) + '</div>' +
@@ -6238,7 +6277,7 @@ function buildMyGatheringActionCard(g, state, mode) {
       '<div style="display:flex;gap:12px;align-items:flex-start">' +
         '<div style="width:42px;height:42px;border-radius:12px;background:#ede8ff;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📅</div>' +
         '<div style="flex:1"><div style="font-size:17px;font-weight:900;color:var(--text1);margin-bottom:3px">' + (submitted ? 'Availability shared ✓' : 'Share your availability') + '</div>' +
-        '<div style="font-size:13px;color:var(--text2);line-height:1.45">' + (submitted ? 'You can still review or adjust your answers before dates are finalized.' : 'Answer which proposed dates work for you. My Calendar fills in conflicts first.') + '</div></div>' +
+        '<div style="font-size:13px;color:var(--text2);line-height:1.45">' + (submitted ? 'You can still review or adjust your answers before dates are finalized.' : 'Answer which proposed dates work for you. Your unavailable time fills in conflicts first.') + '</div></div>' +
       '</div>' +
       '<button class="btn-primary" id="open-avail-btn" style="margin-top:14px">' + (submitted ? 'Review availability' : 'Share availability') + '</button>' +
     '</div>';
@@ -6938,22 +6977,22 @@ function renderProfile() {
 }
 
 // -- AVAILABILITY MODAL --------------------------
-var blockedDates = {};
+var blockedAvailability = {};
 var availabilityWindowAnswers = {};
 
 function openAvailModal(g) {
   window._availGathering = g || window._currentDetailGathering || null;
   var ag = window._availGathering;
-  blockedDates = {};
+  blockedAvailability = {};
   availabilityWindowAnswers = {};
 
   if (ag) {
-    var suggested = getPersonalBlackoutDateKeysForGathering(ag);
-    Object.keys(suggested).forEach(function(k){ blockedDates[k] = true; });
+    var suggested = getPersonalUnavailableDateKeysForGathering(ag);
+    Object.keys(suggested).forEach(function(k){ blockedAvailability[k] = true; });
   }
   if (ag && rsvpData[ag.id] && rsvpData[ag.id][DATA.me.id]) {
     var mine = rsvpData[ag.id][DATA.me.id];
-    (mine.blockedDates || []).forEach(function(k){ blockedDates[k] = true; });
+    (mine.blockedAvailability || []).forEach(function(k){ blockedAvailability[k] = true; });
     availabilityWindowAnswers = Object.assign({}, mine.windowAnswers || mine.window_answers || {});
   }
 
@@ -6976,7 +7015,7 @@ function formatPersonalEventDateRange(ev) {
 }
 function getPersonalUnavailableEventsForGathering(g) {
   return getMemberPersonalCalendarEventsAcrossFlocks().filter(function(ev){
-    return ev && !ev.deleted_at && ev.is_blackout;
+    return ev && !ev.deleted_at && ev.is_unavailable;
   }).sort(function(a,b){ return String(a.start_date || '').localeCompare(String(b.start_date || '')); });
 }
 function renderAvailabilityReviewSummary(g) {
@@ -6984,13 +7023,13 @@ function renderAvailabilityReviewSummary(g) {
   if (!box) return;
   var events = getPersonalUnavailableEventsForGathering(g);
   if (!events.length) {
-    box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:0">No unavailable times found in My Calendar yet. Add one here if something blocks these proposed dates.</div>';
+    box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:0">No unavailable time found yet. Add one here if something blocks these proposed dates.</div>';
     return;
   }
   var rows = events.slice(0, 5).map(function(ev){
     return '<div class="avail-conflict-row">🚫 <div>' + escapeHtml(formatPersonalEventDateRange(ev)) + '<br><span>' + escapeHtml(ev.title || 'Unavailable') + '</span></div></div>';
   }).join('');
-  var more = events.length > 5 ? '<div class="avail-review-sub" style="margin:6px 0 0">+' + (events.length - 5) + ' more in My Calendar</div>' : '';
+  var more = events.length > 5 ? '<div class="avail-review-sub" style="margin:6px 0 0">+' + (events.length - 5) + ' more in Availability</div>' : '';
   box.innerHTML = '<div class="avail-review-sub" style="margin-bottom:2px">Found ' + events.length + ' unavailable calendar item' + (events.length === 1 ? '' : 's') + ':</div><div class="avail-conflict-list">' + rows + '</div>' + more;
 }
 function addUnavailableFromAvailabilityModal() {
@@ -7001,13 +7040,13 @@ function addUnavailableFromAvailabilityModal() {
   if (!end) return;
   var title = prompt('What should we call this unavailable time?', 'Busy / unavailable');
   if (title === null) return;
-  var ev = createPersonalCalendarEvent({ title: title || 'Busy / unavailable', start_date: start, end_date: end, event_type: 'blackout', is_blackout: true });
+  var ev = createPersonalCalendarEvent({ title: title || 'Busy / unavailable', start_date: start, end_date: end, event_type: 'unavailable', is_unavailable: true });
   if (!ev) return;
-  var suggested = getPersonalBlackoutDateKeysForGathering(g);
-  Object.keys(suggested).forEach(function(k){ blockedDates[k] = true; });
+  var suggested = getPersonalUnavailableDateKeysForGathering(g);
+  Object.keys(suggested).forEach(function(k){ blockedAvailability[k] = true; });
   renderAvailabilityReviewSummary(g);
   renderAvailabilityWindowList(g);
-  toast('Unavailable time added to My Calendar');
+  toast('Unavailable time added');
 }
 
 function monthDayKeyFromDateObj(d) {
@@ -7086,7 +7125,7 @@ function getWindowAnswerForMember(g, member, win) {
   if (raw === 'works' || raw === 'partial' || raw === 'no') return raw;
 
   // Backfill old responses that only stored blocked dates.
-  var blocked = r.blockedDates || r.blocked_dates || [];
+  var blocked = r.blockedAvailability || r.blocked_dates || [];
   var keys = win.keys || [];
   if (!keys.length) return 'works';
   var conflictCount = keys.filter(function(k){ return blocked.indexOf(k) >= 0; }).length;
@@ -7108,7 +7147,7 @@ function computeLiveWindowSummaries(g) {
       counts.submitted++;
       counts[ans] = (counts[ans] || 0) + 1;
       var r = getRsvpForMemberRecord(g.id, m) || {};
-      var blocked = r.blockedDates || r.blocked_dates || [];
+      var blocked = r.blockedAvailability || r.blocked_dates || [];
       if (win.keys && win.keys.length) {
         counts.conflictDays += win.keys.filter(function(k){ return blocked.indexOf(k) >= 0; }).length;
       }
@@ -7156,7 +7195,7 @@ function liveWindowSubtitle(summary) {
 function defaultAnswerForWindow(win) {
   var keys = win.keys || [];
   if (!keys.length) return 'works';
-  var conflictCount = keys.filter(function(k){ return blockedDates[k]; }).length;
+  var conflictCount = keys.filter(function(k){ return blockedAvailability[k]; }).length;
   if (conflictCount === 0) return 'works';
   if (conflictCount >= keys.length) return 'no';
   return 'partial';
@@ -7176,12 +7215,12 @@ function renderAvailabilityWindowList(g) {
   }
   box.innerHTML = windows.map(function(win, idx){
     var keys = win.keys || [];
-    var conflicts = keys.filter(function(k){ return blockedDates[k]; });
+    var conflicts = keys.filter(function(k){ return blockedAvailability[k]; });
     var ans = availabilityWindowAnswers[win.id] || defaultAnswerForWindow(win);
     availabilityWindowAnswers[win.id] = ans;
     var meta = conflicts.length
       ? conflicts.length + ' unavailable day' + (conflicts.length === 1 ? '' : 's') + ' detected: ' + conflicts.slice(0,3).join(', ') + (conflicts.length > 3 ? ' +' + (conflicts.length - 3) : '')
-      : 'No conflicts detected from My Calendar.';
+      : 'No conflicts detected from your unavailable time.';
     return '<div class="avail-window-card ' + ans + '" data-window-id="' + escapeHtml(win.id) + '">' +
       '<div class="avail-window-head"><div><div class="avail-window-date">' + escapeHtml(win.label) + '</div></div><div class="avail-window-status ' + ans + '">' + answerLabel(ans) + '</div></div>' +
       '<div class="avail-window-meta">' + escapeHtml(meta) + '</div>' +
@@ -7217,7 +7256,7 @@ if (availAddUnavailableBtn) availAddUnavailableBtn.addEventListener('click', add
 var availManageCalendarBtn = document.getElementById('avail-manage-calendar');
 if (availManageCalendarBtn) availManageCalendarBtn.addEventListener('click', function(){
   document.getElementById('avail-overlay').classList.add('hidden');
-  if (typeof showPage === 'function') showPage('myworld');
+  if (typeof showPage === 'function') showPage('availability');
   setTimeout(function(){
     var cal = document.getElementById('myworld-calendar');
     if (cal && cal.scrollIntoView) cal.scrollIntoView({behavior:'smooth', block:'start'});
@@ -7243,7 +7282,7 @@ function confirmAvailabilityReview(e) {
   }
 
   var stamp = nowISO();
-  var blocked = Object.keys(blockedDates || {}).filter(function(k){ return blockedDates[k]; });
+  var blocked = Object.keys(blockedAvailability || {}).filter(function(k){ return blockedAvailability[k]; });
 
   // Default every proposed window so pressing confirm without extra taps still saves.
   if (typeof getAvailabilityReviewWindows === 'function') {
@@ -7259,7 +7298,7 @@ function confirmAvailabilityReview(e) {
   mine.id = memberId;
   mine.member_id = memberId;
   mine.status = mine.status || 'yes';
-  mine.blockedDates = blocked;
+  mine.blockedAvailability = blocked;
   mine.blocked_dates = blocked;
   mine.windowAnswers = Object.assign({}, availabilityWindowAnswers || {});
   mine.window_answers = Object.assign({}, availabilityWindowAnswers || {});
@@ -7306,7 +7345,7 @@ function confirmAvailabilityReview(e) {
   if (typeof renderGatheringDetail === 'function') renderGatheringDetail(g);
   if (typeof renderGatherings === 'function') renderGatherings();
   if (typeof renderHome === 'function') renderHome();
-  if (typeof renderMyWorld === 'function') renderMyWorld();
+  if (typeof renderMyWorld === 'function') renderAvailability();
   return false;
 }
 window.confirmAvailabilityReview = confirmAvailabilityReview;
@@ -7633,14 +7672,14 @@ var ROLE_PERMISSIONS = {
   owner: [
     'manage_flock', 'export_data', 'remove_member', 'manage_member_roles',
     'create_gathering', 'edit_gathering', 'archive_gathering', 'finalize_gathering',
-    'manage_planning', 'manage_tasks', 'chat', 'rsvp', 'upload_photo', 'update_blackout_dates'
+    'manage_planning', 'manage_tasks', 'chat', 'rsvp', 'upload_photo', 'update_unavailable_dates'
   ],
   organizer: [
     'create_gathering', 'edit_gathering', 'finalize_gathering',
-    'manage_planning', 'manage_tasks', 'chat', 'rsvp', 'upload_photo', 'update_blackout_dates'
+    'manage_planning', 'manage_tasks', 'chat', 'rsvp', 'upload_photo', 'update_unavailable_dates'
   ],
   member: [
-    'chat', 'rsvp', 'upload_photo', 'update_blackout_dates', 'claim_task', 'vote'
+    'chat', 'rsvp', 'upload_photo', 'update_unavailable_dates', 'claim_task', 'vote'
   ],
   guest: [
     'chat', 'rsvp'
@@ -8220,7 +8259,7 @@ function buildExportTables(payload) {
         rsvp_status: r.status || '',
         availability_submitted: (r.availSubmitted || r.availability_submitted || r.availability_reviewed_at) ? 'yes' : 'no',
         availability_reviewed_at: r.availability_reviewed_at || '',
-        blocked_dates: Array.isArray(r.blockedDates || r.blocked_dates) ? (r.blockedDates || r.blocked_dates).join('|') : '',
+        blocked_dates: Array.isArray(r.blockedAvailability || r.blocked_dates) ? (r.blockedAvailability || r.blocked_dates).join('|') : '',
         window_answers_json: JSON.stringify(r.windowAnswers || r.window_answers || {})
       }));
     });
@@ -8308,7 +8347,7 @@ function buildExportTables(payload) {
       event_type: ev.event_type || '',
       title: ev.title || '',
       description: ev.description || '',
-      is_unavailable: ev.is_blackout ? 'yes' : 'no',
+      is_unavailable: ev.is_unavailable ? 'yes' : 'no',
       start_date: ev.start_date || '',
       end_date: ev.end_date || '',
       visibility: ev.visibility || '',
@@ -10450,7 +10489,7 @@ document.getElementById('create-gathering-overlay').addEventListener('click', fu
 //  FEATURE 3: RSVP FLOW
 // ════════════════════════════════════════════════
 
-var rsvpData = {}; // gId -> { memberId -> {status, blockedDates, availSubmitted, ...} }
+var rsvpData = {}; // gId -> { memberId -> {status, blockedAvailability, availSubmitted, ...} }
 
 function openRSVP(gatheringId) {
   var g = DATA.gatherings.find(function(x){ return x.id === gatheringId; });
@@ -11728,7 +11767,7 @@ function renderGatheringChat(gatheringId) {
       if (window.recordKinverlyActionFailure) window.recordKinverlyActionFailure('chat.message_save_failed', 'chat_message', msg.id, saveErr, { gathering_id: liveG.id || g.id });
       if (typeof toast === 'function') toast('Message saved locally, but sync failed.');
     }
-    try { if (typeof renderHome === 'function') renderHome(); if (typeof renderMyWorld === 'function') renderMyWorld(); } catch(e) {}
+    try { if (typeof renderHome === 'function') renderHome(); if (typeof renderMyWorld === 'function') renderAvailability(); } catch(e) {}
   }
 
   sendBtn.addEventListener('click', sendMessage);
@@ -12078,12 +12117,12 @@ function renderFlockSchedule() {
   }
 
   // Build a map: member → total blocked dates across all gatherings
-  function getMemberBlockedDates(memberId) {
+  function getMemberBlockedAvailability(memberId) {
     var all = [];
     DATA.gatherings.forEach(function(g) {
       var rd = rsvpData[g.id] && rsvpData[g.id][memberId];
-      if (rd && rd.blockedDates) {
-        rd.blockedDates.forEach(function(k) {
+      if (rd && rd.blockedAvailability) {
+        rd.blockedAvailability.forEach(function(k) {
           if (all.indexOf(k) === -1) all.push(k);
         });
       }
@@ -12093,7 +12132,7 @@ function renderFlockSchedule() {
 
   // Build conflict map across all planning gatherings for a member
   function memberConflictLabel(m) {
-    var totalBlocked = getMemberBlockedDates(m.id).length;
+    var totalBlocked = getMemberBlockedAvailability(m.id).length;
     var submitted = planningGatherings.filter(function(g) {
       var rd = rsvpData[g.id] && rsvpData[g.id][m.id];
       return rd && rd.availSubmitted;
@@ -12318,7 +12357,7 @@ confirmAvailabilityReview = function(e) {
 
     var primaryMemberId = memberRecord && (memberRecord.id || memberRecord.member_id) ? (memberRecord.id || memberRecord.member_id) : me.id;
     var stamp = typeof nowISO === 'function' ? nowISO() : new Date().toLocaleString();
-    var blocked = Object.keys(blockedDates || {}).filter(function(k){ return blockedDates[k]; });
+    var blocked = Object.keys(blockedAvailability || {}).filter(function(k){ return blockedAvailability[k]; });
 
     var windows = [];
     try { windows = typeof getAvailabilityReviewWindows === 'function' ? getAvailabilityReviewWindows(g) : []; } catch(_werr) { windows = []; }
@@ -12340,7 +12379,7 @@ confirmAvailabilityReview = function(e) {
       id: primaryMemberId,
       member_id: primaryMemberId,
       status: previous.status || 'responded',
-      blockedDates: blocked,
+      blockedAvailability: blocked,
       blocked_dates: blocked,
       windowAnswers: Object.assign({}, availabilityWindowAnswers || {}),
       window_answers: Object.assign({}, availabilityWindowAnswers || {}),
@@ -12413,7 +12452,7 @@ confirmAvailabilityReview = function(e) {
     try { if (typeof renderDetail === 'function') renderDetail(g); } catch(_rd2Err) {}
     try { if (typeof renderGatherings === 'function') renderGatherings(); } catch(_rgErr) {}
     try { if (typeof renderHome === 'function') renderHome(); } catch(_rhErr) {}
-    try { if (typeof renderMyWorld === 'function') renderMyWorld(); } catch(_rwErr) {}
+    try { if (typeof renderMyWorld === 'function') renderAvailability(); } catch(_rwErr) {}
 
     finishButton();
     toast('Availability confirmed ✓');
@@ -13553,7 +13592,7 @@ try {
       showPage('gatherings');
       renderGatherings();
       renderHome();
-      if (typeof renderMyWorld === 'function') renderMyWorld();
+      if (typeof renderMyWorld === 'function') renderAvailability();
       if (detailOpen && window._currentDetailGathering && String(window._currentDetailGathering.id) === String(g.id)) closeDetail();
       toast('Gathering archived');
     });
@@ -13707,7 +13746,7 @@ try {
       if (typeof renderDetail === 'function') renderDetail(liveG);
       if (typeof renderGatherings === 'function' && document.getElementById('gatherings-list')) renderGatherings();
       if (typeof renderHome === 'function') renderHome();
-      if (typeof renderMyWorld === 'function') renderMyWorld();
+      if (typeof renderMyWorld === 'function') renderAvailability();
       if (typeof restoreNavigationCache === 'function') setTimeout(function(){ restoreNavigationCache({retry:false}); }, 0);
       var overlay = document.getElementById('gather-edit-overlay');
       if (overlay) overlay.classList.add('hidden');
@@ -13847,7 +13886,7 @@ try {
 
   // ── 1. LIGHTWEIGHT EVENT DISPATCHER ──────────────────
   // One nervous system instead of every handler calling
-  // renderHome();renderMyWorld();renderGatherings() by hand.
+  // renderHome();renderAvailability();renderGatherings() by hand.
   // Surfaces subscribe once; flows just emit.
   var KSUBS = {};
   function kOn(type, fn){ (KSUBS[type] = KSUBS[type] || []).push(fn); }
@@ -13866,7 +13905,7 @@ try {
   function refreshSurfaces(){
     if (typeof renderHome === 'function') try { renderHome(); } catch(e){}
     if (typeof renderGatherings === 'function' && document.getElementById('gatherings-list')) try { renderGatherings(); } catch(e){}
-    if (typeof renderMyWorld === 'function') try { renderMyWorld(); } catch(e){}
+    if (typeof renderMyWorld === 'function') try { renderAvailability(); } catch(e){}
     if (typeof renderFlockSchedule === 'function') try { renderFlockSchedule(); } catch(e){}
     renderNotificationBell();
   }
@@ -14131,7 +14170,7 @@ try {
     persist();
     if (typeof renderDetail === 'function') try { renderDetail(g); } catch(e){}
     kEmit('date.locked', { gathering: g, label: label });
-    if (typeof toast === 'function') toast('🎉 Dates locked: ' + label);
+    if (typeof toast === 'function') toast('🎉 Availability locked: ' + label);
     return true;
   }
   window.lockGatheringDate = lockGatheringDate;
@@ -14139,7 +14178,7 @@ try {
   // ── 5. THE BROADCAST FAN-OUT ─────────────────────────
   // The moment that makes a date "communicate all the way
   // through". Confirmed dates already flow onto every
-  // member's My Calendar (status !== 'planning'); here we
+  // member's Availability (status !== 'planning'); here we
   // push the notifications and run the collision check.
   function broadcastDateLocked(g, label){
     var flockName = (typeof getCurrentFlock === 'function' && getCurrentFlock()) ? getCurrentFlock().name : '';
@@ -14173,22 +14212,22 @@ try {
   window.broadcastDateLocked = broadcastDateLocked;
 
   // ── 6. THE LOOP-CLOSER ───────────────────────────────
-  // When a member adds a personal blackout AFTER they've
+  // When a member adds a personal unavailable AFTER they've
   // already said a window "works", flag it and nudge them.
-  // This is what keeps My Calendar and gathering availability
+  // This is what keeps Availability and gathering availability
   // from drifting out of sync.
   function runAvailabilityLoopCloser(ev){
-    if (!ev || !ev.is_blackout || !ev.start_date) return;
+    if (!ev || !ev.is_unavailable || !ev.start_date) return;
     if (typeof parseLocalDateKey !== 'function') return;
     var start = parseLocalDateKey(ev.start_date);
     var end = parseLocalDateKey(ev.end_date || ev.start_date) || start;
     if (!start) return;
 
-    // Build the set of month-day keys this blackout covers.
-    var blackoutKeys = {};
+    // Build the set of month-day keys this unavailable covers.
+    var unavailableKeys = {};
     eachDateInRange(start, end, function(d){
       var k = (typeof monthDayKeyFromDateObj === 'function') ? monthDayKeyFromDateObj(d) : null;
-      if (k) blackoutKeys[k] = true;
+      if (k) unavailableKeys[k] = true;
     });
 
     var meId = DATA.me && DATA.me.id;
@@ -14202,14 +14241,14 @@ try {
       windows.forEach(function(win){
         var ans = answers[win.id] || answers[String(win.id)];
         if (ans !== 'works' && ans !== 'partial') return; // only care if they'd greenlit it
-        var hit = (win.keys || []).some(function(k){ return blackoutKeys[k]; });
+        var hit = (win.keys || []).some(function(k){ return unavailableKeys[k]; });
         if (hit) conflicts.push({ g: g, win: win, ans: ans });
       });
     });
 
     conflicts.forEach(function(c){
       pushNotification(meId, {
-        text: '🔁 Your new blackout (<strong>' + escapeHtml(ev.title || 'busy') + '</strong>) clashes with <strong>' +
+        text: '🔁 Your new unavailable (<strong>' + escapeHtml(ev.title || 'busy') + '</strong>) clashes with <strong>' +
               escapeHtml(c.win.label || 'a date') + '</strong> you marked “' + (c.ans === 'works' ? 'works' : 'partial') +
               '” for <strong>' + escapeHtml(c.g.name || 'a gathering') + '</strong>. Update it?',
         kind: 'loop_closer',
@@ -15750,7 +15789,7 @@ try {
         user_id: uid || '',
         flock_id: ev.flock_id || flockId,
         gathering_id: ev.gathering_id || '',
-        event_type: ev.event_type || ev.type || (ev.is_blackout ? 'unavailable' : 'personal'),
+        event_type: ev.event_type || ev.type || (ev.is_unavailable ? 'unavailable' : 'personal'),
         title: ev.title || '',
         start_at: atTime(ev.start_at || ev.start_date || ''),
         end_at: atTime(ev.end_at || ev.end_date || ''),
