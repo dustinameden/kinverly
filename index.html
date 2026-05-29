@@ -10153,7 +10153,17 @@ function openRSVP(gatheringId) {
     };
 
     if (!rsvpData[gatheringId]) rsvpData[gatheringId] = {};
+    var rsvpUserId = String(me.user_id || me.auth_uid || me.firebase_uid || me.uid || me.id);
+    rsvp.user_id = rsvpUserId;
+    rsvp.member_id = me.member_id != null ? me.member_id : me.id;
+    rsvp.legacy_member_id = String(me.id);
+    rsvp.updated_at = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
+    if (!rsvp.created_at) rsvp.created_at = rsvp.updated_at;
+    rsvpData[gatheringId][rsvpUserId] = rsvp;
     rsvpData[gatheringId][me.id] = rsvp;
+    rsvpData[gatheringId][String(me.id)] = rsvp;
+    if (me.member_id != null) rsvpData[gatheringId][String(me.member_id)] = rsvp;
+    if (me.canonical_member_id != null) rsvpData[gatheringId][String(me.canonical_member_id)] = rsvp;
 
     // Update gathering attending list
     var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
@@ -10165,8 +10175,19 @@ function openRSVP(gatheringId) {
         attending = attending.filter(function(id){ return id !== me.id; });
       }
       DATA.gatherings[gIdx].attending = attending;
+      var rsvpUserId2 = String(me.user_id || me.auth_uid || me.firebase_uid || me.uid || me.id);
+      var attendingUsers = (DATA.gatherings[gIdx].attending_user_ids || DATA.gatherings[gIdx].attendingUserIds || []).map(String);
+      if (selectedStatus === 'yes' || selectedStatus === 'virtual') {
+        if (attendingUsers.indexOf(rsvpUserId2) === -1) attendingUsers.push(rsvpUserId2);
+      } else {
+        attendingUsers = attendingUsers.filter(function(id){ return id !== rsvpUserId2; });
+      }
+      DATA.gatherings[gIdx].attending_user_ids = attendingUsers;
+      DATA.gatherings[gIdx].attendingUserIds = attendingUsers;
       DATA.gatherings[gIdx].mode = selectedStatus === 'virtual' ? 'virtual' : 'in-person';
-      saveAndSync();
+      if (typeof saveAndSync === 'function') saveAndSync();
+      else if (typeof saveFlockState === 'function') saveFlockState();
+      try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e){}
     }
 
     // RSVP syncs to all users via flock document (saveFlockState triggers syncFlockToFirebase)
@@ -13860,10 +13881,10 @@ try {
           footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
       }
       // Not replied yet → the second question.
-      return { tone:'brand', pill: dates, sentence:'It\u2019s set for <strong>' + escapeHtml(dates) + '</strong>. Can you make it?',
+      return { tone:'brand', pill: dates, sentence:'It\u2019s set for <strong>' + escapeHtml(dates) + '</strong>. Reply so the flock knows who is coming.',
         actions:[
-          { label:'Yes, I\u2019m in', onclick:"quickRSVP('"+gid+"','yes')", primary:true },
-          { label:'Can\u2019t make it', onclick:"quickRSVP('"+gid+"','no')" }
+          { label:'I\u2019m going', onclick:"quickRSVP('"+gid+"','yes')", primary:true },
+          { label:'I can\u2019t go', onclick:"quickRSVP('"+gid+"','no')" }
         ],
         footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
     }
@@ -13919,7 +13940,12 @@ try {
     var m = computeGatheringNextAction(g);
     var actionsHtml = (m.actions || []).map(function(a){
       var cls = a.primary ? 'qcard-btn qcard-btn-primary' : 'qcard-btn';
-      return '<button class="' + cls + '" onclick="' + a.onclick + '">' + escapeHtml(a.label) + '</button>';
+      var onclick = a.onclick || '';
+      var attrs = '';
+      var qr = onclick.match(/^quickRSVP\('([^']+)'\s*,\s*'([^']+)'\)$/);
+      if (qr) attrs = ' data-quick-rsvp-gid="' + escapeHtml(qr[1]) + '" data-quick-rsvp-status="' + escapeHtml(qr[2]) + '"';
+      var safeClick = onclick ? ' onclick="' + onclick.replace(/"/g, '&quot;') + '"' : '';
+      return '<button type="button" class="' + cls + '"' + attrs + safeClick + '>' + escapeHtml(a.label) + '</button>';
     }).join('');
 
     var collisionHtml = m.collision
@@ -13998,35 +14024,78 @@ try {
   // availability, mirrors how the RSVP modal writes data.
   function quickRSVP(gid, status){
     var g = resolveG(gid);
-    if (!g) return;
-    var meId = DATA.me && DATA.me.id;
-    if (!rsvpData[g.id]) rsvpData[g.id] = {};
-    var mine = Object.assign({}, rsvpData[g.id][meId] || rsvpData[g.id][String(meId)] || {});
-    mine.id = meId; mine.member_id = meId;
-    mine.status = status;
-    mine.updated_at = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
-    if (!mine.created_at) mine.created_at = mine.updated_at;
-    rsvpData[g.id][meId] = mine;
-    rsvpData[g.id][String(meId)] = mine;
+    if (!g) { toast('Gathering could not be found. Try refreshing.'); return; }
+    if (!DATA || !DATA.me) { toast('Please choose your profile first.'); return; }
 
-    // Keep the gathering's attending list in sync (same as the modal).
-    var attending = (g.attending || []).slice();
-    if (status === 'yes' || status === 'virtual'){ if (attending.indexOf(meId) === -1) attending.push(meId); }
-    else { attending = attending.filter(function(id){ return id !== meId; }); }
-    g.attending = attending;
+    var me = DATA.me;
+    var userId = String(me.user_id || me.auth_uid || me.firebase_uid || me.uid || me.id);
+    var legacyId = String(me.id || userId);
+    var now = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
+
+    if (!rsvpData[g.id]) rsvpData[g.id] = {};
+
+    var existing = rsvpData[g.id][userId] || rsvpData[g.id][legacyId] ||
+      (me.member_id != null ? rsvpData[g.id][String(me.member_id)] : null) ||
+      (me.canonical_member_id != null ? rsvpData[g.id][String(me.canonical_member_id)] : null) || {};
+
+    var mine = Object.assign({}, existing, {
+      id: userId,
+      user_id: userId,
+      member_id: me.member_id != null ? me.member_id : legacyId,
+      legacy_member_id: legacyId,
+      memberName: me.name || existing.memberName || 'You',
+      memberAnimal: me.animal || existing.memberAnimal || '',
+      status: status,
+      rsvp_status: status,
+      attendance_status: status,
+      responded_at: existing.responded_at || now,
+      updated_at: now,
+      updatedAt: Date.now()
+    });
+    if (!mine.created_at) mine.created_at = now;
+
+    rsvpData[g.id][userId] = mine;
+    rsvpData[g.id][legacyId] = mine;
+    if (me.member_id != null) rsvpData[g.id][String(me.member_id)] = mine;
+    if (me.canonical_member_id != null) rsvpData[g.id][String(me.canonical_member_id)] = mine;
+
+    var attendingUserIds = (g.attending_user_ids || g.attendingUserIds || []).map(String);
+    var attendingLegacy = (g.attending || []).map(String);
+    if (status === 'yes' || status === 'virtual'){
+      if (attendingUserIds.indexOf(userId) === -1) attendingUserIds.push(userId);
+      if (attendingLegacy.indexOf(legacyId) === -1) attendingLegacy.push(legacyId);
+    } else {
+      attendingUserIds = attendingUserIds.filter(function(id){ return id !== userId; });
+      attendingLegacy = attendingLegacy.filter(function(id){ return id !== legacyId && id !== userId; });
+    }
+    g.attending_user_ids = attendingUserIds;
+    g.attendingUserIds = attendingUserIds;
+    g.attending = attendingLegacy;
+    g.updated_at = now;
+    g.updatedAt = Date.now();
+    g.updatedBy = userId;
+    g.updated_by_user_id = userId;
     if (typeof touchEntity === 'function') touchEntity(g);
 
     if (typeof logActivity === 'function'){
-      var verb = status === 'yes' ? 'is coming to' : status === 'virtual' ? 'is joining virtually' : 'can\u2019t make';
-      logActivity(meId, verb + ' <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', status === 'yes' ? '\ud83c\udf89' : status === 'virtual' ? '\ud83d\udcbb' : '\ud83d\udc94');
+      var verb = status === 'yes' ? 'is going to' : status === 'virtual' ? 'is joining virtually' : 'can\u2019t go to';
+      logActivity(legacyId, verb + ' <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', status === 'yes' ? '\ud83c\udf89' : status === 'virtual' ? '\ud83d\udcbb' : '\ud83d\udc94');
     }
-    if (typeof recordEvent === 'function') recordEvent('rsvp.updated', 'rsvp', g.id, null, mine, 'RSVP: ' + status, '\ud83c\udf89');
-    if (typeof kEmit === 'function') kEmit('rsvp.updated', { gathering: g, status: status });
-    else { if (typeof saveFlockState === 'function') saveFlockState(); }
-    if (typeof renderDetail === 'function') try { renderDetail(g); } catch(e){}
-    toast(status === 'yes' ? '\ud83c\udf89 You\u2019re in!' : status === 'virtual' ? '\ud83d\udcbb You\u2019re joining virtually' : 'Got it \u2014 you\u2019ll be missed');
+    if (typeof recordEvent === 'function') recordEvent('rsvp.updated', 'rsvp', g.id, null, mine, 'RSVP: ' + status, status === 'no' ? '\ud83d\udc94' : '\ud83c\udf89');
+
+    try { if (typeof saveFlockState === 'function') saveFlockState(); }
+    catch(e){ console.warn('[Kinverly] quick RSVP save failed:', e); }
+    try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); }
+    catch(e){ console.warn('[Kinverly] quick RSVP firebase sync failed:', e); }
+    if (typeof kEmit === 'function') kEmit('rsvp.updated', { gathering: g, status: status, user_id: userId });
+
+    try { if (typeof renderDetail === 'function') renderDetail(g); } catch(e){}
+    try { if (typeof renderGatherings === 'function') renderGatherings(); } catch(e){}
+    try { if (typeof renderHome === 'function') renderHome(); } catch(e){}
+    try { if (typeof renderMyWorld === 'function') renderMyWorld(); } catch(e){}
+
+    toast(status === 'yes' ? '\ud83c\udf89 You\u2019re going!' : status === 'virtual' ? '\ud83d\udcbb You\u2019re joining virtually' : 'Got it \u2014 marked not going');
   }
-  window.quickRSVP = quickRSVP;
 
   // Lock the engine's recommended window in one tap.
   function lockRecommendedWindow(gid){
