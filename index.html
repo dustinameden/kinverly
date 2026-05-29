@@ -4520,6 +4520,19 @@ function openMemberProfile(m) {
 var _gatheringsFilter = 'active';
 
 function renderGatherings() {
+  // Always render from the active flock source, not a stale DATA shell.
+  // This prevents a blank Gatherings page while the topbar has the correct flock.
+  try {
+    var fs = (typeof deriveFlockState === 'function') ? deriveFlockState(currentFlockId) : null;
+    if (fs && fs.flock) {
+      DATA.gatherings = fs.gatherings || [];
+      DATA.ideas = fs.ideas || DATA.ideas || [];
+      DATA.activity = fs.activity || DATA.activity || [];
+      DATA.events = fs.events || DATA.events || [];
+      DATA.members = (fs.activeMembers || []).filter(function(m){ return getCanonicalUserId(m) !== getCanonicalUserId(DATA.me); });
+    }
+  } catch(_rgStateErr) { console.warn('[Kinverly] renderGatherings state refresh warning', _rgStateErr && _rgStateErr.message); }
+
   // Render cross-gathering schedule panel first
   renderFlockSchedule();
 
@@ -7158,8 +7171,41 @@ function getRoleLabel(role) {
 
 function getCurrentMemberRecord() {
   var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
-  if (!flock || !DATA.me) return null;
-  return (flock.members && flock.members[DATA.me.id]) || DATA.me || null;
+  if (!flock || !DATA.me) return DATA.me || null;
+  var members = flock.members || {};
+  if (DATA.me.id && members[DATA.me.id]) return members[DATA.me.id];
+  var myKeys = getMemberIdentityKeys ? getMemberIdentityKeys(DATA.me) : [DATA.me.id];
+  var myUid = getCanonicalUserId ? getCanonicalUserId(DATA.me) : DATA.me.id;
+  var found = null;
+  Object.keys(members).some(function(k){
+    var m = members[k];
+    if (!m) return false;
+    if (myUid && getCanonicalUserId && getCanonicalUserId(m, k) === myUid) { found = m; return true; }
+    var keys = getMemberIdentityKeys ? getMemberIdentityKeys(m) : [m.id, k];
+    for (var i=0;i<keys.length;i++) { if (myKeys.indexOf(keys[i]) >= 0 || myKeys.indexOf(String(keys[i])) >= 0) { found = m; return true; } }
+    return false;
+  });
+  return found || DATA.me || null;
+}
+function findCurrentMemberInMembersMap(members) {
+  members = members || {};
+  if (!DATA || !DATA.me) return null;
+  if (DATA.me.id && members[DATA.me.id]) return members[DATA.me.id];
+  var myUid = getCanonicalUserId ? getCanonicalUserId(DATA.me) : DATA.me.id;
+  var myKeys = getMemberIdentityKeys ? getMemberIdentityKeys(DATA.me) : [DATA.me.id];
+  var found = null;
+  Object.keys(members).some(function(k){
+    var m = members[k];
+    if (!m) return false;
+    ensureMemberUserIdentity && ensureMemberUserIdentity(m, k);
+    if (myUid && getCanonicalUserId && getCanonicalUserId(m, k) === myUid) { found = m; return true; }
+    var keys = getMemberIdentityKeys ? getMemberIdentityKeys(m) : [m.id, k];
+    for (var i=0;i<keys.length;i++) {
+      if (myKeys.indexOf(keys[i]) >= 0 || myKeys.indexOf(String(keys[i])) >= 0) { found = m; return true; }
+    }
+    return false;
+  });
+  return found;
 }
 
 function getCurrentRole() {
@@ -8840,6 +8886,9 @@ function saveLocal() {
   try {
     // If kicked from flock, don't save anything flock-related
     if (window._kickedFromFlock) return;
+    // During startup Firebase hydration, do not let an empty/stale local shell
+    // overwrite the real shared flock document before the first remote snapshot arrives.
+    if (window._suppressLocalFlockSave) return;
 
     if (currentFlockId && FLOCKS[currentFlockId]) {
       normalizeAppState();
@@ -8857,23 +8906,10 @@ function saveLocal() {
         if (!g.attending) g.attending = [];
       });
 
-      // Protect shared flock state during startup. If this browser has only
-      // a partial/local shell and the first Firestore snapshot has not hydrated
-      // the flock yet, do not overwrite existing remote-capable arrays with
-      // empty UI arrays.
-      var _hasRemoteHydration = !!_f.__remote_hydrated;
-      var _hasExistingSharedData = hasUsableFlockData(_f);
-      var _incomingLooksBlank = (!DATA.gatherings || DATA.gatherings.length === 0) &&
-        (!DATA.ideas || DATA.ideas.length === 0) &&
-        (!DATA.activity || DATA.activity.length === 0);
-      if (!_hasRemoteHydration && _hasExistingSharedData && _incomingLooksBlank) {
-        // keep the cached/shared arrays intact until Firestore finishes loading
-      } else {
-        _f.gatherings = DATA.gatherings;
-        _f.ideas      = DATA.ideas;
-        _f.activity   = DATA.activity;
-        _f.events     = DATA.events || _f.events || [];
-      }
+      _f.gatherings = DATA.gatherings;
+      _f.ideas      = DATA.ideas;
+      _f.activity   = DATA.activity;
+      _f.events     = DATA.events || _f.events || [];
       if (!_f.members) _f.members = {};
       if (!_f.memberIds) _f.memberIds = [];
 
@@ -9098,52 +9134,6 @@ function getGatheringsForFirestore(localGatherings) {
   return (localGatherings || []).map(sanitizeGatheringForFirestore);
 }
 
-
-function hasUsableFlockData(flock) {
-  if (!flock) return false;
-  if (flock.members && Object.keys(flock.members).length > 0) return true;
-  if (Array.isArray(flock.gatherings) && flock.gatherings.length > 0) return true;
-  if (Array.isArray(flock.activity) && flock.activity.length > 0) return true;
-  if (Array.isArray(flock.ideas) && flock.ideas.length > 0) return true;
-  return false;
-}
-
-function hydrateDataFromCurrentFlock(source) {
-  try {
-    var key = resolveFlockKey(currentFlockId);
-    if (!key || !FLOCKS[key]) return false;
-    currentFlockId = key;
-    window.currentFlockId = key;
-    normalizeKinverlySchema(FLOCKS[key]);
-    var fs = (typeof deriveFlockState === 'function') ? deriveFlockState(key) : null;
-    DATA.gatherings = fs && fs.gatherings ? fs.gatherings : ((FLOCKS[key].gatherings || []).filter(function(g){ return g && !g.deleted_at; }));
-    DATA.ideas = fs && fs.ideas ? fs.ideas : ((FLOCKS[key].ideas || []).filter(function(i){ return i && !i.deleted_at; }));
-    DATA.activity = fs && fs.activity ? fs.activity : (FLOCKS[key].activity || []);
-    DATA.events = fs && fs.events ? fs.events : (FLOCKS[key].events || []);
-    var myUid = getCanonicalUserId(DATA.me);
-    DATA.members = fs && fs.activeMembers ? fs.activeMembers.filter(function(m){ return getCanonicalUserId(m) !== myUid; }) : [];
-    var nameEl = document.getElementById('topbar-flock-name');
-    if (nameEl && FLOCKS[key].name) nameEl.textContent = FLOCKS[key].name;
-    try {
-      localStorage.setItem('kinverly_current_flock', key);
-      localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
-    } catch(_storeErr) {}
-    return true;
-  } catch(e) {
-    console.warn('[Kinverly] hydrateDataFromCurrentFlock failed:', e && e.message);
-    return false;
-  }
-}
-
-function renderAllAppViews() {
-  try { renderHome(); } catch(e) { console.warn('[Kinverly] renderHome failed:', e && e.message); }
-  try { renderGatherings(); } catch(e) { console.warn('[Kinverly] renderGatherings failed:', e && e.message); }
-  try { renderIdeas(); } catch(e) { console.warn('[Kinverly] renderIdeas failed:', e && e.message); }
-  try { renderFlockPage(); } catch(e) { console.warn('[Kinverly] renderFlockPage failed:', e && e.message); }
-  try { renderProfile(); } catch(e) { console.warn('[Kinverly] renderProfile failed:', e && e.message); }
-  try { updateCountdown(); } catch(e) {}
-}
-
 function loadFlockState() {
   try {
     var s = localStorage.getItem('kinverly_flocks');
@@ -9154,7 +9144,6 @@ function loadFlockState() {
     if (resolved) currentFlockId = resolved;
     else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
     normalizeAppState();
-    window.currentFlockId = currentFlockId;
   } catch(e) { console.warn('[Kinverly] loadFlockState warning', e); }
 }
 
@@ -9178,8 +9167,16 @@ function switchToFlock(flockId) {
   var nameEl = document.getElementById('topbar-flock-name');
   if (nameEl) nameEl.textContent = flock.name;
 
-  // Load flock data from the same derived state used by every page.
-  hydrateDataFromCurrentFlock('switchToFlock');
+  // Load members — exclude myself
+  DATA.members = (flock.members && Object.keys(flock.members).length > 0)
+    ? flockState.activeMembers.filter(function(m){ return isActiveMemberRecord(m) && m.id !== DATA.me.id; })
+    : [];
+
+  // Load flock data
+  DATA.gatherings = flockState.gatherings || [];
+  DATA.ideas      = flockState.ideas || [];
+  DATA.activity   = flockState.activity || [];
+  DATA.events     = flockState.events || [];
 
   // Save currentFlockId to localStorage so refresh remembers which flock
   try {
@@ -11997,6 +11994,7 @@ try {
 
     window._currentFlockListener = onSnapshot(doc(db, 'flocks', docId), function(snap) {
       if (!snap.exists()) return;
+      window._suppressLocalFlockSave = false;
 
       var remote = snap.data() || {};
       var myId = DATA.me.id;
@@ -12012,7 +12010,6 @@ try {
       if (!window.FLOCKS[activeKey]) window.FLOCKS[activeKey] = {};
       var local = window.FLOCKS[activeKey];
       stampCanonicalFlockIdentity(activeKey, local);
-      local.__remote_hydrated = true;
 
       // ── MEMBERS: remote is authoritative for who's in the flock ──
       if (remote.members) {
@@ -12052,18 +12049,25 @@ try {
         local.memberIds = Object.keys(merged).filter(function(mid){ return isActiveMemberRecord(merged[mid]); });
         DATA.members = getActiveMembersForFlockRecord(local).filter(function(m){ return getCanonicalUserId(m) !== getCanonicalUserId(DATA.me); });
 
-        // Also update DATA.me if my own data changed remotely (e.g. admin changed my role)
-        if (merged[myId]) {
-          var myRemote = merged[myId];
+        // Also update DATA.me if my own data changed remotely (e.g. admin changed my role).
+        // Resolve by user_id/aliases, not just the legacy member map key.
+        var myRemote = (typeof findCurrentMemberInMembersMap === 'function') ? findCurrentMemberInMembersMap(merged) : (merged[myId] || null);
+        if (myRemote) {
           if (myRemote.role && myRemote.role !== (DATA.me.role || 'member')) {
             DATA.me.role = myRemote.role;
             persistMyProfile();
+          }
+          // Keep a local alias keyed by DATA.me.id so legacy code paths do not lose the current user.
+          if (myId && !merged[myId] && !isRemovedMemberRecord(myRemote)) {
+            merged[myId] = Object.assign({}, myRemote, { id: myRemote.id || myId });
+            local.members = merged;
           }
         }
 
         // Detect if I was REMOVED from the flock. A removed member may still
         // exist in the database as a historical record, so check deleted_at/status too.
-        if (myId && ((!merged[myId] && Object.keys(merged).length > 0) || isRemovedMemberRecord(merged[myId]))) {
+        // IMPORTANT: resolve by canonical user_id/aliases, not only members[DATA.me.id].
+        if (myId && (((!myRemote && Object.keys(merged).length > 0)) || (myRemote && isRemovedMemberRecord(myRemote)))) {
           // Set flag FIRST — prevents any save/sync from re-adding us
           window._kickedFromFlock = true;
 
@@ -12232,8 +12236,12 @@ try {
       }
 
       // Re-render ALL views so every user sees changes
-      hydrateDataFromCurrentFlock('remote-snapshot');
-      renderAllAppViews();
+      renderHome();
+      renderGatherings();
+      renderIdeas();
+      renderFlockPage();
+      renderProfile();
+      updateCountdown();
 
       // If gathering detail is open, update only the chat messages (preserve input)
       if (window._currentDetailGathering) {
@@ -12265,78 +12273,112 @@ try {
     });
   };
 
-
-  window.__bootstrapUserFlocks = async function() {
-    var attachedKey = window.currentFlockId || currentFlockId || localStorage.getItem('kinverly_current_flock');
-    if (attachedKey) {
-      try { window.__attachFlockListener(attachedKey); } catch(_attachErr) {}
+  // Hydrate from Firestore before trusting localStorage. Some older accounts have
+  // a local flock shell with the right name but no gatherings. The canonical source
+  // is the shared /flocks/{docId} document referenced by users/{user_id}.flocks.
+  async function hydrateFlocksForCurrentUser() {
+    var uid = (typeof getCanonicalUserId === 'function' ? getCanonicalUserId(DATA.me) : (DATA.me && DATA.me.id)) || (DATA.me && DATA.me.id);
+    if (!uid) return false;
+    var loaded = {};
+    async function loadDocId(docId) {
+      if (!docId || loaded[docId]) return;
+      try {
+        var snap = await getDoc(doc(db, 'flocks', String(docId)));
+        if (!snap || !snap.exists()) return;
+        var remote = snap.data() || {};
+        remote.firestore_id = snap.id;
+        remote.storage_key = snap.id;
+        remote.uid = remote.uid || snap.id;
+        var local = window.FLOCKS && window.FLOCKS[snap.id] ? window.FLOCKS[snap.id] : {};
+        var merged = (typeof mergeCanonicalFlockRecords === 'function') ? mergeCanonicalFlockRecords(remote, local) : Object.assign({}, local, remote);
+        merged.firestore_id = snap.id;
+        merged.storage_key = snap.id;
+        merged.uid = snap.id;
+        window.FLOCKS[snap.id] = merged;
+        loaded[snap.id] = true;
+      } catch(e) { console.warn('[Kinverly] Could not hydrate flock', docId, e && e.message); }
     }
 
-    var userId = DATA && DATA.me && DATA.me.id ? DATA.me.id : localStorage.getItem('kinverly_user_id');
-    if (!userId || !getDoc) return;
-
+    // 1) Preferred: user membership record.
     try {
-      var userSnap = await getDoc(doc(db, 'users', userId));
-      if (!userSnap.exists()) return;
-      var userData = userSnap.data() || {};
-      var memberships = userData.flocks || userData.flock_memberships || {};
-      var refs = [];
-
-      if (Array.isArray(memberships)) {
-        memberships.forEach(function(m){
-          var fid = m && (m.flock_firestore_id || m.flock_key || m.firestore_id || m.id);
-          var status = String((m && (m.status || m.membership_status)) || 'active').toLowerCase();
-          if (fid && status !== 'removed' && status !== 'archived') refs.push(String(fid));
-        });
-      } else {
-        Object.keys(memberships || {}).forEach(function(fid){
-          var m = memberships[fid] || {};
-          var status = String(m.status || m.membership_status || 'active').toLowerCase();
-          if (fid && status !== 'removed' && status !== 'archived') refs.push(String(fid));
-        });
-      }
-
-      // De-dupe refs.
-      refs = refs.filter(function(fid, idx){ return refs.indexOf(fid) === idx; });
-      if (!refs.length) return;
-
-      for (var i = 0; i < refs.length; i++) {
-        try {
-          var fsnap = await getDoc(doc(db, 'flocks', refs[i]));
-          if (!fsnap.exists()) continue;
-          var remoteFlock = fsnap.data() || {};
-          remoteFlock.firestore_id = fsnap.id;
-          remoteFlock.storage_key = fsnap.id;
-          remoteFlock.uid = remoteFlock.uid || fsnap.id;
-          remoteFlock.__remote_hydrated = true;
-          window.FLOCKS[fsnap.id] = mergeCanonicalFlockRecords(remoteFlock, window.FLOCKS[fsnap.id] || {});
-          window.FLOCKS[fsnap.id].__remote_hydrated = true;
-        } catch(_oneErr) {
-          console.warn('[Kinverly] Could not hydrate flock ref:', refs[i], _oneErr && _oneErr.message);
+      var userSnap = await getDoc(doc(db, 'users', String(uid)));
+      if (userSnap && userSnap.exists()) {
+        var u = userSnap.data() || {};
+        var flocks = u.flocks || u.flock_memberships || {};
+        if (Array.isArray(flocks)) {
+          for (var i=0;i<flocks.length;i++) {
+            var row = flocks[i] || {};
+            var status = String(row.status || row.membership_status || 'active').toLowerCase();
+            if (status === 'removed' || status === 'archived' || row.deleted_at || row.removed_at) continue;
+            await loadDocId(row.flock_key || row.firestore_id || row.flock_firestore_id || row.id || row.flock_id);
+          }
+        } else {
+          var keys = Object.keys(flocks || {});
+          for (var j=0;j<keys.length;j++) {
+            var r = flocks[keys[j]] || {};
+            var st = String(r.status || r.membership_status || 'active').toLowerCase();
+            if (st === 'removed' || st === 'archived' || r.deleted_at || r.removed_at) continue;
+            await loadDocId(r.flock_key || r.firestore_id || r.flock_firestore_id || keys[j]);
+          }
         }
       }
+    } catch(e1) { console.warn('[Kinverly] User membership hydration failed', e1 && e1.message); }
 
-      normalizeFlockStorageKeys();
+    // 2) Fallback/repair: scan flock docs and include any where this user is an active member.
+    // This repairs accounts whose users/{id} record is missing/stale.
+    try {
+      var all = await getDocs(collection(db, 'flocks'));
+      all.forEach(function(snap){
+        var f = snap.data() || {};
+        var members = f.members || {};
+        var found = false;
+        Object.keys(members).some(function(k){
+          var m = members[k];
+          if (!m) return false;
+          try { ensureMemberUserIdentity(m, k); } catch(_idErr) {}
+          var same = false;
+          try { same = getCanonicalUserId(m, k) === uid || (getMemberIdentityKeys(m).indexOf(uid) >= 0); } catch(_sameErr) { same = (k === uid || m.id === uid); }
+          if (same && (!isRemovedMemberRecord || !isRemovedMemberRecord(m)) && (!isActiveMemberRecord || isActiveMemberRecord(m))) { found = true; return true; }
+          return false;
+        });
+        if (found) {
+          f.firestore_id = snap.id; f.storage_key = snap.id; f.uid = f.uid || snap.id;
+          var local = window.FLOCKS && window.FLOCKS[snap.id] ? window.FLOCKS[snap.id] : {};
+          window.FLOCKS[snap.id] = (typeof mergeCanonicalFlockRecords === 'function') ? mergeCanonicalFlockRecords(f, local) : Object.assign({}, local, f);
+          window.FLOCKS[snap.id].firestore_id = snap.id;
+          window.FLOCKS[snap.id].storage_key = snap.id;
+          window.FLOCKS[snap.id].uid = snap.id;
+          loaded[snap.id] = true;
+        }
+      });
+    } catch(e2) { console.warn('[Kinverly] Flock scan hydration failed', e2 && e2.message); }
 
-      var active = resolveFlockKey(currentFlockId) || resolveFlockKey(attachedKey);
-      if (!active || !hasUsableFlockData(window.FLOCKS[active])) {
-        active = refs.map(function(r){ return resolveFlockKey(r); }).filter(Boolean)[0] || Object.keys(window.FLOCKS || {})[0];
-      }
+    var ids = Object.keys(loaded);
+    if (!ids.length) return false;
+    var preferred = resolveFlockKey(localStorage.getItem('kinverly_current_flock')) || ids[0];
+    if (!loaded[preferred]) preferred = ids[0];
+    currentFlockId = preferred;
+    window.currentFlockId = preferred;
+    try {
+      localStorage.setItem('kinverly_current_flock', preferred);
+      localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
+    } catch(_storeErr) {}
+    switchToFlock(preferred);
+    return true;
+  }
 
-      if (active && window.FLOCKS[active]) {
-        currentFlockId = active;
-        window.currentFlockId = active;
-        hydrateDataFromCurrentFlock('user-membership-bootstrap');
-        renderAllAppViews();
-        window.__attachFlockListener(active);
-      }
-    } catch(err) {
-      console.warn('[Kinverly] User flock bootstrap failed:', err && err.message);
+  window._suppressLocalFlockSave = true;
+  setTimeout(function(){ window._suppressLocalFlockSave = false; }, 10000);
+  hydrateFlocksForCurrentUser().then(function(ok){
+    if (!ok) {
+      window._suppressLocalFlockSave = false;
+      window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
     }
-  };
-
-  window.__bootstrapUserFlocks();
-
+  }).catch(function(err){
+    window._suppressLocalFlockSave = false;
+    console.warn('[Kinverly] Hydration bootstrap failed:', err && err.message);
+    window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
+  });
 
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
