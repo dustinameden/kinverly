@@ -19897,6 +19897,231 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 })();
 </script>
 
+
+
+<script>
+/* Sprint 52 hotfix — authoritative Global Admin mode + unique members + full exports.
+   This patch is intentionally isolated. It does not replace app code; it overrides the broken
+   admin/member rendering paths after the app loads. */
+(function(){
+  function num(v){
+    if (v == null || v === '') return null;
+    var n = parseInt(String(v).replace(/[^0-9-]/g,''),10);
+    return Number.isFinite(n) ? n : null;
+  }
+  function txt(v){ return String(v == null ? '' : v); }
+  function lower(v){ return txt(v).trim().toLowerCase(); }
+  function esc(s){
+    return txt(s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});
+  }
+  function now(){ return new Date().toISOString().slice(0,19).replace('T',' '); }
+  function currentFlock(){
+    try { return window.FLOCKS && window.currentFlockId ? window.FLOCKS[window.currentFlockId] : null; } catch(e){ return null; }
+  }
+  function usersArray(){
+    var out=[];
+    try { if (Array.isArray(window.USERS)) out=out.concat(window.USERS); } catch(e){}
+    try { if (window.DATA && Array.isArray(DATA.users)) out=out.concat(DATA.users); } catch(e){}
+    try { if (window.DATA && DATA.me) out.push(DATA.me); } catch(e){}
+    try { Object.values((window.FLOCKS||{})).forEach(function(f){ Object.values(f.members||{}).forEach(function(m){ if(m) out.push(m); }); }); } catch(e){}
+    return out.filter(Boolean);
+  }
+  function currentUser(){
+    try { if (window.DATA && DATA.me) return DATA.me; } catch(e){}
+    try { if (window.currentUser) return window.currentUser; } catch(e){}
+    try { if (window.kinverlySession && kinverlySession.user_id) {
+      var uid = num(kinverlySession.user_id);
+      return usersArray().find(function(u){ return num(u.user_id||u.id) === uid; }) || {user_id:uid};
+    }} catch(e){}
+    return null;
+  }
+  function isGlobalAdmin(){
+    var me=currentUser()||{};
+    var myUid=num(me.user_id||me.id);
+    var myUsername=lower(me.username||me.login_username||me.name||me.display_name);
+    if (lower(me.global_role||me.globalRole||me.role)==='admin' || me.is_global_admin===true || me.global_admin===true) return true;
+    var match=usersArray().find(function(u){
+      var sameUid = myUid && num(u.user_id||u.id)===myUid;
+      var sameName = myUsername && lower(u.username||u.login_username||u.name||u.display_name)===myUsername;
+      return (sameUid || sameName) && (lower(u.global_role||u.globalRole||u.role)==='admin' || u.is_global_admin===true || u.global_admin===true);
+    });
+    if (match) return true;
+    // Controlled fallback: the explicit admin login account should be admin even if legacy rows lost global_role.
+    return myUsername === 'admin' || myUsername === 'administrator';
+  }
+  window.kinverlyIsGlobalAdmin = isGlobalAdmin;
+  window.isGlobalAdminUser = isGlobalAdmin;
+
+  function canonicalUserId(row){
+    return num(row && (row.user_id || row.canonical_user_id || row.id));
+  }
+  function legacyKey(row){
+    return lower(row && (row.firestore_id || row.legacy_user_key || row.username || row.login_username || row.name || row.display_name || row.id));
+  }
+  function memberArray(flock){
+    return Object.keys((flock&&flock.members)||{}).map(function(k){ var m=flock.members[k]||{}; if(!m.id)m.id=k; return m; });
+  }
+  function isActive(m){ return m && !m.deleted_at && lower(m.status||'active') !== 'removed' && lower(m.role||'member') !== 'archived'; }
+  function dedupeMembers(list){
+    var keep={};
+    (list||[]).forEach(function(m,idx){
+      if(!m) return;
+      // Never show global admin accounts as normal flock members unless they are the actual current flock creator row only.
+      if (lower(m.global_role||m.globalRole)==='admin' && !m.force_show_member) return;
+      var key = canonicalUserId(m) ? 'u:'+canonicalUserId(m) : 'l:'+legacyKey(m);
+      if(!key || key==='l:') key='row:'+idx;
+      var existing=keep[key];
+      if(!existing){ keep[key]=m; return; }
+      var score=function(x){
+        var s=0;
+        if(isActive(x)) s+=1000;
+        if(lower(x.role)==='owner' || lower(x.role)==='creator') s+=100;
+        if(lower(x.role)==='organizer') s+=50;
+        s += Date.parse(x.updated_at||x.created_at||0) || 0;
+        return s;
+      };
+      if(score(m)>=score(existing)) keep[key]=m;
+    });
+    return Object.values(keep);
+  }
+  function ensureCanonicalUsers(){
+    window.USERS = usersArray();
+    var by={};
+    window.USERS.forEach(function(u){
+      var id=canonicalUserId(u); if(!id) return;
+      by[id]=Object.assign(by[id]||{}, u, {user_id:id,id:id});
+    });
+    window.USERS=Object.values(by);
+    if(window.DATA) DATA.users=window.USERS;
+    return window.USERS;
+  }
+  function updateUser(userId, patch){
+    userId=num(userId); if(!userId) return;
+    ensureCanonicalUsers();
+    window.USERS.forEach(function(u){ if(canonicalUserId(u)===userId) Object.assign(u, patch, {updated_at:now()}); });
+    if(window.DATA && DATA.me && canonicalUserId(DATA.me)===userId) Object.assign(DATA.me, patch, {updated_at:now()});
+    Object.values(window.FLOCKS||{}).forEach(function(f){ Object.keys(f.members||{}).forEach(function(k){ var m=f.members[k]; if(canonicalUserId(m)===userId) Object.assign(m, patch, {updated_at:now()}); }); });
+    try { if (typeof saveFlockState==='function') saveFlockState(); } catch(e){}
+  }
+  function injectAdminBanner(){
+    var old=document.getElementById('global-admin-banner');
+    if(!isGlobalAdmin()){ if(old) old.remove(); return; }
+    if(old) return;
+    var bar=document.createElement('div');
+    bar.id='global-admin-banner';
+    bar.style.cssText='position:sticky;top:58px;z-index:80;margin:0 auto;max-width:430px;background:#241144;color:#fff;border-bottom:2px solid #F0C030;padding:9px 14px;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:space-between;gap:8px';
+    bar.innerHTML='<span>🛡️ Global Admin Mode</span><button id="global-admin-panel-btn" style="border:none;background:#F0C030;color:#241144;border-radius:999px;padding:6px 10px;font-weight:900;font-family:inherit">Admin Panel</button>';
+    var app=document.getElementById('app')||document.body;
+    var top=document.querySelector('.topbar');
+    if(top && top.parentNode) top.parentNode.insertBefore(bar, top.nextSibling); else app.insertBefore(bar, app.firstChild);
+    var btn=document.getElementById('global-admin-panel-btn');
+    if(btn) btn.onclick=function(){ if(typeof openAdminPanel==='function') openAdminPanel(); else if(typeof showAdminPanel==='function') showAdminPanel(); else alert('Admin panel unavailable'); };
+  }
+  function roleBadge(role){
+    role=lower(role||'member');
+    var label=role==='owner'||role==='creator'?'Creator':role==='organizer'?'Organizer':'Member';
+    return '<span style="background:#E6F5EA;color:#3B8A4A;font-size:11px;font-weight:900;padding:5px 12px;border-radius:20px">'+label+'</span>';
+  }
+  function avatar(m){
+    if (typeof window.makeAv==='function') return makeAv(m.animal||m.avatar||'bear',48);
+    return '<div style="width:48px;height:48px;border-radius:50%;background:#f7f5ff;display:flex;align-items:center;justify-content:center;font-size:24px">'+(m.animal==='bunny'?'🐰':m.animal==='deer'?'🦌':'🐻')+'</div>';
+  }
+  function adminActions(m){
+    if(!isGlobalAdmin()) return '';
+    var uid=canonicalUserId(m)||'';
+    var mid=esc(m.id||m.member_id||'');
+    return '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px" data-admin-actions="1">'+
+      '<button class="admin-edit-member" data-uid="'+uid+'" data-mid="'+mid+'" style="padding:8px 13px;border-radius:10px;border:1.5px solid #3D2B6E;background:#fff;color:#3D2B6E;font-weight:900;font-family:inherit">Edit</button>'+ 
+      '<button class="admin-reset-member" data-uid="'+uid+'" data-mid="'+mid+'" style="padding:8px 13px;border-radius:10px;border:1.5px solid #C87820;background:#fff;color:#C87820;font-weight:900;font-family:inherit">Reset pw</button>'+ 
+      '<button class="admin-remove-member" data-uid="'+uid+'" data-mid="'+mid+'" style="padding:8px 13px;border-radius:10px;border:1.5px solid #D85A30;background:#fff;color:#D85A30;font-weight:900;font-family:inherit">Remove</button>'+ 
+    '</div>';
+  }
+  function renderMember(m){
+    return '<div class="admin-member-row" data-uid="'+esc(canonicalUserId(m)||'')+'" data-mid="'+esc(m.id||m.member_id||'')+'" style="display:flex;align-items:flex-start;gap:13px;padding:16px 14px;border-bottom:1px solid rgba(61,43,110,.12)">'+
+      avatar(m)+
+      '<div style="flex:1;min-width:0"><div style="font-size:18px;font-weight:900;color:#1E1433">'+esc(m.display_name||m.name||m.username||'Member')+'</div>'+ 
+      '<div style="font-size:14px;color:#5E5480;margin-top:2px">'+esc(m.location||'Location not set')+' · '+(isActive(m)?'Active':'Removed')+'</div>'+adminActions(m)+'</div>'+roleBadge(m.role||'member')+'</div>';
+  }
+  function renderAdminFlocksPage(){
+    var el=document.getElementById('flock-page-content'); if(!el) return false;
+    var flock=currentFlock(); if(!flock) return false;
+    var all=memberArray(flock);
+    var active=dedupeMembers(all.filter(isActive));
+    var archived=dedupeMembers(all.filter(function(m){return !isActive(m);}));
+    var orgs=active.filter(function(m){var r=lower(m.role); return r==='owner'||r==='creator'||r==='organizer';});
+    var invite=esc(flock.inviteCode||flock.invite_code||'');
+    var html=''+
+      '<div style="background:linear-gradient(135deg,#3D2B6E,#5C4299);border-radius:22px;padding:20px;margin-bottom:14px;color:#fff"><div style="font-size:11px;font-weight:900;color:#F0C030;letter-spacing:.09em;text-transform:uppercase">Flock Hub</div><div style="font-family:Fredoka One,cursive;font-size:28px;margin-top:5px">'+esc(flock.name||'My Flock')+'</div><div style="opacity:.75;font-size:14px;margin-top:4px">Global Admin access enabled. Manage members, exports, and account recovery here.</div></div>'+ 
+      '<div id="admin-full-access-card" class="card" style="border:1.5px solid #F0C030;background:#fffbea"><div style="font-weight:900;color:#3D2B6E;margin-bottom:5px">🛡️ Global Admin Tools</div><div style="font-size:12px;color:#5E5480;line-height:1.4;margin-bottom:10px">You can edit accounts, reset passwords, remove/restore members, and export all data.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="admin-open-panel" class="btn-primary" style="margin:0;padding:10px">Admin Panel</button><button id="admin-export-all-csv" class="btn-secondary" style="margin:0;padding:10px">Export All CSV</button></div></div>'+ 
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px"><div class="card" style="margin:0;text-align:center"><div style="font-size:24px;color:#3D2B6E">'+active.length+'</div><div style="font-size:10px;font-weight:900;color:#5E5480">Active</div></div><div class="card" style="margin:0;text-align:center"><div style="font-size:24px;color:#3D2B6E">'+orgs.length+'</div><div style="font-size:10px;font-weight:900;color:#5E5480">Organizers</div></div><div class="card" style="margin:0;text-align:center"><div style="font-size:24px;color:#3D2B6E">'+(flock.gatherings||[]).length+'</div><div style="font-size:10px;font-weight:900;color:#5E5480">Gatherings</div></div><div class="card" style="margin:0;text-align:center"><div style="font-size:24px;color:#3D2B6E">'+archived.length+'</div><div style="font-size:10px;font-weight:900;color:#5E5480">Removed</div></div></div>'+ 
+      '<div class="card"><div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:11px;font-weight:900;color:#9E97B8;letter-spacing:.08em;text-transform:uppercase">Invite Code</div><div style="font-size:12px;color:#5E5480;margin-top:3px">Share this with flock members.</div></div><div style="font-family:monospace;font-size:22px;font-weight:900;color:#3D2B6E;letter-spacing:.12em">'+invite+'</div></div></div>'+ 
+      '<div class="section-title">Organizers ('+orgs.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(orgs.length?orgs.map(renderMember).join(''):'<div style="padding:18px;text-align:center;color:#9E97B8;font-weight:800">No organizers assigned yet.</div>')+'</div>'+ 
+      '<div class="section-title">Active Flock Members ('+active.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(active.length?active.map(renderMember).join(''):'<div style="padding:18px;text-align:center;color:#9E97B8;font-weight:800">No active members yet.</div>')+'</div>'+ 
+      (archived.length?'<div class="section-title">Removed / Archived Members</div><div class="card" style="padding:0;overflow:hidden">'+archived.map(renderMember).join('')+'</div>':'');
+    el.innerHTML=html;
+    bindAdminButtons();
+    return true;
+  }
+  function findMemberByUidOrMid(uid,mid){
+    uid=num(uid); var flock=currentFlock(); var rows=memberArray(flock);
+    return rows.find(function(m){return uid && canonicalUserId(m)===uid;}) || rows.find(function(m){return mid && String(m.id||m.member_id)===String(mid);}) || null;
+  }
+  function modal(html){
+    var old=document.getElementById('admin-edit-modal'); if(old) old.remove();
+    document.body.insertAdjacentHTML('beforeend','<div id="admin-edit-modal" style="position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center"><div style="width:100%;max-width:430px;background:#fff;border-radius:22px 22px 0 0;padding:18px 20px;max-height:92vh;overflow:auto">'+html+'</div></div>');
+  }
+  function closeModal(){ var el=document.getElementById('admin-edit-modal'); if(el) el.remove(); }
+  function openEdit(m){
+    var uid=canonicalUserId(m); var name=m.display_name||m.name||''; var username=m.username||m.login_username||''; var loc=m.location||''; var role=lower(m.role||'member');
+    modal('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-family:Fredoka One,cursive;font-size:24px;color:#1E1433">Edit Account</div><button id="admin-close-edit" style="border:none;background:#f7f5ff;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+ 
+      '<div class="field-group"><div class="field-label">Display name</div><input id="admin-edit-name" class="input-field" value="'+esc(name)+'"></div>'+ 
+      '<div class="field-group"><div class="field-label">Username</div><input id="admin-edit-username" class="input-field" value="'+esc(username)+'"></div>'+ 
+      '<div class="field-group"><div class="field-label">Location</div><input id="admin-edit-location" class="input-field" value="'+esc(loc)+'"></div>'+ 
+      '<div class="field-group"><div class="field-label">Flock role</div><select id="admin-edit-role" class="input-field"><option value="member">Member</option><option value="organizer">Organizer</option><option value="creator">Creator</option></select></div>'+ 
+      '<button id="admin-save-edit" class="btn-primary">Save changes</button><button id="admin-cancel-edit" class="btn-secondary" style="margin-top:8px">Cancel</button>');
+    setTimeout(function(){ var s=document.getElementById('admin-edit-role'); if(s)s.value=role==='owner'?'creator':role; },0);
+    document.getElementById('admin-close-edit').onclick=closeModal; document.getElementById('admin-cancel-edit').onclick=closeModal;
+    document.getElementById('admin-save-edit').onclick=function(){
+      var patch={display_name:document.getElementById('admin-edit-name').value.trim(), name:document.getElementById('admin-edit-name').value.trim(), username:document.getElementById('admin-edit-username').value.trim(), location:document.getElementById('admin-edit-location').value.trim(), role:document.getElementById('admin-edit-role').value, status:'active'};
+      updateUser(uid, patch); closeModal(); if(typeof toast==='function') toast('Account updated'); setTimeout(renderAdminFlocksPage,50);
+    };
+  }
+  function resetPw(m){
+    var uid=canonicalUserId(m); var pass=prompt('Temporary password for '+(m.display_name||m.name||m.username||'this user')+':');
+    if(!pass) return;
+    updateUser(uid,{password:pass,password_hash:pass,must_change_password:true,last_password_reset_at:now(),status:'active'});
+    if(typeof toast==='function') toast('Temporary password set');
+  }
+  function removeMember(m){
+    if(!confirm('Remove '+(m.display_name||m.name||'this member')+' from this flock?')) return;
+    var uid=canonicalUserId(m); var flock=currentFlock(); Object.keys(flock.members||{}).forEach(function(k){ var row=flock.members[k]; if(canonicalUserId(row)===uid){ row.status='removed'; row.deleted_at=now(); row.updated_at=now(); }});
+    try { if(typeof saveFlockState==='function') saveFlockState(); } catch(e){}
+    if(typeof toast==='function') toast('Member removed'); setTimeout(renderAdminFlocksPage,50);
+  }
+  function bindAdminButtons(){
+    var panel=document.getElementById('admin-open-panel'); if(panel) panel.onclick=function(){ if(typeof openAdminPanel==='function') openAdminPanel(); };
+    var exp=document.getElementById('admin-export-all-csv'); if(exp) exp.onclick=function(){ if(typeof downloadExportTableCsvs==='function') downloadExportTableCsvs('all'); else alert('Export tool unavailable'); };
+    document.querySelectorAll('.admin-edit-member').forEach(function(b){ b.onclick=function(){ openEdit(findMemberByUidOrMid(b.dataset.uid,b.dataset.mid)); }; });
+    document.querySelectorAll('.admin-reset-member').forEach(function(b){ b.onclick=function(){ resetPw(findMemberByUidOrMid(b.dataset.uid,b.dataset.mid)); }; });
+    document.querySelectorAll('.admin-remove-member').forEach(function(b){ b.onclick=function(){ removeMember(findMemberByUidOrMid(b.dataset.uid,b.dataset.mid)); }; });
+  }
+  function install(){
+    ensureCanonicalUsers(); injectAdminBanner();
+    var prior=window.renderFlockPage;
+    window.renderFlockPage=function(){
+      if(isGlobalAdmin() && document.getElementById('flock-page-content')) return renderAdminFlocksPage();
+      return typeof prior==='function'?prior.apply(this,arguments):undefined;
+    };
+    var priorCan=window.can;
+    window.can=function(permission){ if(isGlobalAdmin()) return true; return typeof priorCan==='function'?priorCan.apply(this,arguments):false; };
+    // Force one refresh if already on Flocks page.
+    setTimeout(function(){ injectAdminBanner(); if(document.getElementById('flock-page-content')) renderAdminFlocksPage(); },250);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+  console.info('[Kinverly] Sprint 52 authoritative admin + deduped member edit/export patch loaded');
+})();
+</script>
+
 </body>
 </html>
 
@@ -24262,4 +24487,222 @@ signInKinverlyAccount = function(username, password) {
 
   console.info('[Kinverly] Sprint 51.5 admin account recovery + username export patch loaded');
 })();
+
+/* ═══════════════════════════════════════════════
+   SPRINT 52.1 — FLOCK INTEGRITY + SWITCHER DEDUPE
+   Goal: render one flock per family and prevent duplicate flocks/memberships.
+═══════════════════════════════════════════════ */
+(function(){
+  function safeNow(){ try { return (typeof now === 'function') ? now() : new Date().toISOString(); } catch(e){ return new Date().toISOString(); } }
+  function escNum(v){ var n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; }
+  function cleanText(v){ return String(v == null ? '' : v).trim(); }
+  function comparableDate(v){ var t = Date.parse(cleanText(v).replace(' ', 'T')); return Number.isFinite(t) ? t : 0; }
+  function modifiedAt(row){ return Math.max(comparableDate(row && row.updated_at), comparableDate(row && row.created_at), comparableDate(row && row.joined_at), Number(row && row.updatedAt) || 0, Number(row && row.ts) || 0); }
+  function active(row){
+    if (!row) return false;
+    var s = cleanText(row.status || row.membership_status || '').toLowerCase();
+    return !row.deleted_at && !row.removed_at && s !== 'removed' && s !== 'archived' && s !== 'duplicate_archived' && s !== 'inactive';
+  }
+  function getUserId(row){
+    if (!row) return '';
+    var candidates = [row.user_id, row.kinverly_user_id, row.account_user_id, row.created_by_user_id];
+    for (var i=0;i<candidates.length;i++){ var n = escNum(candidates[i]); if (n) return String(n); }
+    // Legacy fallback for older duplicate cleanup only; app relationships still prefer numeric user_id.
+    return cleanText(row.firestore_id || row.legacy_user_id || row.username || row.id || row.member_id || row.name).toLowerCase();
+  }
+  function getFlockNumericId(flock){
+    return escNum(flock && (flock.flock_id || flock.numeric_flock_id || flock.analytics_flock_id || flock.id));
+  }
+  function getFlockDedupeKey(key, flock){
+    var n = getFlockNumericId(flock);
+    if (n) return 'id:' + n;
+    var code = cleanText(flock && (flock.invite_code || flock.code || flock.join_code)).toUpperCase();
+    if (code) return 'code:' + code;
+    var name = cleanText(flock && (flock.name || flock.flock_name || flock.title)).toLowerCase();
+    if (name) return 'name:' + name;
+    return 'key:' + cleanText(key);
+  }
+  function mergeArraysByEntityId(a,b){
+    var map = {};
+    function idOf(x){ return cleanText(x && (x.gathering_id || x.task_id || x.idea_id || x.activity_event_id || x.id || x.uid)); }
+    function put(x){
+      if (!x) return;
+      var id = idOf(x) || ('legacy:' + cleanText((x.title||x.name||'') + '|' + (x.start_date||x.date||'') + '|' + (x.location||'')));
+      if (!map[id] || modifiedAt(x) >= modifiedAt(map[id])) map[id] = x;
+    }
+    (a||[]).forEach(put); (b||[]).forEach(put);
+    return Object.keys(map).map(function(k){ return map[k]; }).sort(function(x,y){ return modifiedAt(y)-modifiedAt(x); });
+  }
+  function canonicalMemberId(member, fallback){
+    var n = escNum(member && (member.member_id || member.membership_id));
+    if (n) return String(n);
+    return cleanText(member && (member.id || member.firestore_id || fallback || ('member_' + Date.now())));
+  }
+  function mergeMembers(membersA, membersB){
+    var byUser = {}, archived = {};
+    function visit(member, key){
+      if (!member) return;
+      var m = Object.assign({}, member);
+      if (!m.member_id) m.member_id = canonicalMemberId(m, key);
+      var uKey = getUserId(m) || String(m.member_id);
+      var existing = byUser[uKey];
+      if (!existing) { byUser[uKey] = m; return; }
+      var existingActive = active(existing);
+      var newActive = active(m);
+      var keepNew = (!existingActive && newActive) || (existingActive === newActive && modifiedAt(m) >= modifiedAt(existing));
+      var keep = keepNew ? m : existing;
+      var drop = keepNew ? existing : m;
+      drop.status = drop.status || 'duplicate_archived';
+      drop.membership_status = drop.membership_status || 'duplicate_archived';
+      drop.archived_reason = 'duplicate_user_membership_same_flock';
+      drop.archived_at = drop.archived_at || safeNow();
+      archived[canonicalMemberId(drop, key)] = drop;
+      byUser[uKey] = keep;
+    }
+    Object.keys(membersA || {}).forEach(function(k){ visit(membersA[k], k); });
+    Object.keys(membersB || {}).forEach(function(k){ visit(membersB[k], k); });
+    var out = {};
+    Object.keys(byUser).forEach(function(k){ var m = byUser[k]; out[canonicalMemberId(m,k)] = m; });
+    return {members:out, archived:archived};
+  }
+  function mergeFlockRecords(primary, duplicate){
+    primary = primary || {}; duplicate = duplicate || {};
+    var newest = modifiedAt(duplicate) > modifiedAt(primary) ? duplicate : primary;
+    var oldest = newest === duplicate ? primary : duplicate;
+    var merged = Object.assign({}, oldest, newest);
+    var mm = mergeMembers(primary.members || {}, duplicate.members || {});
+    merged.members = mm.members;
+    merged.removedMembers = Object.assign({}, primary.removedMembers || {}, duplicate.removedMembers || {}, mm.archived || {});
+    merged.gatherings = mergeArraysByEntityId(primary.gatherings || [], duplicate.gatherings || []);
+    merged.ideas = mergeArraysByEntityId(primary.ideas || [], duplicate.ideas || []);
+    merged.activity = mergeArraysByEntityId(primary.activity || [], duplicate.activity || []);
+    merged.events = mergeArraysByEntityId(primary.events || [], duplicate.events || []);
+    var fid = getFlockNumericId(primary) || getFlockNumericId(duplicate);
+    if (fid) { merged.flock_id = fid; if (!merged.id || /^flock_/.test(String(merged.id))) merged.id = fid; }
+    merged.invite_code = merged.invite_code || primary.invite_code || duplicate.invite_code || primary.code || duplicate.code || '';
+    merged.name = merged.name || merged.flock_name || primary.name || duplicate.name || 'Family';
+    merged.updated_at = safeNow();
+    return merged;
+  }
+  function repairDuplicateMembershipsInFlock(flock){
+    if (!flock || !flock.members) return flock;
+    var mm = mergeMembers(flock.members || {}, {});
+    flock.members = mm.members;
+    flock.removedMembers = Object.assign({}, flock.removedMembers || {}, mm.archived || {});
+    flock.memberIds = Object.keys(flock.members || {}).filter(function(k){ return active(flock.members[k]); });
+    return flock;
+  }
+  function repairFlocks(){
+    if (!window.FLOCKS) return {};
+    var incoming = window.FLOCKS || {};
+    var grouped = {}, keyForGroup = {}, oldToNew = {};
+    Object.keys(incoming).forEach(function(key){
+      var flock = incoming[key]; if (!flock) return;
+      repairDuplicateMembershipsInFlock(flock);
+      var dKey = getFlockDedupeKey(key, flock);
+      var stableKey = (getFlockNumericId(flock) || cleanText(flock.firestore_id || flock.storage_key || flock.uid || key));
+      stableKey = cleanText(stableKey || key);
+      if (grouped[dKey]) {
+        grouped[dKey] = mergeFlockRecords(grouped[dKey], flock);
+      } else {
+        grouped[dKey] = flock;
+        keyForGroup[dKey] = stableKey;
+      }
+      oldToNew[String(key)] = keyForGroup[dKey] || stableKey;
+    });
+    var cleaned = {};
+    Object.keys(grouped).forEach(function(dKey){
+      var flock = repairDuplicateMembershipsInFlock(grouped[dKey]);
+      var outKey = cleanText(getFlockNumericId(flock) || keyForGroup[dKey] || flock.firestore_id || flock.storage_key || flock.uid || dKey);
+      if (cleaned[outKey]) cleaned[outKey] = mergeFlockRecords(cleaned[outKey], flock);
+      else cleaned[outKey] = flock;
+    });
+    var current = window.currentFlockId;
+    window.FLOCKS = cleaned;
+    try { FLOCKS = cleaned; } catch(e) {}
+    if (current != null) {
+      var mapped = oldToNew[String(current)] || current;
+      if (!cleaned[String(mapped)]) {
+        var keys = Object.keys(cleaned);
+        mapped = keys.length ? keys[0] : null;
+      }
+      window.currentFlockId = mapped;
+      try { currentFlockId = mapped; } catch(e) {}
+    }
+    try { localStorage.setItem('kinverly_flocks', JSON.stringify(cleaned)); } catch(e) {}
+    try { if (window.currentFlockId) localStorage.setItem('kinverly_current_flock', window.currentFlockId); } catch(e2) {}
+    return cleaned;
+  }
+  function uniqueFlockArrayForUser(){
+    var flocks = repairFlocks();
+    var rows = Object.keys(flocks || {}).map(function(k){ return {key:k, flock:flocks[k]}; });
+    if (typeof isGlobalAdmin === 'function' ? isGlobalAdmin() : (typeof isAdmin === 'function' && isAdmin())) return rows;
+    var uid = (window.DATA && DATA.me) ? getUserId(DATA.me) : '';
+    if (!uid) return rows;
+    return rows.filter(function(entry){
+      return Object.keys((entry.flock && entry.flock.members) || {}).some(function(mid){ return getUserId(entry.flock.members[mid]) === uid && active(entry.flock.members[mid]); });
+    });
+  }
+  window.repairKinverlyFlockIntegrity = repairFlocks;
+  window.getUniqueVisibleFlockEntries = uniqueFlockArrayForUser;
+  window.getVisibleFlocksForCurrentUser = uniqueFlockArrayForUser;
+
+  // Prevent duplicate active membership creation for join/create/recovery flows.
+  window.ensureSingleMembershipForUserFlock = function(flock, user){
+    if (!flock || !user) return null;
+    if (!flock.members) flock.members = {};
+    var uid = getUserId(user);
+    var foundKey = null;
+    Object.keys(flock.members).forEach(function(k){
+      var m = flock.members[k];
+      if (!foundKey && getUserId(m) === uid && active(m)) foundKey = k;
+    });
+    if (foundKey) return flock.members[foundKey];
+    var nextId = 1;
+    Object.keys(flock.members).forEach(function(k){ var n = escNum(flock.members[k] && (flock.members[k].member_id || flock.members[k].id || k)); if (n && n >= nextId) nextId = n + 1; });
+    var member = Object.assign({}, user, {member_id:nextId, id:nextId, user_id:escNum(user.user_id || user.id) || user.user_id || user.id, status:'active', role:user.role || 'member', joined_at:safeNow(), created_at:safeNow(), updated_at:safeNow()});
+    flock.members[String(nextId)] = member;
+    flock.memberIds = Object.keys(flock.members).filter(function(k){ return active(flock.members[k]); });
+    return member;
+  };
+
+  // Wrap key lifecycle/render functions so duplicates cannot reappear after listeners or navigation.
+  ['saveLocal','saveFlockState','loadFlockState','renderFlockPage','renderAdminFlocksPage','renderFlockSwitcher','openFlockSheet','showFlockSheet'].forEach(function(name){
+    var prior = window[name];
+    if (typeof prior !== 'function') return;
+    window[name] = function(){
+      try { repairFlocks(); } catch(e) { console.warn('[Kinverly] flock integrity pre-repair failed', e); }
+      var result = prior.apply(this, arguments);
+      try { repairFlocks(); } catch(e2) {}
+      return result;
+    };
+    try { eval(name + ' = window["' + name + '"];'); } catch(e3) {}
+  });
+  var oldSwitch = window.switchToFlock;
+  if (typeof oldSwitch === 'function') {
+    window.switchToFlock = function(flockId){ repairFlocks(); return oldSwitch.apply(this, arguments); };
+    try { switchToFlock = window.switchToFlock; } catch(e) {}
+  }
+
+  // If a directory list has duplicate cards already in DOM, hide repeats immediately.
+  function hideDuplicateFlockDomRows(){
+    var seen = {};
+    document.querySelectorAll('[data-fid], .flock-switch-row, .flock-list-item').forEach(function(row){
+      var fid = row.getAttribute('data-fid') || row.getAttribute('data-flock-id') || '';
+      var label = cleanText(row.textContent).toLowerCase().replace(/\s+/g,' ');
+      var key = fid ? ('id:' + fid) : ('label:' + label);
+      if (seen[key]) row.style.display = 'none'; else seen[key] = true;
+    });
+  }
+  var oldShowPage = window.showPage;
+  if (typeof oldShowPage === 'function') {
+    window.showPage = function(){ var r = oldShowPage.apply(this, arguments); setTimeout(function(){ repairFlocks(); hideDuplicateFlockDomRows(); }, 80); return r; };
+    try { showPage = window.showPage; } catch(e) {}
+  }
+  repairFlocks();
+  setTimeout(function(){ repairFlocks(); hideDuplicateFlockDomRows(); }, 150);
+  setTimeout(function(){ repairFlocks(); hideDuplicateFlockDomRows(); }, 800);
+  console.info('[Kinverly] Sprint 52.2 flock switcher + membership integrity patch loaded');
+})();
+
 </script>
