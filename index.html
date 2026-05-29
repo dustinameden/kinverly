@@ -2411,6 +2411,8 @@ function memberMatchesRemovalAlias(member, removedAliases) {
 }
 function reconcileFlockMemberships(flock) {
   if (!flock) return flock;
+  // Skip for legacy simple flocks — they don't need identity reconciliation
+  if (typeof flock.id === 'string' && flock.id.indexOf('flock_') === 0) return flock;
   if (!flock.members) flock.members = {};
   if (!flock.removedMembers) flock.removedMembers = {};
   var removedAliases = buildRemovalAliasSet(flock);
@@ -2751,6 +2753,46 @@ function reserveMax(meta, prop, val) {
 }
 function normalizeKinverlySchema(flock) {
   if (!flock) return flock;
+
+  // Detect legacy/simple format (from original Kinverly sessions)
+  // Legacy flocks have string IDs like 'flock_abc123' and simple member objects
+  var isLegacy = typeof flock.id === 'string' && flock.id.indexOf('flock_') === 0;
+
+  if (isLegacy) {
+    // Minimal normalization — preserve the data as-is, just ensure arrays exist
+    if (!flock.members) flock.members = {};
+    if (!flock.memberIds) flock.memberIds = Object.keys(flock.members).filter(function(k){
+      var m = flock.members[k];
+      return m && !m.deleted_at && !m.removed_at;
+    });
+    if (!Array.isArray(flock.gatherings)) flock.gatherings = [];
+    if (!Array.isArray(flock.ideas)) flock.ideas = [];
+    if (!Array.isArray(flock.activity)) flock.activity = [];
+    if (!Array.isArray(flock.events)) flock.events = [];
+    flock.gatherings.forEach(function(g){
+      if (!g) return;
+      if (!Array.isArray(g.tasks)) g.tasks = [];
+      if (!Array.isArray(g.chat)) g.chat = [];
+      if (!Array.isArray(g.photos)) g.photos = [];
+      if (!Array.isArray(g.polls)) g.polls = [];
+      if (!Array.isArray(g.bringList)) g.bringList = [];
+      if (!Array.isArray(g.expenses)) g.expenses = [];
+      if (!Array.isArray(g.notes)) g.notes = [];
+      if (!Array.isArray(g.attending)) g.attending = [];
+    });
+    // Ensure each member has basic fields
+    Object.keys(flock.members).forEach(function(k){
+      var m = flock.members[k];
+      if (!m) return;
+      if (!m.id) m.id = k;
+      if (!m.user_id) m.user_id = m.id;
+      if (!m.role) m.role = (m.id === flock.createdBy ? 'creator' : 'member');
+      if (!m.membership_status) m.membership_status = m.deleted_at ? 'archived' : 'active';
+    });
+    return flock;
+  }
+
+  // Full normalization for new-format data
   var meta = ensureFlockMeta(flock);
   ensureAuditFields(flock);
   // Preserve existing string IDs — only assign numeric flock_id for analytics
@@ -8953,6 +8995,11 @@ function normalizeFlockStorageKeys() {
   Object.keys(FLOCKS || {}).forEach(function(key){
     var f = FLOCKS[key];
     if (!f) return;
+    // For legacy flocks (string IDs starting with flock_), keep the original key
+    if (typeof key === 'string' && key.indexOf('flock_') === 0) {
+      next[key] = f;
+      return;
+    }
     var docId = stampCanonicalFlockIdentity(key, f) || key;
     if (next[docId]) {
       next[docId] = mergeCanonicalFlockRecords(next[docId], f);
