@@ -19683,6 +19683,141 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 })();
 </script>
 
+
+
+<!-- Sprint 50.4 — Post-Join Navigation + Empty-Flock Recovery
+     Keeps the user inside the joined flock and re-hydrates the app shell after
+     join/create/admin-entry. This is intentionally isolated so it does not
+     rewrite Home, Availability, Gatherings, or existing feature logic. -->
+<script>
+(function(){
+  if (window.__kinverlyPostJoinRecoveryV504) return;
+  window.__kinverlyPostJoinRecoveryV504 = true;
+
+  function n(v){ var x = parseInt(v, 10); return isNaN(x) ? null : x; }
+  function activeFlock(){
+    var id = window.currentFlockId || (function(){ try { return localStorage.getItem('kinverly_current_flock'); } catch(e){ return null; } })();
+    if (!id || !window.FLOCKS) return null;
+    return window.FLOCKS[id] || window.FLOCKS[String(id)] || Object.values(window.FLOCKS).find(function(f){
+      return f && (String(f.flock_id) === String(id) || String(f.id) === String(id) || String(f.firestore_id) === String(id) || String(f.storage_key) === String(id));
+    }) || null;
+  }
+  function currentUserId(){
+    return n((window.DATA && DATA.me && (DATA.me.user_id || DATA.me.id)) || window.currentUserId || (window.kinverlySession && kinverlySession.user_id));
+  }
+  function memberIsActive(m){
+    if (!m) return false;
+    var s = String(m.status || m.membership_status || '').toLowerCase();
+    return !m.deleted_at && !m.removed_at && s !== 'removed' && s !== 'inactive' && s !== 'archived';
+  }
+  function findMyMembership(flock){
+    var uid = currentUserId();
+    if (!uid || !flock || !flock.members) return null;
+    return Object.values(flock.members).find(function(m){ return m && n(m.user_id || m.id) === uid && memberIsActive(m); }) || null;
+  }
+  function hideBlockingAuthSurfaces(){
+    ['login-screen','flock-overlay','auth-overlay','welcome-overlay'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
+    });
+    var app = document.getElementById('app');
+    if (app) { app.style.display = ''; app.style.opacity = '1'; app.style.pointerEvents = 'auto'; }
+  }
+  function hydrateFromActiveFlock(){
+    var flock = activeFlock();
+    if (!flock || !window.DATA) return false;
+    if (!flock.members) flock.members = {};
+    var mine = findMyMembership(flock);
+
+    // A global admin can view a flock without a member row. Normal users need one.
+    var isAdmin = DATA.me && String(DATA.me.global_role || DATA.me.role || '').toLowerCase() === 'admin';
+    if (!mine && !isAdmin) return false;
+
+    if (mine && DATA.me) {
+      DATA.me.member_id = n(mine.member_id || mine.id) || DATA.me.member_id;
+      DATA.me.flock_id = n(flock.flock_id || flock.id) || DATA.me.flock_id;
+      DATA.me.role = mine.role || DATA.me.role || 'member';
+      DATA.me.name = DATA.me.name || mine.name || mine.display_name;
+      DATA.me.avatar = DATA.me.avatar || mine.avatar;
+    }
+
+    DATA.members = Object.values(flock.members || {}).filter(function(m){
+      return m && memberIsActive(m) && n(m.user_id || m.id) !== currentUserId();
+    });
+    DATA.gatherings = Array.isArray(flock.gatherings) ? flock.gatherings.filter(function(g){ return g && !g.deleted_at && !g.archived_at; }) : [];
+    DATA.ideas = Array.isArray(flock.ideas) ? flock.ideas : [];
+    DATA.activity = Array.isArray(flock.activity) ? flock.activity : [];
+    return true;
+  }
+  function safeRenderPage(page){
+    page = page === 'myworld' ? 'availability' : (page || 'home');
+    try { if (typeof window.renderPage === 'function') { window.renderPage(page); return; } } catch(e){ console.warn('[Kinverly] renderPage failed; falling back:', page, e); }
+    try {
+      if (page === 'home' && typeof renderHome === 'function') renderHome();
+      if (page === 'availability' && typeof renderAvailability === 'function') renderAvailability();
+      if (page === 'gatherings' && typeof renderGatherings === 'function') renderGatherings();
+      if (page === 'ideas' && typeof renderIdeas === 'function') renderIdeas();
+      if (page === 'flock' && typeof renderFlockPage === 'function') renderFlockPage();
+      if (page === 'profile' && typeof renderProfile === 'function') renderProfile();
+    } catch(e2){ console.error('[Kinverly] fallback render failed:', page, e2); }
+  }
+  function safeShowPage(page){
+    page = page === 'myworld' ? 'availability' : (page || 'home');
+    hideBlockingAuthSurfaces();
+    hydrateFromActiveFlock();
+    try { if (typeof window.showPage === 'function') window.showPage(page); } catch(e){ console.warn('[Kinverly] showPage failed:', page, e); }
+    try {
+      document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+      var target = document.getElementById('page-' + page);
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(function(btn){
+        var bp = btn.dataset.page === 'myworld' ? 'availability' : btn.dataset.page;
+        btn.classList.toggle('active', bp === page);
+      });
+      window.currentPage = page;
+    } catch(e2){}
+    safeRenderPage(page);
+  }
+  window.kinverlyRecoverJoinedFlockUi = function(page){
+    if (!hydrateFromActiveFlock()) return false;
+    hideBlockingAuthSurfaces();
+    safeShowPage(page || 'home');
+    return true;
+  };
+
+  // Hard-wire bottom navigation in the capture phase so a broken older handler
+  // cannot leave the user trapped on a blank Home screen after joining.
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('.bottom-nav .nav-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    safeShowPage(btn.dataset.page || 'home');
+  }, true);
+
+  // Wrap join/create entry points so UI always rehydrates after membership writes.
+  ['joinFlockByCode','addMeToFlock','createFlock','switchToFlock'].forEach(function(fn){
+    var prev = window[fn];
+    if (typeof prev !== 'function' || prev.__kinverlyWrappedV504) return;
+    var wrapped = function(){
+      var result = prev.apply(this, arguments);
+      setTimeout(function(){ window.kinverlyRecoverJoinedFlockUi('home'); }, 250);
+      setTimeout(function(){ window.kinverlyRecoverJoinedFlockUi('home'); }, 1250);
+      return result;
+    };
+    wrapped.__kinverlyWrappedV504 = true;
+    window[fn] = wrapped;
+  });
+
+  // If the app has already entered a flock but the shell is blank, recover once.
+  setTimeout(function(){ window.kinverlyRecoverJoinedFlockUi(window.currentPage || 'home'); }, 500);
+  setTimeout(function(){ window.kinverlyRecoverJoinedFlockUi(window.currentPage || 'home'); }, 1800);
+
+  console.info('[Kinverly] Sprint 50.4 post-join navigation recovery loaded');
+})();
+</script>
+
 </body>
 </html>
 
@@ -22347,5 +22482,76 @@ signInKinverlyAccount = function(username, password) {
   if (new URLSearchParams(location.search).get('admin') === '1') document.body.classList.add('kinverly-admin-entry');
 
   console.info('[Kinverly] Sprint 50.2 join-code membership persistence fix loaded');
+})();
+</script>
+
+
+<!-- Sprint 50.5 — Final Post-Join Shell Guard
+     Must run after every legacy/auth patch, so it is intentionally appended last. -->
+<script>
+(function(){
+  if (window.__kinverlyFinalPostJoinShellGuardV505) return;
+  window.__kinverlyFinalPostJoinShellGuardV505 = true;
+  function n(v){ var x=parseInt(v,10); return isNaN(x)?null:x; }
+  function uid(){ return n((window.DATA&&DATA.me&&(DATA.me.user_id||DATA.me.id)) || window.currentUserId || (window.kinverlySession&&kinverlySession.user_id)); }
+  function isAdmin(){ return !!(window.DATA&&DATA.me&&String(DATA.me.global_role||DATA.me.role||'').toLowerCase()==='admin'); }
+  function activeFlock(){
+    var id = window.currentFlockId; try { id = id || localStorage.getItem('kinverly_current_flock'); } catch(e){}
+    if (!id || !window.FLOCKS) return null;
+    return FLOCKS[id] || FLOCKS[String(id)] || Object.values(FLOCKS).find(function(f){ return f && (String(f.flock_id)===String(id)||String(f.id)===String(id)||String(f.firestore_id)===String(id)||String(f.storage_key)===String(id)); }) || null;
+  }
+  function activeMember(m){ var s=String((m&&m.status)||'').toLowerCase(); return !!(m && !m.deleted_at && !m.removed_at && s!=='removed' && s!=='inactive' && s!=='archived'); }
+  function mine(f){ var u=uid(); if(!u||!f||!f.members) return null; return Object.values(f.members).find(function(m){ return activeMember(m) && n(m.user_id||m.id)===u; }) || null; }
+  function unblock(){
+    ['login-screen','flock-overlay','auth-overlay','welcome-overlay'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.classList.add('hidden'); el.style.display='none'; }});
+    var app=document.getElementById('app'); if(app){ app.style.display=''; app.style.opacity='1'; app.style.pointerEvents='auto'; }
+  }
+  function hydrate(){
+    var f=activeFlock(); if(!f||!window.DATA) return false;
+    if(!f.members) f.members={};
+    var me=mine(f);
+    if(!me && !isAdmin()) return false;
+    if(me && DATA.me){ DATA.me.member_id=n(me.member_id||me.id)||DATA.me.member_id; DATA.me.flock_id=n(f.flock_id||f.id)||DATA.me.flock_id; DATA.me.role=me.role||DATA.me.role||'member'; }
+    DATA.members=Object.values(f.members||{}).filter(function(m){ return activeMember(m) && n(m.user_id||m.id)!==uid(); });
+    DATA.gatherings=Array.isArray(f.gatherings)?f.gatherings.filter(function(g){ return g && !g.deleted_at && !g.archived_at; }):[];
+    DATA.ideas=Array.isArray(f.ideas)?f.ideas:[];
+    DATA.activity=Array.isArray(f.activity)?f.activity:[];
+    return true;
+  }
+  function render(page){
+    page = page==='myworld' ? 'availability' : (page||'home');
+    try { if(typeof renderPage==='function') { renderPage(page); return; } } catch(e){ console.warn('[Kinverly] renderPage failed', e); }
+    try { if(page==='home'&&typeof renderHome==='function')renderHome(); if(page==='availability'&&typeof renderAvailability==='function')renderAvailability(); if(page==='gatherings'&&typeof renderGatherings==='function')renderGatherings(); if(page==='ideas'&&typeof renderIdeas==='function')renderIdeas(); if(page==='flock'&&typeof renderFlockPage==='function')renderFlockPage(); if(page==='profile'&&typeof renderProfile==='function')renderProfile(); } catch(e2){ console.error('[Kinverly] final fallback render failed', e2); }
+  }
+  function go(page){
+    page = page==='myworld' ? 'availability' : (page||'home');
+    unblock(); hydrate();
+    try { document.querySelectorAll('.subpage').forEach(function(p){p.classList.remove('active');}); } catch(e){}
+    try { if(typeof showPage==='function') showPage(page); } catch(e){}
+    try {
+      document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+      var target=document.getElementById('page-'+page); if(target) target.classList.add('active');
+      document.querySelectorAll('.bottom-nav .nav-btn').forEach(function(b){ var bp=b.dataset.page==='myworld'?'availability':b.dataset.page; b.classList.toggle('active', bp===page); });
+      window.currentPage=page;
+    } catch(e2){}
+    render(page);
+  }
+  window.kinverlyRecoverJoinedFlockUi = function(page){ return hydrate() ? (go(page||'home'), true) : false; };
+
+  document.addEventListener('click', function(e){
+    var btn=e.target&&e.target.closest&&e.target.closest('.bottom-nav .nav-btn');
+    if(!btn) return;
+    e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    go(btn.dataset.page||'home');
+  }, true);
+
+  ['joinFlockByCode','addMeToFlock','createFlock','switchToFlock'].forEach(function(fn){
+    var prev=window[fn]; if(typeof prev!=='function' || prev.__kinverlyFinalWrappedV505) return;
+    var wrapped=function(){ var r=prev.apply(this, arguments); setTimeout(function(){go('home');},300); setTimeout(function(){go('home');},1500); return r; };
+    wrapped.__kinverlyFinalWrappedV505=true; window[fn]=wrapped;
+  });
+
+  setTimeout(function(){ if(activeFlock()) go(window.currentPage||'home'); }, 700);
+  console.info('[Kinverly] Sprint 50.5 final post-join shell guard loaded');
 })();
 </script>
