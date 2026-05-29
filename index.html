@@ -2194,7 +2194,7 @@ img,svg{display:block}
     <div class="page" id="page-availability">
       <div class="myworld-hero">
         <div class="myworld-title">Availability</div>
-        <div class="myworld-sub">Manage conflicts, respond to gathering requests, and keep your family informed.</div>
+        <div class="myworld-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div>
       </div>
       <div id="availability-content"><div class="xflock-empty">Loading availability…</div></div>
     </div>
@@ -2302,10 +2302,10 @@ img,svg{display:block}
       <div class="avail-review-section-title">1. Proposed dates</div>
       <div id="avail-window-list" class="avail-window-list"></div>
 
-      <div class="avail-review-section-title">2. Known conflicts</div>
+      <div class="avail-review-section-title">2. Your schedule</div>
       <div class="avail-review-card">
         <div id="avail-conflicts"></div>
-        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add conflict</button>
+        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add to your schedule</button>
       </div>
 
       <div class="avail-review-section-title">3. Confirm for this gathering</div>
@@ -4284,7 +4284,7 @@ var availabilityState = { offset: 0, selectedKey: null };
 var myWorldCalendarState = availabilityState;
 
 // Personal calendar events live with the flock record, but are member-owned.
-// They power Availability first, then prefill gathering availability as suggested unavailable time.
+// They power Availability first, then the family scheduler uses everyone’s saved schedule items to recommend the best gathering dates.
 function ensurePersonalCalendarStore(flock) {
   if (!flock) return [];
   if (!Array.isArray(flock.calendar_events)) flock.calendar_events = [];
@@ -4347,7 +4347,7 @@ function createPersonalCalendarEvent(opts) {
     deleted_at: null
   }, now);
   list.push(ev);
-  recordEvent('calendar_event.created', 'calendar_event', ev.id, null, ev, 'Added ' + (ev.is_unavailable ? 'unavailable' : 'personal') + ' calendar event: ' + ev.title, ev.is_unavailable ? '🚫' : '📌');
+  recordEvent('calendar_event.created', 'calendar_event', ev.id, null, ev, 'Added ' + (ev.is_unavailable ? 'unavailable' : 'personal') + ' schedule item: ' + ev.title, ev.is_unavailable ? '🚫' : '📌');
   saveFlockState();
   // Loop-closer: a new unavailable may now clash with a date this member
   // already greenlit on a planning gathering — flag it immediately.
@@ -4382,7 +4382,7 @@ function openAvailabilityConflictSheet(opts) {
   opts = opts || {};
   var mode = opts.mode || 'add';
   var found = mode === 'edit' ? findPersonalCalendarEvent(opts.fid, opts.eventId) : null;
-  if (mode === 'edit' && !found) { toast('Could not find that conflict'); return; }
+  if (mode === 'edit' && !found) { toast('Could not find that schedule item'); return; }
   var ev = found ? found.event : {};
   closeAvailabilityConflictSheet();
   var overlay = document.createElement('div');
@@ -4391,24 +4391,24 @@ function openAvailabilityConflictSheet(opts) {
   overlay.innerHTML =
     '<div class="sheet">' +
       '<div class="sheet-header">' +
-        '<div class="sheet-title">' + (mode === 'edit' ? 'Edit conflict' : 'Add conflict') + '</div>' +
+        '<div class="sheet-title">' + (mode === 'edit' ? 'Edit schedule item' : 'Add to your schedule') + '</div>' +
         '<button class="sheet-close" data-action="close-availability-conflict">×</button>' +
       '</div>' +
       '<div class="sheet-body">' +
         '<div class="avail-review-card">' +
-          '<div class="avail-review-title">Block only the time you know you cannot make.</div>' +
-          '<div class="avail-review-sub" style="margin-bottom:0">Examples: work trip, wedding, kids sports, vacation, or “busy Saturday night.”</div>' +
+          '<div class="avail-review-title">Add anything that helps your family plan around you.</div>' +
+          '<div class="avail-review-sub" style="margin-bottom:0">Examples: vacation, work trip, kids sports, wedding, school break, or a weekend you prefer to protect.</div>' +
         '</div>' +
         '<div class="field-group">' +
-          '<label class="field-label">What is the conflict?</label>' +
-          '<input class="input-field" id="availability-conflict-title" value="' + escapeHtml(ev.title || '') + '" placeholder="e.g. Wedding, work trip, soccer game">' +
+          '<label class="field-label">What should we call it?</label>' +
+          '<input class="input-field" id="availability-conflict-title" value="' + escapeHtml(ev.title || '') + '" placeholder="e.g. Vacation, work trip, soccer game">' +
         '</div>' +
         '<div class="date-row">' +
           '<div class="field-group"><label class="field-label">Start date</label><input class="input-field" id="availability-conflict-start" type="date" value="' + escapeHtml(ev.start_date || opts.date || isoDateKey(new Date())) + '"></div>' +
           '<div class="field-group"><label class="field-label">End date</label><input class="input-field" id="availability-conflict-end" type="date" value="' + escapeHtml(ev.end_date || ev.start_date || opts.date || isoDateKey(new Date())) + '"></div>' +
         '</div>' +
-        '<button class="btn-primary" data-action="save-availability-conflict">' + (mode === 'edit' ? 'Save changes' : 'Save conflict') + '</button>' +
-        (mode === 'edit' ? '<button class="btn-secondary" data-action="delete-availability-conflict" style="margin-top:8px;color:var(--red);border-color:rgba(216,90,48,.25)">Delete conflict</button>' : '') +
+        '<button class="btn-primary" data-action="save-availability-conflict">' + (mode === 'edit' ? 'Save changes' : 'Save to schedule') + '</button>' +
+        (mode === 'edit' ? '<button class="btn-secondary" data-action="delete-availability-conflict" style="margin-top:8px;color:var(--red);border-color:rgba(216,90,48,.25)">Delete schedule item</button>' : '') +
       '</div>' +
     '</div>';
   overlay.dataset.mode = mode;
@@ -4429,7 +4429,7 @@ function saveAvailabilityConflictFromSheet() {
 
   if (overlay.dataset.mode === 'edit') {
     var found = findPersonalCalendarEvent(overlay.dataset.fid, overlay.dataset.eventId);
-    if (!found) { toast('Could not find that conflict'); return; }
+    if (!found) { toast('Could not find that schedule item'); return; }
     var ev = found.event;
     var original = Object.assign({}, ev);
     ev.title = title;
@@ -4438,11 +4438,11 @@ function saveAvailabilityConflictFromSheet() {
     ev.event_type = 'unavailable';
     ev.is_unavailable = true;
     ev.updated_at = nowISO();
-    recordEvent('calendar_event.updated', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Updated unavailable conflict: ' + ev.title, '🚫');
+    recordEvent('calendar_event.updated', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Updated schedule item: ' + ev.title, '🚫');
     saveFlockState();
     closeAvailabilityConflictSheet();
     renderAvailability();
-    toast('Conflict updated');
+    toast('Schedule updated');
     return;
   }
 
@@ -4450,7 +4450,7 @@ function saveAvailabilityConflictFromSheet() {
   if (created) {
     closeAvailabilityConflictSheet();
     renderAvailability();
-    toast('Conflict saved');
+    toast('Added to your schedule');
   }
 }
 
@@ -4458,16 +4458,16 @@ function deleteAvailabilityConflictFromSheet() {
   var overlay = document.getElementById('availability-conflict-overlay');
   if (!overlay) return;
   var found = findPersonalCalendarEvent(overlay.dataset.fid, overlay.dataset.eventId);
-  if (!found) { toast('Could not find that conflict'); return; }
+  if (!found) { toast('Could not find that schedule item'); return; }
   var ev = found.event;
   var original = Object.assign({}, ev);
   ev.deleted_at = nowISO();
   ev.updated_at = ev.deleted_at;
-  recordEvent('calendar_event.deleted', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Deleted unavailable conflict: ' + (ev.title || ''), '🗑️');
+  recordEvent('calendar_event.deleted', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Deleted schedule item: ' + (ev.title || ''), '🗑️');
   saveFlockState();
   closeAvailabilityConflictSheet();
   renderAvailability();
-  toast('Conflict deleted');
+  toast('Schedule item deleted');
 }
 
 function editPersonalCalendarEvent(fid, eventId) {
@@ -4476,15 +4476,15 @@ function editPersonalCalendarEvent(fid, eventId) {
 
 function deletePersonalCalendarEvent(fid, eventId) {
   var found = findPersonalCalendarEvent(fid, eventId);
-  if (!found) { toast('Could not find that conflict'); return; }
+  if (!found) { toast('Could not find that schedule item'); return; }
   var ev = found.event;
   var original = Object.assign({}, ev);
   ev.deleted_at = nowISO();
   ev.updated_at = ev.deleted_at;
-  recordEvent('calendar_event.deleted', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Deleted unavailable conflict: ' + (ev.title || ''), '🗑️');
+  recordEvent('calendar_event.deleted', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Deleted schedule item: ' + (ev.title || ''), '🗑️');
   saveFlockState();
   renderAvailability();
-  toast('Conflict deleted');
+  toast('Schedule item deleted');
 }
 
 function openPersonalCalendarEventEditor(fid, eventId) {
@@ -4720,9 +4720,9 @@ function renderMyWorldCalendar() {
     html += '</div>';
   }
   html += '</div><div id="mw-cal-details">' + renderMyWorldCalendarDetails(availabilityState.selectedKey, events) + '</div>' +
-    '<div class="mw-cal-actions"><button class="mw-cal-action-btn unavailable" id="mw-cal-add-unavailable">+ Unavailable</button><button class="mw-cal-action-btn" id="mw-cal-add-event">+ Personal event</button></div>' +
+    '<div class="mw-cal-actions"><button class="mw-cal-action-btn unavailable" id="mw-cal-add-unavailable">+ Schedule item</button><button class="mw-cal-action-btn" id="mw-cal-add-event">+ Personal event</button></div>' +
     '<button class="mw-cal-cta" id="mw-cal-share">Confirm availability for a gathering</button>' +
-    '<div class="mw-cal-note">Unavailable dates you add here prefill each gathering availability check. You still confirm before sharing them with the flock.</div>' +
+    '<div class="mw-cal-note">Schedule items you add here help Kinverly recommend better gathering dates. You still confirm before sharing availability with the flock.</div>' +
     '</div>';
   return html;
 }
@@ -4793,6 +4793,39 @@ function getAvailabilityParticipationSummary() {
   return summary;
 }
 
+function getFamilyScheduleCoverageSummary() {
+  var today = isoDateKey(new Date());
+  var rows = [];
+  getMyFlockKeys().forEach(function(fid){
+    var flock = FLOCKS[fid];
+    if (!flock) return;
+    var uniqueMembers = {};
+    var count = 0;
+    ensurePersonalCalendarStore(flock).forEach(function(ev){
+      if (!ev || ev.deleted_at) return;
+      if ((ev.end_date || ev.start_date || '') < today) return;
+      count++;
+      var key = ev.member_key || ev.member_id || 'unknown';
+      uniqueMembers[key] = true;
+    });
+    rows.push({ fid:fid, flock:flock.name || 'Flock', items:count, members:Object.keys(uniqueMembers).length });
+  });
+  rows.sort(function(a,b){ return b.items - a.items; });
+  return rows;
+}
+
+function explainFamilyScheduleLogicHtml() {
+  var rows = getFamilyScheduleCoverageSummary();
+  var coverage = rows.length ? rows.slice(0,3).map(function(r){
+    return '<div class="avail-conflict-row">📌 <div>' + escapeHtml(r.flock) + '<br><span>' + r.items + ' schedule item' + (r.items === 1 ? '' : 's') + ' from ' + r.members + ' member' + (r.members === 1 ? '' : 's') + '</span></div></div>';
+  }).join('') : '<div class="avail-review-sub">No flock schedule items yet.</div>';
+  return '<div class="avail-review-card">' +
+    '<div class="avail-review-title">How Kinverly uses schedules</div>' +
+    '<div class="avail-review-sub">Everyone can add schedule items. When someone proposes gathering dates, Kinverly compares those items with RSVP responses and general availability patterns to rank the best days.</div>' +
+    '<div class="avail-conflict-list">' + coverage + '</div>' +
+  '</div>';
+}
+
 function getAvailabilityPattern() {
   try {
     var fid = currentFlockId && FLOCKS[currentFlockId] ? currentFlockId : getMyFlockKeys()[0];
@@ -4820,7 +4853,7 @@ function setAvailabilityPattern(pattern) {
 }
 function renderAvailabilityFallback(message) {
   return '<div class="decision-card">' +
-    '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Manage conflicts, respond to gathering requests, and keep your family informed.</div></div></div>' +
+    '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div></div></div>' +
     (message ? '<div class="avail-review-note">' + escapeHtml(message) + '</div>' : '') +
     '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
     '<div class="chip-group" id="availability-pattern-chips">' +
@@ -4830,15 +4863,15 @@ function renderAvailabilityFallback(message) {
       '<button class="chip" data-pattern="rarely">Rarely available</button>' +
     '</div>' +
   '</div>' +
-  '<div class="section-title">Known conflicts</div>' +
-  '<div class="xflock-empty">No known conflicts yet. Add travel, work blocks, busy weekends, or personal conflicts here.</div>' +
-  '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add conflict</button>' +
+  '<div class="section-title">Your schedule</div>' +
+  '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>' +
+  '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add to your schedule</button>' +
   '<div class="section-title">Needs your response</div>' +
   '<div class="xflock-empty">No availability or RSVP requests right now.</div>' +
   '<div class="section-title">Upcoming commitments</div>' +
   '<div class="xflock-empty">Gatherings you RSVP to will appear here.</div>' +
   '<div class="section-title">Family scheduler insights</div>' +
-  '<div class="xflock-empty">Kinverly will surface conflicts and deciding-vote reminders here.</div>';
+  '<div class="xflock-empty">Kinverly will compare everyone’s schedule items, RSVP status, and general availability to recommend the strongest gathering dates.</div>';
 }
 function renderAvailability() {
   var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
@@ -4858,9 +4891,9 @@ function renderAvailability() {
         '<div class="xflock-top"><div class="xflock-icon">🚫</div><div class="xflock-body">' +
         '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable') + '</div>' +
         '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
-        '<div class="xflock-link">Tap to edit or delete →</div>' +
+        '<div class="xflock-link">Tap to edit →</div>' +
         '</div></div></div>';
-    }).join('') : '<div class="xflock-empty">No known conflicts yet. Add travel, work blocks, busy weekends, or personal conflicts here.</div>';
+    }).join('') : '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>';
 
     var requests = [];
     try { requests = getAvailabilityRequests(); } catch(reqErr) { console.warn('[Kinverly] availability requests failed', reqErr); }
@@ -4895,17 +4928,17 @@ function renderAvailability() {
     }).join('') : '<div class="xflock-empty">Gatherings you RSVP to will appear here.</div>';
 
     var s = getAvailabilityParticipationSummary();
-    var insight = s.conflicts ? 'You have ' + s.conflicts + ' known conflict' + (s.conflicts === 1 ? '' : 's') + ' saved. Kinverly will use these when recommending dates.' : 'No conflicts yet. Add only the dates you definitely cannot make.';
+    var insight = s.conflicts ? 'You have ' + s.conflicts + ' schedule item' + (s.conflicts === 1 ? '' : 's') + ' saved. Kinverly uses schedule items across the flock when recommending gathering dates.' : 'No schedule items yet. Add anything meaningful that the family should plan around.';
     var statsHtml = '<div class="decision-score-row" style="grid-template-columns:repeat(4,1fr);margin-top:0">' +
       '<div class="decision-score"><div class="decision-score-n">' + s.upcoming + '</div><div class="decision-score-l">upcoming</div></div>' +
       '<div class="decision-score"><div class="decision-score-n">' + s.availabilitySubmitted + '</div><div class="decision-score-l">answered</div></div>' +
       '<div class="decision-score"><div class="decision-score-n">' + s.rsvpPending + '</div><div class="decision-score-l">RSVP due</div></div>' +
-      '<div class="decision-score"><div class="decision-score-n">' + s.conflicts + '</div><div class="decision-score-l">conflicts</div></div>' +
+      '<div class="decision-score"><div class="decision-score-n">' + s.conflicts + '</div><div class="decision-score-l">schedule</div></div>' +
       '</div>';
 
     el.innerHTML =
       '<div class="decision-card">' +
-        '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Manage conflicts, respond to gathering requests, and keep your family informed.</div></div></div>' +
+        '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div></div></div>' +
         '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
         '<div class="chip-group" id="availability-pattern-chips">' +
           '<button class="chip ' + (pattern === 'flexible' ? 'selected' : '') + '" data-pattern="flexible">Mostly flexible</button>' +
@@ -4914,12 +4947,12 @@ function renderAvailability() {
           '<button class="chip ' + (pattern === 'rarely' ? 'selected' : '') + '" data-pattern="rarely">Rarely available</button>' +
         '</div>' +
       '</div>' +
-      '<div class="section-title">Known conflicts</div>' + unavailableHtml +
-      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add conflict</button>' +
+      '<div class="section-title">Your schedule</div>' + unavailableHtml +
+      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add to your schedule</button>' +
       '<div class="section-title">Needs your response</div>' + requestsHtml +
       '<div class="section-title">Upcoming commitments</div>' + commitmentsHtml +
       '<div class="section-title">Family scheduler insights</div>' +
-      '<div class="avail-review-card"><div class="avail-review-title">' + escapeHtml(insight) + '</div><div class="avail-review-sub" style="margin-bottom:0">This page is a simple dashboard, not a calendar. Add conflicts only when they matter for family planning.</div></div>' +
+      '<div class="avail-review-card"><div class="avail-review-title">' + escapeHtml(insight) + '</div><div class="avail-review-sub" style="margin-bottom:0">This page is a simple dashboard, not a calendar. Add to your schedules only when they matter for family planning.</div></div>' +
       '<div class="section-title">Quick summary</div>' + statsHtml;
 
     bindAvailabilityPageEvents(el);
@@ -16728,7 +16761,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
         <div class="availability-safe-sub">Set your general pattern, add known conflicts, and answer gathering requests.</div>
 
         <div class="availability-safe-card">
-          <div class="availability-safe-card-title">Known conflicts</div>
+          <div class="availability-safe-card-title">Your schedule</div>
           <div class="availability-safe-card-sub">Add trips, busy weekends, work blocks, and dates you cannot make.</div>
           ${p.length ? p.map(x => `
             <div class="availability-safe-row">
@@ -16739,7 +16772,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
               </div>
             </div>
           `).join('') : `<div class="availability-safe-empty">No plans added yet.</div>`}
-          <button class="btn-primary" data-action="open-add-plans-sheet" style="margin-top:10px;">+ Add conflict</button>
+          <button class="btn-primary" data-action="open-add-plans-sheet" style="margin-top:10px;">+ Add to your schedule</button>
         </div>
 
         <div class="availability-safe-card">
@@ -16795,7 +16828,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
     overlay.innerHTML = `
       <div class="sheet">
         <div class="sheet-header">
-          <div class="sheet-title">Add conflict</div>
+          <div class="sheet-title">Add to your schedule</div>
           <button class="sheet-close" data-action="close-add-plans-sheet">×</button>
         </div>
         <div class="sheet-body">
@@ -16811,7 +16844,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
             <label class="field-label">End date</label>
             <input class="input-field" id="plans-end" type="date">
           </div>
-          <button class="btn-primary" data-action="save-plans-safe">Save conflict</button>
+          <button class="btn-primary" data-action="save-plans-safe">Save to schedule</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -16858,7 +16891,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       else if (typeof saveCurrentFlock === 'function') await saveCurrentFlock();
       document.getElementById('add-plans-overlay')?.remove();
       renderAvailabilitySafe();
-      if (typeof showToast === 'function') showToast('Conflict saved.');
+      if (typeof showToast === 'function') showToast('Added to your schedule.');
     }catch(err){
       console.error(err);
       if (typeof showToast === 'function') showToast('Could not save plans.');
