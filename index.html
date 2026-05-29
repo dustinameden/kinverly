@@ -23437,3 +23437,239 @@ signInKinverlyAccount = function(username, password) {
 })();
 
 </script>
+
+<!-- Sprint 51.3 — Hard-authoritative global admin recognition + member editing -->
+<script>
+(function(){
+  'use strict';
+  function n(v){ var x = parseInt(v,10); return Number.isFinite(x) ? x : null; }
+  function clean(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];}); }
+  function now(){ return new Date().toISOString().slice(0,19).replace('T',' '); }
+  function getJSON(k,f){ try{ var raw=localStorage.getItem(k); return raw?JSON.parse(raw):f; }catch(e){ return f; } }
+  function setJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+  function allUsers(){
+    if (!window.DATA) window.DATA = {};
+    var users = [];
+    if (Array.isArray(DATA.users)) users = users.concat(DATA.users);
+    users = users.concat(getJSON('kinverly_users', []));
+    var byKey = {};
+    users.forEach(function(u){
+      if (!u) return;
+      var uid = n(u.user_id || u.id);
+      var uname = clean(u.username || u.firestore_id || u.display_name || u.name || '');
+      var key = uid ? ('u:'+uid) : (uname ? 'n:'+uname : '');
+      if (!key) return;
+      byKey[key] = Object.assign({}, byKey[key] || {}, u, {
+        user_id: uid || n((byKey[key]||{}).user_id || (byKey[key]||{}).id) || null,
+        id: uid || n((byKey[key]||{}).user_id || (byKey[key]||{}).id) || null,
+        username: uname || (byKey[key]||{}).username || '',
+        display_name: u.display_name || u.name || (byKey[key]||{}).display_name || uname,
+        global_role: String(u.global_role || u.role || (byKey[key]||{}).global_role || 'user').toLowerCase(),
+        status: u.status || (byKey[key]||{}).status || 'active'
+      });
+    });
+    var out = Object.keys(byKey).map(function(k){ return byKey[k]; });
+    DATA.users = out;
+    setJSON('kinverly_users', out);
+    return out;
+  }
+
+  function resolveCurrentUser(){
+    if (!window.DATA) window.DATA = {};
+    if (!DATA.me) DATA.me = {};
+    var users = allUsers();
+    var uid = n(DATA.me.user_id || DATA.me.id || localStorage.getItem('kinverly_current_user_id'));
+    var uname = clean(DATA.me.username || localStorage.getItem('kinverly_current_username') || DATA.me.name || DATA.me.display_name || '');
+    var u = users.find(function(x){ return uid && n(x.user_id || x.id) === uid; }) || users.find(function(x){ return uname && clean(x.username || x.firestore_id || x.display_name || x.name) === uname; });
+    // Prototype safeguard: if the active account is explicitly named admin, treat it as the admin account.
+    if (!u && (uname === 'admin' || clean(DATA.me.display_name || DATA.me.name) === 'admin')) {
+      u = { user_id: uid || 1, id: uid || 1, username:'admin', display_name:'Admin', avatar:DATA.me.avatar || DATA.me.animal || 'bear', global_role:'admin', status:'active' };
+      users.push(u); DATA.users = users; setJSON('kinverly_users', users);
+    }
+    if (u) {
+      DATA.me.user_id = n(u.user_id || u.id) || DATA.me.user_id || DATA.me.id;
+      DATA.me.id = DATA.me.user_id;
+      DATA.me.username = u.username || DATA.me.username;
+      DATA.me.display_name = u.display_name || u.name || DATA.me.display_name || DATA.me.name;
+      DATA.me.name = DATA.me.display_name;
+      DATA.me.avatar = u.avatar || u.animal || DATA.me.avatar || DATA.me.animal || 'bear';
+      DATA.me.animal = DATA.me.avatar;
+      DATA.me.global_role = String(u.global_role || u.role || DATA.me.global_role || 'user').toLowerCase();
+      DATA.me.status = u.status || DATA.me.status || 'active';
+      try{ localStorage.setItem('kinverly_current_user_id', String(DATA.me.user_id || '')); localStorage.setItem('kinverly_current_username', DATA.me.username || ''); }catch(e){}
+    }
+    document.body.toggleAttribute('data-global-admin', isGlobalAdmin());
+    return DATA.me;
+  }
+
+  function isGlobalAdmin(user){
+    if (user) return String(user.global_role || user.role || '').toLowerCase() === 'admin' || user.is_global_admin === true;
+    var me = window.DATA && DATA.me ? DATA.me : {};
+    if (String(me.global_role || me.role || '').toLowerCase() === 'admin' || me.is_global_admin === true) return true;
+    var u = resolveCurrentUser();
+    return String(u.global_role || u.role || '').toLowerCase() === 'admin' || u.is_global_admin === true;
+  }
+  window.kinverlyIsGlobalAdmin = isGlobalAdmin;
+  window.isGlobalAdminUser = function(user){ return isGlobalAdmin(user); };
+
+  function currentFlockEntry(){
+    var fid = n(window.currentFlockId || (window.DATA && (DATA.currentFlockId || DATA.active_flock_id)) || localStorage.getItem('kinverly_active_flock_id'));
+    var entries = Object.keys(window.FLOCKS || {}).map(function(k){ return {key:k, flock:FLOCKS[k]}; }).filter(function(e){ return e.flock && !e.flock.deleted_at; });
+    var found = entries.find(function(e){ return n(e.flock.flock_id || e.flock.id) === fid || String(e.key) === String(fid); }) || entries[0] || null;
+    if (found) {
+      var flockId = n(found.flock.flock_id || found.flock.id) || 1;
+      found.flock.flock_id = flockId; found.flock.id = flockId;
+      window.currentFlockId = flockId;
+      if (window.DATA) DATA.currentFlockId = flockId;
+      try{ localStorage.setItem('kinverly_active_flock_id', String(flockId)); }catch(e){}
+    }
+    return found;
+  }
+
+  function memberKey(m){
+    if (!m) return '';
+    var uid = n(m.user_id || m.id);
+    if (uid) return 'u:'+uid;
+    var fs = clean(m.firestore_id || m.user_firestore_id || m.username || '');
+    if (fs) return 'fs:'+fs;
+    return 'name:' + clean(m.display_name || m.name || '') + '|avatar:' + clean(m.avatar || m.animal || '');
+  }
+  function isActive(m){ return m && !m.deleted_at && !m.removed_at && String(m.status || m.membership_status || 'active').toLowerCase() !== 'removed'; }
+  function userForMember(m){
+    if (!m) return null;
+    var uid = n(m.user_id || m.id);
+    var uname = clean(m.username || m.firestore_id || m.user_firestore_id || m.name || m.display_name || '');
+    return allUsers().find(function(u){ return (uid && n(u.user_id || u.id) === uid) || (uname && clean(u.username || u.firestore_id || u.display_name || u.name) === uname); }) || null;
+  }
+  function memberIsGlobalAdmin(m){ var u = userForMember(m); return (u && isGlobalAdmin(u)) || (n(m && (m.user_id || m.id)) === n(DATA && DATA.me && DATA.me.user_id) && isGlobalAdmin()); }
+
+  function dedupedMembers(includeRemoved){
+    var entry = currentFlockEntry(); var flock = entry && entry.flock;
+    var rows = Object.keys((flock && flock.members) || {}).map(function(k){ var m = flock.members[k]; if (m && !m.member_id) m.member_id = n(k) || n(m.id) || n(m.user_id); return m; }).filter(Boolean);
+    var byKey = {};
+    rows.forEach(function(m){
+      var key = memberKey(m); if (!key) return;
+      var existing = byKey[key];
+      if (!existing) { byKey[key] = m; return; }
+      // Prefer active rows, then newest update.
+      if (isActive(m) && !isActive(existing)) byKey[key] = m;
+      else if (isActive(m) === isActive(existing) && String(m.updated_at || m.created_at || '') > String(existing.updated_at || existing.created_at || '')) byKey[key] = m;
+    });
+    return Object.keys(byKey).map(function(k){ return byKey[k]; }).filter(function(m){ return includeRemoved || isActive(m); });
+  }
+
+  function updateMember(member, patch){
+    var entry = currentFlockEntry(); var flock = entry && entry.flock; if (!flock || !member) return;
+    var mid = member.member_id || member.id || member.user_id;
+    var keys = Object.keys(flock.members || {});
+    var key = keys.find(function(k){ return flock.members[k] === member || String((flock.members[k]||{}).member_id || (flock.members[k]||{}).id || k) === String(mid); });
+    if (!key) key = String(mid || Date.now());
+    flock.members = flock.members || {};
+    flock.members[key] = Object.assign({}, flock.members[key] || member, patch, {updated_at:now()});
+    try{ if (typeof saveLocal === 'function') saveLocal(); }catch(e){}
+    try{ if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); }catch(e){}
+  }
+
+  function updateCanonicalUser(member, patch){
+    if (!member) return;
+    var uid = n(member.user_id || member.id);
+    var users = allUsers();
+    var idx = users.findIndex(function(u){ return uid && n(u.user_id || u.id) === uid; });
+    if (idx < 0) { users.push(Object.assign({user_id:uid || (users.length+1), id:uid || (users.length+1), username:clean(member.username || member.display_name || member.name), display_name:member.display_name || member.name || 'Member', global_role:'user', status:'active', created_at:now()}, patch, {updated_at:now()})); }
+    else users[idx] = Object.assign({}, users[idx], patch, {updated_at:now()});
+    DATA.users = users; setJSON('kinverly_users', users);
+  }
+
+  function adminMemberRow(m){
+    var u = userForMember(m) || {};
+    var name = m.display_name || m.name || u.display_name || u.name || 'Member';
+    var loc = m.location || u.location || 'Location not set';
+    var avatar = m.avatar || m.animal || u.avatar || 'bear';
+    var role = m.role || m.flock_role || 'member';
+    var removed = !isActive(m);
+    var mid = esc(m.member_id || m.id || m.user_id || name);
+    var global = memberIsGlobalAdmin(m);
+    var actions = isGlobalAdmin() ?
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px">'+
+        '<button class="admin-hard-edit" data-mid="'+mid+'" style="font-size:10px;font-weight:900;padding:6px 9px;border-radius:9px;border:1.5px solid var(--brand);background:#fff;color:var(--brand)">Edit</button>'+ 
+        '<button class="admin-hard-reset" data-mid="'+mid+'" style="font-size:10px;font-weight:900;padding:6px 9px;border-radius:9px;border:1.5px solid var(--amber);background:#fff;color:var(--amber)">Reset pw</button>'+ 
+        (removed ? '<button class="admin-hard-restore" data-mid="'+mid+'" style="font-size:10px;font-weight:900;padding:6px 9px;border-radius:9px;border:1.5px solid var(--green);background:#fff;color:var(--green)">Restore</button>' : '<button class="admin-hard-remove" data-mid="'+mid+'" style="font-size:10px;font-weight:900;padding:6px 9px;border-radius:9px;border:1.5px solid var(--red);background:#fff;color:var(--red)">Remove</button>')+
+      '</div>' : '';
+    return '<div style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border-bottom:1px solid var(--border)">'+
+      '<div class="av" style="width:48px;height:48px;background:#f7f5ff;display:flex;align-items:center;justify-content:center;font-size:26px">'+(avatar==='bunny'?'🐰':avatar==='deer'?'🦌':avatar==='leopard'?'🐆':'🐻')+'</div>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:900;color:var(--text1)">'+esc(name)+(global?' <span style="font-size:10px;color:var(--amber);font-weight:900">GLOBAL ADMIN</span>':'')+'</div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+esc(loc)+' · '+(removed?'Removed':'Active')+'</div>'+actions+'</div>'+ 
+      '<div class="pill '+(global?'pill-amber':'pill-green')+'">'+esc(global?'Admin':role.charAt(0).toUpperCase()+role.slice(1))+'</div>'+ 
+    '</div>';
+  }
+
+  function renderAdminFlockPage(){
+    resolveCurrentUser();
+    if (!isGlobalAdmin()) return false;
+    var el = document.getElementById('flock-page-content'); if (!el) return false;
+    var entry = currentFlockEntry(); var flock = entry && entry.flock; if (!flock) return false;
+    var all = dedupedMembers(true);
+    var active = all.filter(function(m){ return isActive(m) && !memberIsGlobalAdmin(m); });
+    var removed = all.filter(function(m){ return !isActive(m); });
+    var organizers = active.filter(function(m){ return ['organizer','owner','admin'].indexOf(String(m.role || m.flock_role || '').toLowerCase()) >= 0; });
+    var code = flock.invite_code || flock.inviteCode || '—';
+    el.innerHTML =
+      '<div style="background:#fff8d8;border:1.5px solid rgba(240,192,48,.55);border-radius:16px;padding:13px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start"><div style="font-size:24px">🛡️</div><div><div style="font-size:14px;font-weight:900;color:#2A1B52">Global Admin Mode</div><div style="font-size:12px;color:var(--text2);line-height:1.45;margin-top:2px">Signed in as '+esc(DATA.me.display_name || DATA.me.name || DATA.me.username || 'Admin')+'. You can edit accounts, reset passwords, remove or restore members, manage organizers, and export data.</div><button id="admin-hard-panel" class="btn-secondary" style="margin-top:9px;padding:9px 12px;width:auto">Open Admin Panel</button></div></div>'+ 
+      '<div class="hero"><div class="hero-label">Flock Hub</div><div class="hero-title">'+esc(flock.name || 'Family Flock')+'</div><div class="hero-sub">Members, organizers, invite code, and admin tools in one place.</div></div>'+ 
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px"><div class="card" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:300;color:var(--brand)">'+active.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Active</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:300;color:var(--brand)">'+organizers.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Organizers</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:300;color:var(--brand)">'+((window.DATA&&DATA.gatherings)||[]).length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Gatherings</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:22px;font-weight:300;color:var(--brand)">'+removed.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Removed</div></div></div>'+ 
+      '<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><div style="font-size:11px;font-weight:900;color:var(--text3);letter-spacing:.08em;text-transform:uppercase">Invite Code</div><div style="font-size:12px;color:var(--text2);margin-top:2px">Share this with flock members.</div></div><div style="font-family:monospace;font-size:22px;font-weight:900;color:var(--brand);letter-spacing:.12em">'+esc(code)+'</div></div></div>'+ 
+      '<div class="section-title">Organizers</div><div class="card" style="padding:0;overflow:hidden">'+(organizers.length?organizers.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No organizers assigned yet.</div>')+'</div>'+ 
+      '<div class="section-title">Active Flock Members ('+active.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(active.length?active.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No active members yet.</div>')+'</div>'+ 
+      (removed.length?'<div class="section-title">Removed / Archived Members</div><div class="card" style="padding:0;overflow:hidden">'+removed.map(adminMemberRow).join('')+'</div>':'');
+    var panel=document.getElementById('admin-hard-panel'); if(panel) panel.onclick=function(){ if(typeof openAdminPanel==='function') openAdminPanel(); else alert('Admin panel unavailable in this build.'); };
+    return true;
+  }
+
+  var previousRenderFlockPage = window.renderFlockPage;
+  window.renderFlockPage = function(){
+    resolveCurrentUser();
+    if (isGlobalAdmin() && renderAdminFlockPage()) return;
+    return previousRenderFlockPage ? previousRenderFlockPage.apply(this, arguments) : undefined;
+  };
+
+  function findMemberByMid(mid){ return dedupedMembers(true).find(function(m){ return String(m.member_id || m.id || m.user_id || '') === String(mid); }); }
+
+  document.addEventListener('click', function(e){
+    var edit=e.target.closest&&e.target.closest('.admin-hard-edit');
+    var reset=e.target.closest&&e.target.closest('.admin-hard-reset');
+    var remove=e.target.closest&&e.target.closest('.admin-hard-remove');
+    var restore=e.target.closest&&e.target.closest('.admin-hard-restore');
+    var btn=edit||reset||remove||restore; if(!btn) return;
+    resolveCurrentUser(); if(!isGlobalAdmin()) return;
+    e.preventDefault(); e.stopPropagation();
+    var m=findMemberByMid(btn.getAttribute('data-mid')); if(!m) { if(typeof toast==='function') toast('Could not find member'); return; }
+    if(edit){
+      var name=prompt('Display name', m.display_name || m.name || ''); if(name===null) return;
+      var username=prompt('Username', m.username || (userForMember(m)||{}).username || ''); if(username===null) return;
+      var loc=prompt('Location', m.location || ''); if(loc===null) return;
+      var role=prompt('Flock role: member, organizer, owner', m.role || m.flock_role || 'member'); if(role===null) return;
+      updateMember(m,{display_name:name,name:name,username:clean(username),location:loc,role:clean(role)||'member',flock_role:clean(role)||'member'});
+      updateCanonicalUser(m,{display_name:name,name:name,username:clean(username),location:loc});
+      renderAdminFlockPage(); if(typeof toast==='function') toast('Account updated'); return;
+    }
+    if(reset){
+      var pass=prompt('New temporary password for '+(m.display_name||m.name||'this user')); if(!pass) return;
+      updateMember(m,{password:pass,password_hash:pass,must_change_password:true});
+      updateCanonicalUser(m,{password:pass,password_hash:pass,must_change_password:true});
+      if(typeof toast==='function') toast('Temporary password set'); return;
+    }
+    if(remove){ if(!confirm('Remove '+(m.display_name||m.name||'this member')+' from this flock?')) return; updateMember(m,{status:'removed',membership_status:'removed',removed_at:now(),deleted_at:now()}); renderAdminFlockPage(); if(typeof toast==='function') toast('Member removed'); return; }
+    if(restore){ updateMember(m,{status:'active',membership_status:'active',removed_at:null,deleted_at:null}); renderAdminFlockPage(); if(typeof toast==='function') toast('Member restored'); return; }
+  }, true);
+
+  var oldShowPage = window.showPage;
+  if (typeof oldShowPage === 'function') {
+    window.showPage = function(page){ var r=oldShowPage.apply(this, arguments); setTimeout(function(){ resolveCurrentUser(); if(page==='flock' || document.querySelector('#page-flock.active')) window.renderFlockPage && window.renderFlockPage(); },0); return r; };
+  }
+
+  setTimeout(function(){ resolveCurrentUser(); if (isGlobalAdmin()) { document.body.setAttribute('data-global-admin',''); if (document.querySelector('#page-flock.active') && window.renderFlockPage) window.renderFlockPage(); } }, 150);
+  console.info('[Kinverly] Sprint 51.3 hard admin authority patch loaded');
+})();
+</script>
+
