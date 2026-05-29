@@ -14367,5 +14367,1159 @@ try {
     <div class="sheet-body" id="gather-edit-body"></div>
   </div>
 </div>
+
+
+<!-- PATCH: ACTION TABLES + USER-ID REMINDER STABILITY -->
+<script>
+(function(){
+  'use strict';
+
+  function kinNow(){
+    try { return (typeof nowISO === 'function') ? nowISO() : new Date().toISOString(); }
+    catch(e){ return new Date().toISOString(); }
+  }
+  function kinSafeText(v){
+    if (v === null || typeof v === 'undefined') return '';
+    try { return String(v).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim(); }
+    catch(e){ return ''; }
+  }
+  function kinSafeJson(v){
+    try {
+      return JSON.stringify(v, function(k, val){
+        if (k === 'dataUrl' && typeof val === 'string') return '[image-data omitted]';
+        if (typeof val === 'string' && val.length > 1200) return val.slice(0, 1200) + '…';
+        return val;
+      });
+    } catch(e){ return ''; }
+  }
+  function kinCurrentFlock(){
+    try {
+      if (typeof getCurrentFlockRecord === 'function') return getCurrentFlockRecord();
+      if (typeof getCurrentFlock === 'function') return getCurrentFlock();
+      if (typeof currentFlockId !== 'undefined' && typeof FLOCKS !== 'undefined') return FLOCKS[currentFlockId] || null;
+    } catch(e){}
+    return null;
+  }
+  function kinUserId(memberOrId){
+    try { if (typeof getCanonicalUserId === 'function') return getCanonicalUserId(memberOrId); } catch(e){}
+    if (memberOrId && typeof memberOrId === 'object') return String(memberOrId.user_id || memberOrId.canonical_user_id || memberOrId.uid || memberOrId.id || memberOrId.email || '').trim();
+    return String(memberOrId || '').trim();
+  }
+  function kinMemberName(memberOrId){
+    if (memberOrId && typeof memberOrId === 'object') return memberOrId.name || memberOrId.member_name || memberOrId.user_name || memberOrId.id || '';
+    try { if (typeof getMemberNameForExport === 'function') return getMemberNameForExport(memberOrId); } catch(e){}
+    return memberOrId || '';
+  }
+  function kinNumericMemberId(memberOrId){
+    if (memberOrId && typeof memberOrId === 'object' && typeof memberOrId.member_id === 'number') return memberOrId.member_id;
+    try { if (typeof getNumericMemberIdForExport === 'function') return getNumericMemberIdForExport(memberOrId && memberOrId.id ? memberOrId.id : memberOrId); } catch(e){}
+    return '';
+  }
+  function kinNumericFlockId(){
+    try { if (typeof getNumericFlockIdForExport === 'function') return getNumericFlockIdForExport(); } catch(e){}
+    var f = kinCurrentFlock();
+    return f ? (f.flock_id || f.id || '') : '';
+  }
+  function kinNextActionId(flock){
+    flock = flock || kinCurrentFlock();
+    if (!flock) return Date.now();
+    if (!flock.meta || typeof flock.meta !== 'object') flock.meta = {};
+    if (!flock.meta.next_action_id) flock.meta.next_action_id = 1;
+    return flock.meta.next_action_id++;
+  }
+  function kinActorContext(){
+    var me = (typeof DATA !== 'undefined' && DATA && DATA.me) ? DATA.me : {};
+    var role = '';
+    try { role = (typeof getCurrentRole === 'function') ? getCurrentRole() : (me.role || 'member'); } catch(e){ role = me.role || 'member'; }
+    return {
+      actor_user_id: kinUserId(me),
+      actor_member_id: kinNumericMemberId(me),
+      actor_name: me.name || '',
+      actor_role: role,
+      actor_role_label: (typeof getRoleLabel === 'function') ? getRoleLabel(role) : role
+    };
+  }
+  function kinFirstColumns(row){
+    row = row || {};
+    return Object.assign({
+      id: row.id || '',
+      created_at: row.created_at || kinNow(),
+      updated_at: row.updated_at || row.created_at || kinNow(),
+      deleted_at: row.deleted_at || ''
+    }, row);
+  }
+
+  window.appendKinverlyActionLog = function appendKinverlyActionLog(action){
+    var flock = kinCurrentFlock();
+    if (!flock) return null;
+    if (!Array.isArray(flock.action_log)) flock.action_log = [];
+    if (typeof DATA !== 'undefined') DATA.action_log = flock.action_log;
+    var stamp = kinNow();
+    var actor = kinActorContext();
+    var row = kinFirstColumns(Object.assign({
+      id: kinNextActionId(flock),
+      created_at: stamp,
+      updated_at: stamp,
+      deleted_at: '',
+      flock_id: kinNumericFlockId(),
+      flock_firestore_id: (typeof getFlockFirestoreDocId === 'function') ? getFlockFirestoreDocId((typeof currentFlockId !== 'undefined' ? currentFlockId : ''), flock) : (flock.firestore_id || flock.uid || ''),
+      action_type: 'unknown',
+      action_status: 'success',
+      entity_type: '',
+      entity_id: '',
+      entity_name: '',
+      gathering_id: '',
+      gathering_title: '',
+      target_user_id: '',
+      target_member_id: '',
+      target_member_name: '',
+      summary: '',
+      error_message: '',
+      metadata_json: ''
+    }, actor, action || {}));
+    if (row.metadata && !row.metadata_json) row.metadata_json = kinSafeJson(row.metadata);
+    delete row.metadata;
+    flock.action_log.unshift(row);
+    if (flock.action_log.length > 1000) flock.action_log.length = 1000;
+    return row;
+  };
+
+  window.recordKinverlyActionSuccess = function(actionType, entityType, entityId, summary, metadata){
+    return window.appendKinverlyActionLog({
+      action_type: actionType || 'action.success',
+      action_status: 'success',
+      entity_type: entityType || '',
+      entity_id: entityId || '',
+      summary: kinSafeText(summary || actionType || 'Action completed'),
+      metadata: metadata || {}
+    });
+  };
+  window.recordKinverlyActionFailure = function(actionType, entityType, entityId, err, metadata){
+    return window.appendKinverlyActionLog({
+      action_type: actionType || 'action.failed',
+      action_status: 'failed',
+      entity_type: entityType || '',
+      entity_id: entityId || '',
+      summary: kinSafeText((actionType || 'Action') + ' failed'),
+      error_message: kinSafeText(err && (err.message || err.toString()) || 'Unknown error'),
+      metadata: metadata || {}
+    });
+  };
+
+  // Mirror existing app-level event/activity systems into a normalized action_log.
+  if (!window.__kinActionEventMirrorInstalled && typeof window.recordEvent === 'function') {
+    window.__kinActionEventMirrorInstalled = true;
+    var originalRecordEvent = window.recordEvent;
+    window.recordEvent = function(eventType, entityType, entityId, beforeValue, afterValue, summary, icon){
+      var result = originalRecordEvent.apply(this, arguments);
+      try {
+        window.appendKinverlyActionLog({
+          action_type: eventType || 'event.recorded',
+          action_status: 'success',
+          entity_type: entityType || '',
+          entity_id: entityId || '',
+          entity_name: summary || '',
+          summary: kinSafeText(summary || eventType || 'Event recorded'),
+          metadata: { before: beforeValue || null, after: afterValue || null, icon: icon || '' }
+        });
+      } catch(e) {}
+      return result;
+    };
+  }
+  if (!window.__kinActionActivityMirrorInstalled && typeof window.logActivity === 'function') {
+    window.__kinActionActivityMirrorInstalled = true;
+    var originalLogActivity = window.logActivity;
+    window.logActivity = function(memberId, text, icon){
+      var result = originalLogActivity.apply(this, arguments);
+      try {
+        window.appendKinverlyActionLog({
+          action_type: 'activity.logged',
+          action_status: 'success',
+          entity_type: 'activity',
+          target_user_id: kinUserId(memberId),
+          target_member_id: kinNumericMemberId(memberId),
+          target_member_name: kinMemberName(memberId),
+          summary: kinSafeText(text || 'Activity logged'),
+          metadata: { icon: icon || '' }
+        });
+      } catch(e) {}
+      return result;
+    };
+  }
+
+  function kinActiveMembers(){
+    try {
+      var rows = (typeof getActiveFlockMembers === 'function') ? getActiveFlockMembers() : [];
+      return (rows || []).filter(function(m){
+        if (!m) return false;
+        if (typeof isActiveMemberRecord === 'function' && !isActiveMemberRecord(m)) return false;
+        if (m.deleted_at || m.removed_at || m.membership_status === 'removed' || m.status === 'removed') return false;
+        return !!kinUserId(m);
+      });
+    } catch(e){ return []; }
+  }
+  function kinResponseForUser(g, member){
+    if (!g || !member) return null;
+    try { if (typeof getGatheringResponseForUser === 'function') return getGatheringResponseForUser(g, member); } catch(e){}
+    try { if (typeof getRsvpForMemberRecord === 'function') return getRsvpForMemberRecord(g.id, member); } catch(e){}
+    var uid = kinUserId(member);
+    var bucket = (typeof rsvpData !== 'undefined' && rsvpData && rsvpData[g.id]) || {};
+    return bucket[uid] || bucket[String(uid)] || null;
+  }
+  function kinReminderKind(g){
+    try { if (typeof reminderKindForGathering === 'function') return reminderKindForGathering(g); } catch(e){}
+    return g && g.status === 'planning' ? 'availability' : 'rsvp';
+  }
+  function kinHasReminderResponse(g, member){
+    var r = kinResponseForUser(g, member);
+    if (kinReminderKind(g) === 'availability') return !!(r && (r.availSubmitted || r.availability_submitted || r.availability_reviewed_at));
+    return !!(r && r.status);
+  }
+  window.getActivePendingReminderMembers = function(g){
+    return kinActiveMembers().filter(function(m){ return !kinHasReminderResponse(g, m); });
+  };
+
+  // Override reminder queue to be user_id-only and active-members-only.
+  window.computeReminderQueue = function(g){
+    if (!g) return [];
+    var kind = kinReminderKind(g);
+    if (!g.nudges || typeof g.nudges !== 'object') g.nudges = {};
+    if (!g.nudges[kind] || typeof g.nudges[kind] !== 'object') g.nudges[kind] = {};
+    var bucket = g.nudges[kind];
+    var now = Date.now();
+    var createdBase = Date.parse(g.updated_at || g.created_at || '') || g.updatedAt || g._createdAt || now;
+    var pending = window.getActivePendingReminderMembers(g);
+    return pending.map(function(m){
+      var uid = kinUserId(m);
+      var row = bucket[uid] || {};
+      var count = parseInt(row.count, 10) || 0;
+      var last = Date.parse(row.last_sent_at || '') || row.last_sent_ts || 0;
+      var delay = (typeof nextReminderDelayMs === 'function') ? nextReminderDelayMs(kind, count) : 24*60*60*1000;
+      var next = last ? last + delay : createdBase + delay;
+      return { member:m, user_id:uid, kind:kind, row:row, count:count, last_ts:last, next_ts:next, due: now >= next };
+    });
+  };
+
+  window.sendGatheringReminder = function(g, queueRows, source){
+    if (!g) throw new Error('Gathering was not found.');
+    var kind = kinReminderKind(g);
+    if (!g.nudges || typeof g.nudges !== 'object') g.nudges = {};
+    if (!g.nudges[kind] || typeof g.nudges[kind] !== 'object') g.nudges[kind] = {};
+    var bucket = g.nudges[kind];
+    var activeUserIds = {};
+    kinActiveMembers().forEach(function(m){ activeUserIds[kinUserId(m)] = true; });
+    var rows = (queueRows && queueRows.length ? queueRows : window.computeReminderQueue(g)).filter(function(q){
+      var uid = kinUserId(q.user_id || q.member);
+      return uid && activeUserIds[uid];
+    });
+    if (!rows.length) {
+      window.appendKinverlyActionLog({
+        action_type: 'reminder.skipped', action_status: 'skipped', entity_type: 'gathering', entity_id: g.id || '', gathering_id: g.id || '', gathering_title: g.name || g.title || '', summary: 'No active pending members to remind', metadata: { kind: kind, source: source || 'manual' }
+      });
+      return 0;
+    }
+    var stamp = kinNow();
+    rows.forEach(function(q){
+      var mem = q.member || {};
+      var uid = kinUserId(q.user_id || mem);
+      var prev = bucket[uid] || {};
+      bucket[uid] = Object.assign({}, prev, {
+        user_id: uid,
+        member_id: kinNumericMemberId(mem),
+        status: 'pending',
+        last_sent_at: stamp,
+        last_sent_ts: Date.now(),
+        count: (parseInt(prev.count, 10) || 0) + 1,
+        source: source || 'manual',
+        updated_at: stamp,
+        created_at: prev.created_at || stamp
+      });
+      window.appendKinverlyActionLog({
+        action_type: 'reminder.sent', action_status: 'success', entity_type: 'gathering', entity_id: g.id || '', gathering_id: g.id || '', gathering_title: g.name || g.title || '', target_user_id: uid, target_member_id: kinNumericMemberId(mem), target_member_name: kinMemberName(mem), summary: 'Reminder sent to ' + kinMemberName(mem), metadata: { kind: kind, source: source || 'manual' }
+      });
+      try {
+        if (typeof pushNotification === 'function' && uid !== kinUserId(DATA && DATA.me)) {
+          pushNotification(uid, { text: (kind === 'availability' ? 'Quick reminder — share when you’re free for ' : 'Quick reminder — RSVP for ') + '<strong>' + (typeof escapeHtml === 'function' ? escapeHtml(g.name || 'this gathering') : kinSafeText(g.name || 'this gathering')) + '</strong>.', kind:'nudge', icon:'👋', gid:g.id, tab:'overview' });
+        }
+      } catch(notifErr){
+        window.recordKinverlyActionFailure('notification.push_failed', 'gathering', g.id || '', notifErr, { target_user_id: uid, kind: kind });
+      }
+    });
+    try { if (typeof touchEntity === 'function') touchEntity(g); else g.updated_at = stamp; } catch(e){ g.updated_at = stamp; }
+    try { if (typeof logActivity === 'function') logActivity(DATA.me.id, 'sent reminders to ' + rows.length + ' member' + (rows.length === 1 ? '' : 's') + ' about <strong>' + (typeof escapeHtml === 'function' ? escapeHtml(g.name || 'a gathering') : kinSafeText(g.name || 'a gathering')) + '</strong>', '👋'); } catch(e){}
+    try { if (typeof recordEvent === 'function') recordEvent('gathering.reminder_sent', 'gathering', g.id, null, { gathering_id:g.id, count:rows.length, kind:kind, source:source || 'manual' }, 'Reminder sent for ' + (g.name || 'gathering'), '👋'); } catch(e){}
+    return rows.length;
+  };
+
+  window.nudgeGatheringById = async function(gid){
+    var g = null;
+    try { g = (typeof resolveG === 'function') ? resolveG(gid) : null; } catch(e){}
+    if (!g) {
+      var f = kinCurrentFlock();
+      g = f && (f.gatherings || []).find(function(x){ return x && String(x.id || x.gathering_id) === String(gid); });
+    }
+    if (!g) {
+      var errMissing = new Error('Gathering was not found.');
+      window.recordKinverlyActionFailure('reminder.failed', 'gathering', gid || '', errMissing, {});
+      if (typeof toast === 'function') toast('Could not send reminder: gathering not found.');
+      return 0;
+    }
+    try {
+      var rows = window.computeReminderQueue(g);
+      if (!rows.length) {
+        window.appendKinverlyActionLog({ action_type:'reminder.skipped', action_status:'skipped', entity_type:'gathering', entity_id:g.id || '', gathering_id:g.id || '', gathering_title:g.name || g.title || '', summary:'Everyone is caught up; no reminder sent' });
+        if (typeof toast === 'function') toast('Everyone is caught up ✓');
+        return 0;
+      }
+      var sent = window.sendGatheringReminder(g, rows, 'manual');
+      if (typeof saveFlockState === 'function') await saveFlockState();
+      try { if (typeof renderAll === 'function') renderAll(); else if (typeof renderDetailPage === 'function') renderDetailPage(g.id); } catch(e){}
+      if (typeof toast === 'function') toast('👋 Reminder sent to ' + sent + ' member' + (sent === 1 ? '' : 's'));
+      return sent;
+    } catch(err){
+      console.error('[Kinverly] reminder send failed:', err);
+      window.recordKinverlyActionFailure('reminder.failed', 'gathering', g.id || gid || '', err, { gathering_title: g.name || g.title || '' });
+      if (typeof toast === 'function') toast('Could not send reminder: ' + (err && err.message ? err.message : 'try again.'));
+      return 0;
+    }
+  };
+
+  // Replace reminder click handler with a final, user-id aware, logged handler.
+  if (!window.__kinFinalReminderHandlerInstalled) {
+    window.__kinFinalReminderHandlerInstalled = true;
+    document.addEventListener('click', function(e){
+      var btn = e.target && e.target.closest && e.target.closest('.kin-reminder-send-btn, #nudge-btn');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      var gid = btn.getAttribute('data-gid') || window.currentGatheringId || (typeof currentGatheringId !== 'undefined' ? currentGatheringId : '');
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      Promise.resolve(window.nudgeGatheringById(gid)).finally(function(){
+        btn.disabled = false;
+        btn.textContent = original || 'Send reminder';
+      });
+    }, true);
+  }
+
+  // Wrap central save action so every mutating action gets a normalized action_log row.
+  if (!window.__kinSaveActionLoggerInstalled && typeof window.saveKinverlyAction === 'function') {
+    window.__kinSaveActionLoggerInstalled = true;
+    var originalSaveKinverlyAction = window.saveKinverlyAction;
+    window.saveKinverlyAction = function(actionName, mutator, opts){
+      opts = opts || {};
+      var started = Date.now();
+      return Promise.resolve(originalSaveKinverlyAction.apply(this, arguments)).then(function(result){
+        window.appendKinverlyActionLog({ action_type: actionName || opts.event_type || 'action.saved', action_status:'success', entity_type: opts.entity_type || 'app', entity_id: opts.entity_id || '', summary: opts.summary || actionName || 'Saved change', metadata: { duration_ms: Date.now() - started } });
+        return result;
+      }).catch(function(err){
+        window.recordKinverlyActionFailure(actionName || opts.event_type || 'action.failed', opts.entity_type || 'app', opts.entity_id || '', err, { duration_ms: Date.now() - started });
+        throw err;
+      });
+    };
+  }
+
+  // Add clean action/reminder tables to exports without changing existing tables.
+  if (!window.__kinActionTableExportInstalled && typeof window.buildExportTables === 'function') {
+    window.__kinActionTableExportInstalled = true;
+    var originalBuildExportTables = window.buildExportTables;
+    window.buildExportTables = function(payload){
+      var tables = originalBuildExportTables.apply(this, arguments) || {};
+      var flock = kinCurrentFlock() || {};
+      var actionRows = (flock.action_log || (typeof DATA !== 'undefined' && DATA.action_log) || []).map(function(a){
+        return kinFirstColumns({
+          id: a.id || '',
+          created_at: a.created_at || '',
+          updated_at: a.updated_at || a.created_at || '',
+          deleted_at: a.deleted_at || '',
+          flock_id: a.flock_id || kinNumericFlockId(),
+          flock_firestore_id: a.flock_firestore_id || '',
+          action_type: a.action_type || '',
+          action_status: a.action_status || '',
+          actor_user_id: a.actor_user_id || '',
+          actor_member_id: a.actor_member_id || '',
+          actor_name: a.actor_name || '',
+          actor_role: a.actor_role || '',
+          entity_type: a.entity_type || '',
+          entity_id: a.entity_id || '',
+          entity_name: a.entity_name || '',
+          gathering_id: a.gathering_id || '',
+          gathering_title: a.gathering_title || '',
+          target_user_id: a.target_user_id || '',
+          target_member_id: a.target_member_id || '',
+          target_member_name: a.target_member_name || '',
+          summary: a.summary || '',
+          error_message: a.error_message || '',
+          metadata_json: a.metadata_json || ''
+        });
+      });
+      tables.action_log = actionRows;
+      tables.action_errors = actionRows.filter(function(a){ return a.action_status === 'failed' || a.error_message; });
+
+      var reminderRows = [];
+      ((flock.gatherings || (typeof DATA !== 'undefined' && DATA.gatherings) || []) || []).forEach(function(g){
+        ['availability','rsvp'].forEach(function(kind){
+          var bucket = g && g.nudges && g.nudges[kind] ? g.nudges[kind] : {};
+          Object.keys(bucket).forEach(function(uid){
+            var r = bucket[uid] || {};
+            reminderRows.push(kinFirstColumns({
+              id: String(g.id || '') + '-' + kind + '-' + uid,
+              created_at: r.created_at || '',
+              updated_at: r.updated_at || r.last_sent_at || '',
+              deleted_at: r.deleted_at || '',
+              flock_id: kinNumericFlockId(),
+              gathering_id: g.id || '',
+              gathering_title: g.name || g.title || '',
+              reminder_kind: kind,
+              target_user_id: uid,
+              target_member_id: r.member_id || '',
+              status: r.status || '',
+              count: r.count || 0,
+              last_sent_at: r.last_sent_at || '',
+              source: r.source || ''
+            }));
+          });
+        });
+      });
+      tables.reminder_log = reminderRows;
+      return tables;
+    };
+  }
+
+  try {
+    var f = kinCurrentFlock();
+    if (f && !Array.isArray(f.action_log)) f.action_log = [];
+  } catch(e) {}
+})();
+
+
+/* ═══════════════════════════════════════════════
+   ADMIN DATA TABLE ARCHITECTURE v1
+   Server-admin-only normalized export layer.
+   Every table begins with:
+   id, created_at, updated_at, deleted_at, created_by_user_id, updated_by_user_id
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinverlyAdminTablesV1) return;
+  window.__kinverlyAdminTablesV1 = true;
+
+  function atNow() {
+    try { return formatLocalTimestamp(new Date()); } catch(e) { return new Date().toISOString(); }
+  }
+
+  function atTime(v) {
+    if (!v) return '';
+    try {
+      if (typeof exportTime === 'function') return exportTime(v) || '';
+      return formatLocalTimestamp(new Date(v));
+    } catch(e) { return String(v || ''); }
+  }
+
+  function asId(v) {
+    if (v === null || typeof v === 'undefined') return '';
+    return String(v);
+  }
+
+  function tableSafe(v) {
+    if (v === null || typeof v === 'undefined') return '';
+    if (typeof v === 'object') {
+      try { return JSON.stringify(v); } catch(e) { return ''; }
+    }
+    try { return safeExportText(v); } catch(e) { return String(v); }
+  }
+
+  function actorUserId() {
+    try {
+      if (typeof getCanonicalUserId === 'function') return getCanonicalUserId(DATA && DATA.me);
+    } catch(e) {}
+    return (DATA && DATA.me && (DATA.me.user_id || DATA.me.id)) || '';
+  }
+
+  function userIdFromMember(m, fallbackKey) {
+    if (!m && fallbackKey) m = getMemberSafe(fallbackKey);
+    try {
+      if (m && typeof ensureMemberUserIdentity === 'function') ensureMemberUserIdentity(m, fallbackKey || m.id || m.user_id || m.member_id || '');
+      if (m && typeof getCanonicalUserId === 'function') return getCanonicalUserId(m);
+    } catch(e) {}
+    if (m) return m.user_id || m.uid || m.id || fallbackKey || '';
+    return fallbackKey || '';
+  }
+
+  function getMemberSafe(key) {
+    try { if (typeof getMember === 'function') return getMember(key); } catch(e) {}
+    var flock = currentFlockId && FLOCKS && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+    return (flock && flock.members && flock.members[key]) || null;
+  }
+
+  function memberNameByUserId(userId) {
+    var flock = currentFlockId && FLOCKS && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+    var found = null;
+    Object.keys((flock && flock.members) || {}).some(function(k){
+      var m = flock.members[k];
+      if (!m) return false;
+      if (String(userIdFromMember(m, k)) === String(userId)) { found = m; return true; }
+      return false;
+    });
+    if (!found && DATA && Array.isArray(DATA.members)) {
+      DATA.members.some(function(m){
+        if (String(userIdFromMember(m, m && m.id)) === String(userId)) { found = m; return true; }
+        return false;
+      });
+    }
+    if (!found && DATA && DATA.me && String(userIdFromMember(DATA.me, DATA.me.id)) === String(userId)) found = DATA.me;
+    return found ? (found.name || found.display_name || found.email || userId) : (userId || '');
+  }
+
+  function numericMemberId(m, fallbackKey) {
+    if (!m && fallbackKey) m = getMemberSafe(fallbackKey);
+    if (m && typeof m.member_id === 'number') return m.member_id;
+    try { if (typeof getNumericMemberIdForExport === 'function') return getNumericMemberIdForExport(fallbackKey || (m && m.id) || ''); } catch(e) {}
+    return '';
+  }
+
+  function numericFlockId(flock) {
+    flock = flock || (currentFlockId && FLOCKS && FLOCKS[currentFlockId]) || {};
+    if (typeof flock.flock_id === 'number') return flock.flock_id;
+    if (typeof flock.id === 'number') return flock.id;
+    try { if (typeof getNumericFlockIdForExport === 'function') return getNumericFlockIdForExport(); } catch(e) {}
+    return '';
+  }
+
+  function gatheringNumericId(g) {
+    if (g && typeof g.gathering_id === 'number') return g.gathering_id;
+    try { if (typeof getNumericGatheringIdForExport === 'function') return getNumericGatheringIdForExport(g && g.id); } catch(e) {}
+    return '';
+  }
+
+  function rowBase(row, fallbackId) {
+    row = row || {};
+    var now = atNow();
+    var createdBy = row.created_by_user_id || row.created_by || row.createdByUserId || row.user_id || row.actor_user_id || row.member_user_id || actorUserId();
+    var updatedBy = row.updated_by_user_id || row.updated_by || row.updatedByUserId || row.actor_user_id || createdBy || actorUserId();
+    var base = {
+      id: row.id || fallbackId || '',
+      created_at: atTime(row.created_at || row.createdAt || row.ts || row.time_created || now),
+      updated_at: atTime(row.updated_at || row.updatedAt || row.created_at || row.createdAt || row.ts || now),
+      deleted_at: atTime(row.deleted_at || row.deletedAt || ''),
+      created_by_user_id: createdBy || '',
+      updated_by_user_id: updatedBy || ''
+    };
+    var out = Object.assign({}, base, row);
+    out.created_at = base.created_at;
+    out.updated_at = base.updated_at;
+    out.deleted_at = base.deleted_at;
+    out.created_by_user_id = base.created_by_user_id;
+    out.updated_by_user_id = base.updated_by_user_id;
+    return out;
+  }
+
+  function currentFlock() {
+    return currentFlockId && FLOCKS ? (FLOCKS[currentFlockId] || {}) : {};
+  }
+
+  function currentGatherings(payload) {
+    if (payload && Array.isArray(payload.gatherings)) return payload.gatherings;
+    return (DATA && Array.isArray(DATA.gatherings)) ? DATA.gatherings : [];
+  }
+
+  function rawGatheringById(id) {
+    return ((DATA && DATA.gatherings) || []).find(function(g){ return g && (String(g.id) === String(id) || String(g.gathering_id) === String(id)); }) || null;
+  }
+
+  function activeUserRowsFromFlock(flock) {
+    var rows = [];
+    var seen = {};
+    Object.keys((flock && flock.members) || {}).forEach(function(k){
+      var m = flock.members[k];
+      if (!m) return;
+      var uid = userIdFromMember(m, k);
+      if (!uid || seen[String(uid)]) return;
+      seen[String(uid)] = true;
+      rows.push({key:k, member:m, user_id:uid});
+    });
+    if (DATA && DATA.me) {
+      var meUid = userIdFromMember(DATA.me, DATA.me.id);
+      if (meUid && !seen[String(meUid)]) rows.push({key:DATA.me.id, member:DATA.me, user_id:meUid});
+    }
+    return rows;
+  }
+
+  function activeMembershipRows(flock) {
+    return activeUserRowsFromFlock(flock).filter(function(x){
+      var m = x.member || {};
+      return !m.deleted_at && !m.removed_at && (m.membership_status || m.status || 'active') !== 'removed';
+    });
+  }
+
+  function getAvailabilityBucket(g) {
+    return (g && (g.availability_responses || g.availabilityResponses || g.availability || g.window_responses)) || {};
+  }
+
+  function getRsvpBucket(g) {
+    var global = (typeof rsvpData !== 'undefined' && rsvpData && g && rsvpData[g.id]) || {};
+    return Object.assign({}, global, (g && (g.rsvps || g.rsvp_responses || g.rsvpData)) || {});
+  }
+
+  function normalizeStatus(v) {
+    if (!v) return '';
+    return String(v).toLowerCase().replace(/\s+/g, '_');
+  }
+
+  function buildAdminTableSchema() {
+    var common = ['id','created_at','updated_at','deleted_at','created_by_user_id','updated_by_user_id'];
+    return {
+      access: 'server_admin_only',
+      common_columns: common,
+      tables: {
+        users: common.concat(['display_name','email','phone','avatar','status','last_login_at']),
+        user_logins: common.concat(['user_id','login_at','logout_at','provider','device','ip_address','user_agent','success']),
+        flocks: common.concat(['name','invite_code','status','owner_user_id']),
+        flock_members: common.concat(['flock_id','user_id','member_id','role','membership_status','joined_at','removed_at','removed_by_user_id']),
+        gatherings: common.concat(['flock_id','title','description','location','status','gathering_state','confirmed_start_at','confirmed_end_at','archived_at','archived_by_user_id']),
+        gathering_members: common.concat(['gathering_id','flock_id','user_id','access_status','invited_at','responded_at']),
+        gathering_date_options: common.concat(['gathering_id','flock_id','start_at','end_at','label','is_recommended','is_selected']),
+        availability_responses: common.concat(['gathering_id','date_option_id','flock_id','user_id','availability_status','notes','responded_at']),
+        rsvps: common.concat(['gathering_id','flock_id','user_id','rsvp_status','responded_at']),
+        tasks: common.concat(['gathering_id','flock_id','title','description','assigned_to_user_id','status','completed_at','completed_by_user_id']),
+        notes: common.concat(['gathering_id','flock_id','user_id','note_text']),
+        chats: common.concat(['gathering_id','flock_id','user_id','message','message_type']),
+        polls: common.concat(['gathering_id','flock_id','title','question','status','closes_at']),
+        poll_options: common.concat(['poll_id','option_text','sort_order']),
+        poll_votes: common.concat(['poll_id','poll_option_id','user_id','voted_at']),
+        ideas: common.concat(['flock_id','user_id','title','description','status','vote_count']),
+        idea_votes: common.concat(['idea_id','flock_id','user_id','voted_at']),
+        calendar_events: common.concat(['user_id','flock_id','gathering_id','event_type','title','start_at','end_at','visibility','source']),
+        reminders: common.concat(['flock_id','gathering_id','target_user_id','reminder_type','status','scheduled_for','sent_at','sent_by_user_id']),
+        action_log: common.concat(['actor_user_id','flock_id','gathering_id','entity_type','entity_id','action_type','summary','before_json','after_json']),
+        action_errors: common.concat(['actor_user_id','flock_id','gathering_id','entity_type','entity_id','action_type','error_message','error_stack'])
+      }
+    };
+  }
+
+  function buildAdminDataTables(payload) {
+    payload = payload || (typeof buildExportPayload === 'function' ? buildExportPayload('all', null) : {});
+    var flock = currentFlock();
+    var flockId = numericFlockId(flock);
+    var flockDocId = currentFlockId || flock.firestore_id || flock.uid || flock.id || '';
+    var gatherings = currentGatherings(payload);
+    var memberRows = activeUserRowsFromFlock(flock);
+    var tables = {};
+
+    tables.users = memberRows.map(function(x){
+      var m = x.member || {};
+      return rowBase({
+        id: x.user_id,
+        created_at: m.created_at || m.joined_at || '',
+        updated_at: m.updated_at || m.removal_updated_at || m.created_at || '',
+        deleted_at: m.deleted_at || '',
+        created_by_user_id: m.created_by_user_id || m.created_by || x.user_id,
+        updated_by_user_id: m.updated_by_user_id || m.updated_by || m.removed_by_user_id || m.removed_by || x.user_id,
+        user_id: x.user_id,
+        member_id: numericMemberId(m, x.key),
+        display_name: m.name || m.display_name || '',
+        email: m.email || '',
+        phone: m.phone || '',
+        avatar: m.avatar || m.animal || '',
+        status: m.deleted_at || m.membership_status === 'removed' ? 'removed' : (m.status || 'active'),
+        last_login_at: atTime(m.last_login_at || m.lastLoginAt || '')
+      }, x.user_id);
+    });
+
+    var loginSeed = (flock.user_logins || flock.login_events || (DATA && DATA.user_logins) || []);
+    tables.user_logins = (loginSeed.length ? loginSeed : [{
+      id: 'current-session-' + (actorUserId() || 'unknown'),
+      user_id: actorUserId(),
+      login_at: (DATA && DATA.me && (DATA.me.last_login_at || DATA.me.lastLoginAt)) || '',
+      provider: 'local_app',
+      device: (typeof navigator !== 'undefined' ? navigator.platform : ''),
+      user_agent: (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
+      success: 'yes'
+    }]).map(function(l, idx){
+      return rowBase({
+        id: l.id || l.login_id || ('login-' + (idx + 1)),
+        created_at: l.created_at || l.login_at || '',
+        updated_at: l.updated_at || l.logout_at || l.login_at || '',
+        deleted_at: l.deleted_at || '',
+        created_by_user_id: l.user_id || actorUserId(),
+        updated_by_user_id: l.user_id || actorUserId(),
+        user_id: l.user_id || actorUserId(),
+        login_at: atTime(l.login_at || l.created_at || ''),
+        logout_at: atTime(l.logout_at || ''),
+        provider: l.provider || '',
+        device: l.device || '',
+        ip_address: l.ip_address || '',
+        user_agent: l.user_agent || '',
+        success: typeof l.success === 'undefined' ? '' : l.success
+      }, l.id || l.login_id || ('login-' + (idx + 1)));
+    });
+
+    tables.flocks = [rowBase({
+      id: flockId || flockDocId,
+      created_at: flock.created_at || '',
+      updated_at: flock.updated_at || '',
+      deleted_at: flock.deleted_at || '',
+      created_by_user_id: userIdFromMember(getMemberSafe(flock.createdBy), flock.createdBy) || flock.created_by_user_id || actorUserId(),
+      updated_by_user_id: flock.updated_by_user_id || actorUserId(),
+      flock_id: flockId,
+      firestore_id: flockDocId,
+      name: flock.name || '',
+      invite_code: flock.inviteCode || flock.invite_code || '',
+      status: flock.deleted_at ? 'deleted' : (flock.status || 'active'),
+      owner_user_id: flock.owner_user_id || userIdFromMember(getMemberSafe(flock.createdBy), flock.createdBy) || actorUserId()
+    }, flockId || flockDocId)];
+
+    tables.flock_members = memberRows.map(function(x){
+      var m = x.member || {};
+      return rowBase({
+        id: m.flock_member_id || (String(flockId || flockDocId) + '-' + String(x.user_id)),
+        created_at: m.created_at || m.joined_at || '',
+        updated_at: m.updated_at || m.removal_updated_at || m.created_at || '',
+        deleted_at: m.deleted_at || '',
+        created_by_user_id: m.created_by_user_id || x.user_id,
+        updated_by_user_id: m.updated_by_user_id || m.removed_by_user_id || m.removed_by || x.user_id,
+        flock_id: flockId,
+        flock_firestore_id: flockDocId,
+        user_id: x.user_id,
+        member_id: numericMemberId(m, x.key),
+        role: m.role || 'member',
+        membership_status: m.deleted_at || m.membership_status === 'removed' ? 'removed' : (m.membership_status || 'active'),
+        joined_at: atTime(m.joined_at || m.created_at || ''),
+        removed_at: atTime(m.removed_at || m.deleted_at || ''),
+        removed_by_user_id: m.removed_by_user_id || m.removed_by || m.deleted_by || ''
+      });
+    });
+
+    tables.gatherings = gatherings.map(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      return rowBase({
+        id: gid,
+        created_at: g.created_at || '',
+        updated_at: g.updated_at || '',
+        deleted_at: g.deleted_at || '',
+        created_by_user_id: g.created_by_user_id || g.createdByUserId || userIdFromMember(getMemberSafe(g.createdBy || g.host), g.createdBy || g.host) || actorUserId(),
+        updated_by_user_id: g.updated_by_user_id || g.updatedByUserId || actorUserId(),
+        flock_id: flockId,
+        gathering_id: gid,
+        title: g.name || g.title || '',
+        description: g.description || g.details || g.notesText || '',
+        location: g.location || '',
+        status: g.deleted_at ? 'deleted' : (g.status || ''),
+        gathering_state: g.gathering_state || g.state || g.status || '',
+        confirmed_start_at: atTime(g.confirmed_start_at || g.confirmedStartAt || g.confirmed_date || g.date || ''),
+        confirmed_end_at: atTime(g.confirmed_end_at || g.confirmedEndAt || g.endDate || ''),
+        archived_at: atTime(g.archived_at || ''),
+        archived_by_user_id: g.archived_by_user_id || g.archived_by || ''
+      }, gid);
+    });
+
+    tables.gathering_members = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      var rsvps = getRsvpBucket(g);
+      activeMembershipRows(flock).forEach(function(x){
+        var r = rsvps[x.user_id] || rsvps[x.key] || {};
+        var hasAccess = true;
+        if (Array.isArray(g.member_user_ids) && g.member_user_ids.length) hasAccess = g.member_user_ids.map(String).indexOf(String(x.user_id)) >= 0;
+        if (Array.isArray(g.excluded_user_ids) && g.excluded_user_ids.map(String).indexOf(String(x.user_id)) >= 0) hasAccess = false;
+        tables.gathering_members.push(rowBase({
+          id: String(gid) + '-' + String(x.user_id),
+          created_at: g.created_at || '',
+          updated_at: r.updated_at || r.responded_at || g.updated_at || '',
+          deleted_at: hasAccess ? '' : (g.deleted_at || ''),
+          created_by_user_id: g.created_by_user_id || actorUserId(),
+          updated_by_user_id: r.updated_by_user_id || actorUserId(),
+          gathering_id: gid,
+          flock_id: flockId,
+          user_id: x.user_id,
+          member_id: numericMemberId(x.member, x.key),
+          access_status: hasAccess ? 'active' : 'excluded',
+          invited_at: atTime(r.invited_at || g.created_at || ''),
+          responded_at: atTime(r.responded_at || r.updated_at || '')
+        }));
+      });
+    });
+
+    tables.gathering_date_options = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      var windows = [];
+      try { windows = typeof getProposedDateWindows === 'function' ? getProposedDateWindows(g) : []; } catch(e) { windows = []; }
+      if (!windows.length && Array.isArray(g.proposed_windows)) windows = g.proposed_windows;
+      windows.forEach(function(w, idx){
+        var raw = w.raw || w || {};
+        var id = raw.id || raw.date_option_id || w.id || (String(gid) + '-window-' + (idx + 1));
+        tables.gathering_date_options.push(rowBase({
+          id: id,
+          created_at: raw.created_at || g.created_at || '',
+          updated_at: raw.updated_at || g.updated_at || '',
+          deleted_at: raw.deleted_at || '',
+          created_by_user_id: raw.created_by_user_id || g.created_by_user_id || actorUserId(),
+          updated_by_user_id: raw.updated_by_user_id || g.updated_by_user_id || actorUserId(),
+          gathering_id: gid,
+          flock_id: flockId,
+          start_at: atTime(raw.start_at || raw.start || raw.start_date || ''),
+          end_at: atTime(raw.end_at || raw.end || raw.end_date || ''),
+          label: raw.label || w.label || w.dates || '',
+          is_recommended: raw.is_recommended || w.is_recommended || w.best || false,
+          is_selected: raw.is_selected || w.is_selected || String(raw.label || w.label || w.dates || '') === String(g.selectedWindow || g.confirmedWindow || '')
+        }, id));
+      });
+    });
+
+    tables.availability_responses = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      var bucket = getAvailabilityBucket(g);
+      Object.keys(bucket || {}).forEach(function(userKey){
+        var resp = bucket[userKey] || {};
+        var uid = userIdFromMember(getMemberSafe(userKey), userKey);
+        var windows = resp.windows || resp.answers || resp.date_options || {};
+        if (!Object.keys(windows).length) {
+          tables.availability_responses.push(rowBase({
+            id: resp.id || String(gid) + '-' + String(uid || userKey),
+            created_at: resp.created_at || resp.responded_at || '',
+            updated_at: resp.updated_at || resp.responded_at || '',
+            deleted_at: resp.deleted_at || '',
+            created_by_user_id: uid || userKey,
+            updated_by_user_id: uid || userKey,
+            gathering_id: gid,
+            date_option_id: '',
+            flock_id: flockId,
+            user_id: uid || userKey,
+            availability_status: normalizeStatus(resp.status || resp.availability_status || (resp.availSubmitted ? 'submitted' : '')),
+            notes: resp.notes || '',
+            responded_at: atTime(resp.responded_at || resp.availability_reviewed_at || resp.updated_at || '')
+          }));
+        } else {
+          Object.keys(windows).forEach(function(optId){
+            var ans = windows[optId] || {};
+            tables.availability_responses.push(rowBase({
+              id: String(gid) + '-' + String(uid || userKey) + '-' + String(optId),
+              created_at: ans.created_at || resp.created_at || resp.responded_at || '',
+              updated_at: ans.updated_at || resp.updated_at || resp.responded_at || '',
+              deleted_at: ans.deleted_at || resp.deleted_at || '',
+              created_by_user_id: uid || userKey,
+              updated_by_user_id: uid || userKey,
+              gathering_id: gid,
+              date_option_id: optId,
+              flock_id: flockId,
+              user_id: uid || userKey,
+              availability_status: normalizeStatus(ans.status || ans.answer || ans.availability_status || ''),
+              notes: ans.notes || resp.notes || '',
+              responded_at: atTime(ans.responded_at || resp.responded_at || resp.updated_at || '')
+            }));
+          });
+        }
+      });
+    });
+
+    tables.rsvps = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      var rsvps = getRsvpBucket(g);
+      Object.keys(rsvps || {}).forEach(function(userKey){
+        var r = rsvps[userKey] || {};
+        var uid = userIdFromMember(getMemberSafe(userKey), userKey);
+        tables.rsvps.push(rowBase({
+          id: r.id || String(gid) + '-' + String(uid || userKey),
+          created_at: r.created_at || r.responded_at || '',
+          updated_at: r.updated_at || r.responded_at || '',
+          deleted_at: r.deleted_at || '',
+          created_by_user_id: uid || userKey,
+          updated_by_user_id: uid || userKey,
+          gathering_id: gid,
+          flock_id: flockId,
+          user_id: uid || userKey,
+          rsvp_status: normalizeStatus(r.status || r.rsvp_status || ''),
+          guests: r.guests || 0,
+          responded_at: atTime(r.responded_at || r.updated_at || '')
+        }));
+      });
+    });
+
+    tables.tasks = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      (g.tasks || []).forEach(function(t, idx){
+        var assignedUid = userIdFromMember(getMemberSafe(t.assigned_to_user_id || t.assignedTo || t.owner), t.assigned_to_user_id || t.assignedTo || t.owner || '');
+        var completedUid = userIdFromMember(getMemberSafe(t.completed_by_user_id || t.completedBy), t.completed_by_user_id || t.completedBy || '');
+        tables.tasks.push(rowBase({
+          id: t.task_id || t.id || String(gid) + '-task-' + (idx + 1),
+          created_at: t.created_at || '',
+          updated_at: t.updated_at || t.completed_at || '',
+          deleted_at: t.deleted_at || '',
+          created_by_user_id: t.created_by_user_id || actorUserId(),
+          updated_by_user_id: t.updated_by_user_id || completedUid || actorUserId(),
+          gathering_id: gid,
+          flock_id: flockId,
+          title: t.title || t.text || t.name || '',
+          description: t.description || '',
+          assigned_to_user_id: assignedUid || '',
+          status: t.deleted_at ? 'deleted' : (t.done || t.completed_at ? 'completed' : (t.status || 'open')),
+          completed_at: atTime(t.completed_at || ''),
+          completed_by_user_id: completedUid || ''
+        }));
+      });
+    });
+
+    tables.notes = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      var notes = [];
+      if (Array.isArray(g.notes)) notes = g.notes;
+      if (g.notesText) notes.push({id:String(gid)+'-notes-text', note_text:g.notesText, text:g.notesText, created_at:g.created_at, updated_at:g.updated_at, user_id:g.created_by_user_id});
+      notes.forEach(function(n, idx){
+        var uid = userIdFromMember(getMemberSafe(n.user_id || n.member || n.memberId), n.user_id || n.member || n.memberId || '');
+        tables.notes.push(rowBase({
+          id: n.note_id || n.id || String(gid) + '-note-' + (idx + 1),
+          created_at: n.created_at || n.ts || '',
+          updated_at: n.updated_at || n.created_at || n.ts || '',
+          deleted_at: n.deleted_at || '',
+          created_by_user_id: uid || n.created_by_user_id || actorUserId(),
+          updated_by_user_id: n.updated_by_user_id || uid || actorUserId(),
+          gathering_id: gid,
+          flock_id: flockId,
+          user_id: uid || '',
+          note_text: n.note_text || n.text || n.body || ''
+        }));
+      });
+    });
+
+    tables.chats = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      (g.chat || []).forEach(function(c, idx){
+        var uid = userIdFromMember(getMemberSafe(c.user_id || c.userId || c.member || c.memberId), c.user_id || c.userId || c.member || c.memberId || '');
+        tables.chats.push(rowBase({
+          id: c.message_id || c.id || String(gid) + '-chat-' + (idx + 1),
+          created_at: c.created_at || c.ts || '',
+          updated_at: c.updated_at || c.created_at || c.ts || '',
+          deleted_at: c.deleted_at || '',
+          created_by_user_id: uid || c.created_by_user_id || '',
+          updated_by_user_id: c.updated_by_user_id || uid || '',
+          gathering_id: gid,
+          flock_id: flockId,
+          user_id: uid || '',
+          message: c.message || c.text || '',
+          message_type: c.message_type || c.type || 'text'
+        }));
+      });
+    });
+
+    tables.polls = [];
+    tables.poll_options = [];
+    tables.poll_votes = [];
+    gatherings.forEach(function(g){
+      var gid = gatheringNumericId(g) || g.id;
+      (g.polls || []).forEach(function(p, pidx){
+        var pollId = p.poll_id || p.id || String(gid) + '-poll-' + (pidx + 1);
+        tables.polls.push(rowBase({
+          id: pollId,
+          created_at: p.created_at || '',
+          updated_at: p.updated_at || '',
+          deleted_at: p.deleted_at || '',
+          created_by_user_id: p.created_by_user_id || actorUserId(),
+          updated_by_user_id: p.updated_by_user_id || actorUserId(),
+          gathering_id: gid,
+          flock_id: flockId,
+          title: p.title || p.question || '',
+          question: p.question || p.title || '',
+          status: p.deleted_at ? 'deleted' : (p.status || 'open'),
+          closes_at: atTime(p.closes_at || '')
+        }, pollId));
+        (p.options || []).forEach(function(opt, oidx){
+          var optionId = opt.option_id || opt.id || String(pollId) + '-option-' + (oidx + 1);
+          tables.poll_options.push(rowBase({
+            id: optionId,
+            created_at: opt.created_at || p.created_at || '',
+            updated_at: opt.updated_at || p.updated_at || '',
+            deleted_at: opt.deleted_at || '',
+            created_by_user_id: opt.created_by_user_id || p.created_by_user_id || actorUserId(),
+            updated_by_user_id: opt.updated_by_user_id || p.updated_by_user_id || actorUserId(),
+            poll_id: pollId,
+            option_text: opt.option_text || opt.text || opt.label || '',
+            sort_order: opt.sort_order || oidx + 1
+          }, optionId));
+          var votes = opt.votes || opt.user_ids || [];
+          if (!Array.isArray(votes) && typeof votes === 'object') votes = Object.keys(votes);
+          (votes || []).forEach(function(v, vidx){
+            var uid = userIdFromMember(getMemberSafe(v.user_id || v), v.user_id || v || '');
+            tables.poll_votes.push(rowBase({
+              id: String(optionId) + '-vote-' + String(uid || vidx + 1),
+              created_at: (v && v.created_at) || opt.created_at || '',
+              updated_at: (v && v.updated_at) || (v && v.created_at) || opt.updated_at || '',
+              deleted_at: (v && v.deleted_at) || '',
+              created_by_user_id: uid || '',
+              updated_by_user_id: uid || '',
+              poll_id: pollId,
+              poll_option_id: optionId,
+              user_id: uid || '',
+              voted_at: atTime((v && v.voted_at) || (v && v.created_at) || '')
+            }));
+          });
+        });
+      });
+    });
+
+    tables.ideas = [];
+    tables.idea_votes = [];
+    ((DATA && DATA.ideas) || flock.ideas || []).forEach(function(idea, idx){
+      var ideaId = idea.idea_id || idea.id || 'idea-' + (idx + 1);
+      var uid = userIdFromMember(getMemberSafe(idea.user_id || idea.member || idea.createdBy), idea.user_id || idea.member || idea.createdBy || '');
+      tables.ideas.push(rowBase({
+        id: ideaId,
+        created_at: idea.created_at || idea.ts || '',
+        updated_at: idea.updated_at || idea.created_at || idea.ts || '',
+        deleted_at: idea.deleted_at || '',
+        created_by_user_id: uid || actorUserId(),
+        updated_by_user_id: idea.updated_by_user_id || uid || actorUserId(),
+        flock_id: flockId,
+        user_id: uid || '',
+        title: idea.title || idea.name || '',
+        description: idea.description || idea.sub || '',
+        status: idea.deleted_at ? 'deleted' : (idea.status || 'active'),
+        vote_count: Array.isArray(idea.voters) ? idea.voters.length : (idea.votes || 0)
+      }, ideaId));
+      var voters = idea.voters || idea.votes_by || [];
+      if (!Array.isArray(voters) && typeof voters === 'object') voters = Object.keys(voters);
+      (voters || []).forEach(function(v, vidx){
+        var voterUid = userIdFromMember(getMemberSafe(v.user_id || v), v.user_id || v || '');
+        tables.idea_votes.push(rowBase({
+          id: String(ideaId) + '-vote-' + String(voterUid || vidx + 1),
+          created_at: (v && v.created_at) || idea.created_at || '',
+          updated_at: (v && v.updated_at) || (v && v.created_at) || idea.updated_at || '',
+          deleted_at: (v && v.deleted_at) || '',
+          created_by_user_id: voterUid || '',
+          updated_by_user_id: voterUid || '',
+          idea_id: ideaId,
+          flock_id: flockId,
+          user_id: voterUid || '',
+          voted_at: atTime((v && v.voted_at) || (v && v.created_at) || '')
+        }));
+      });
+    });
+
+    var calSeed = [];
+    if (Array.isArray(flock.calendar_events)) calSeed = calSeed.concat(flock.calendar_events);
+    if (DATA && Array.isArray(DATA.calendar_events)) calSeed = calSeed.concat(DATA.calendar_events);
+    if (DATA && DATA.me && Array.isArray(DATA.me.calendar_events)) calSeed = calSeed.concat(DATA.me.calendar_events);
+    tables.calendar_events = calSeed.map(function(ev, idx){
+      var uid = userIdFromMember(getMemberSafe(ev.user_id || ev.member_id || ev.member_key), ev.user_id || ev.member_id || ev.member_key || actorUserId());
+      return rowBase({
+        id: ev.calendar_event_id || ev.id || 'calendar-event-' + (idx + 1),
+        created_at: ev.created_at || ev.start_at || ev.start_date || '',
+        updated_at: ev.updated_at || ev.created_at || ev.start_at || '',
+        deleted_at: ev.deleted_at || '',
+        created_by_user_id: ev.created_by_user_id || uid || actorUserId(),
+        updated_by_user_id: ev.updated_by_user_id || uid || actorUserId(),
+        user_id: uid || '',
+        flock_id: ev.flock_id || flockId,
+        gathering_id: ev.gathering_id || '',
+        event_type: ev.event_type || ev.type || (ev.is_blackout ? 'unavailable' : 'personal'),
+        title: ev.title || '',
+        start_at: atTime(ev.start_at || ev.start_date || ''),
+        end_at: atTime(ev.end_at || ev.end_date || ''),
+        visibility: ev.visibility || 'private',
+        source: ev.source || 'my_calendar'
+      });
+    });
+
+    var reminderSeed = [];
+    if (Array.isArray(flock.reminders)) reminderSeed = reminderSeed.concat(flock.reminders);
+    if (Array.isArray(flock.reminder_log)) reminderSeed = reminderSeed.concat(flock.reminder_log);
+    if (DATA && Array.isArray(DATA.reminder_log)) reminderSeed = reminderSeed.concat(DATA.reminder_log);
+    tables.reminders = reminderSeed.map(function(r, idx){
+      return rowBase({
+        id: r.reminder_id || r.id || 'reminder-' + (idx + 1),
+        created_at: r.created_at || r.sent_at || r.scheduled_for || '',
+        updated_at: r.updated_at || r.sent_at || r.created_at || '',
+        deleted_at: r.deleted_at || '',
+        created_by_user_id: r.created_by_user_id || r.sent_by_user_id || r.actor_user_id || actorUserId(),
+        updated_by_user_id: r.updated_by_user_id || r.sent_by_user_id || r.actor_user_id || actorUserId(),
+        flock_id: r.flock_id || flockId,
+        gathering_id: r.gathering_id || '',
+        target_user_id: r.target_user_id || r.user_id || '',
+        reminder_type: r.reminder_type || r.type || 'manual',
+        status: r.status || (r.sent_at ? 'sent' : 'queued'),
+        scheduled_for: atTime(r.scheduled_for || ''),
+        sent_at: atTime(r.sent_at || r.created_at || ''),
+        sent_by_user_id: r.sent_by_user_id || r.actor_user_id || actorUserId()
+      });
+    });
+
+    var actionSeed = (flock.action_log || (DATA && DATA.action_log) || []);
+    tables.action_log = actionSeed.map(function(a, idx){
+      return rowBase({
+        id: a.action_id || a.id || 'action-' + (idx + 1),
+        created_at: a.created_at || a.ts || '',
+        updated_at: a.updated_at || a.created_at || a.ts || '',
+        deleted_at: a.deleted_at || '',
+        created_by_user_id: a.created_by_user_id || a.actor_user_id || actorUserId(),
+        updated_by_user_id: a.updated_by_user_id || a.actor_user_id || actorUserId(),
+        actor_user_id: a.actor_user_id || a.user_id || '',
+        flock_id: a.flock_id || flockId,
+        gathering_id: a.gathering_id || '',
+        entity_type: a.entity_type || '',
+        entity_id: a.entity_id || '',
+        action_type: a.action_type || a.type || '',
+        summary: a.summary || a.message || '',
+        before_json: tableSafe(a.before || a.before_json || ''),
+        after_json: tableSafe(a.after || a.after_json || '')
+      });
+    });
+
+    var errorSeed = (flock.action_errors || (DATA && DATA.action_errors) || []);
+    tables.action_errors = errorSeed.map(function(e, idx){
+      return rowBase({
+        id: e.error_id || e.id || 'error-' + (idx + 1),
+        created_at: e.created_at || e.ts || '',
+        updated_at: e.updated_at || e.created_at || e.ts || '',
+        deleted_at: e.deleted_at || '',
+        created_by_user_id: e.created_by_user_id || e.actor_user_id || actorUserId(),
+        updated_by_user_id: e.updated_by_user_id || e.actor_user_id || actorUserId(),
+        actor_user_id: e.actor_user_id || e.user_id || '',
+        flock_id: e.flock_id || flockId,
+        gathering_id: e.gathering_id || '',
+        entity_type: e.entity_type || '',
+        entity_id: e.entity_id || '',
+        action_type: e.action_type || e.type || '',
+        error_message: e.error_message || e.message || '',
+        error_stack: e.error_stack || e.stack || ''
+      });
+    });
+
+    var schema = buildAdminTableSchema();
+    Object.keys(schema.tables).forEach(function(tableName){ if (!Array.isArray(tables[tableName])) tables[tableName] = []; });
+    return tables;
+  }
+
+  window.buildAdminTableSchema = buildAdminTableSchema;
+  window.buildAdminDataTables = buildAdminDataTables;
+
+  if (typeof buildExportTables === 'function' && !window.__legacyBuildExportTables) {
+    window.__legacyBuildExportTables = buildExportTables;
+  }
+  buildExportTables = function(payload) {
+    return buildAdminDataTables(payload);
+  };
+
+  if (typeof exportDataTablesJson === 'function' && !window.__legacyExportDataTablesJson) {
+    window.__legacyExportDataTablesJson = exportDataTablesJson;
+  }
+  exportDataTablesJson = function(scope, gatheringId) {
+    var payload = buildExportPayload(scope || 'all', gatheringId || null);
+    payload.admin_access = 'server_admin_only';
+    payload.table_schema = buildAdminTableSchema();
+    payload.tables = buildAdminDataTables(payload);
+    downloadTextFile(sanitizeFilenamePart(payload.flock.name || 'kinverly') + '-admin-data-tables.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    try { logActivity(DATA.me.id, 'exported server-admin data tables as JSON', '🧾'); saveFlockState(); } catch(e) {}
+    toast('Admin data tables JSON downloaded');
+  };
+})();
+
+</script>
+
 </body>
 </html>
