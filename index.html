@@ -1743,6 +1743,14 @@ img,svg{display:block}
 .xflock-link{font-size:11px;font-weight:800;color:var(--brand);margin-top:6px;display:inline-flex;align-items:center;gap:3px}
 .xflock-empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:18px;text-align:center;color:var(--text3);font-size:13px;font-weight:700;margin-bottom:12px}
 .activity-deeplink{color:var(--brand);font-weight:800;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.activity-feed.clean{border:none;background:transparent;display:flex;flex-direction:column;gap:8px;overflow:visible}
+.activity-item.clean{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 12px;align-items:center;box-shadow:0 1px 6px rgba(61,43,110,.05);border-bottom:1px solid var(--border)}
+.activity-item.clean:last-child{border-bottom:1px solid var(--border)}
+.activity-icon{width:36px;height:36px;border-radius:50%;background:#F5F2FF;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.activity-body{flex:1;min-width:0}
+.activity-title{font-size:13px;font-weight:900;color:var(--text1);line-height:1.3}
+.activity-meta{font-size:11px;color:var(--text2);font-weight:700;margin-top:3px;line-height:1.35}
+.activity-open-btn{border:none;background:#ede8ff;color:var(--brand);border-radius:999px;padding:7px 10px;font-size:11px;font-weight:900;flex-shrink:0;font-family:inherit}
 
 
 /* ── MY WORLD CALENDAR ───────────────────────────── */
@@ -5109,29 +5117,102 @@ function kinverlyUserVisibleActions(flock, limit) {
   return rows.slice(0, limit || 20);
 }
 
+function kinverlyCleanActor(a) {
+  a = a || {};
+  var actor = a.actor_name || a.actor_display || '';
+  if (!actor || /administrator/i.test(actor)) return 'Someone';
+  return actor;
+}
+function kinverlyActivityGatheringName(a) {
+  a = a || {};
+  var g = a.gathering_title || a.entity_name || '';
+  if (!g && a.gathering_id) {
+    var live = getLiveGathering(a.gathering_id) || getFlockGatheringById((currentFlockId && FLOCKS[currentFlockId]) ? FLOCKS[currentFlockId] : null, a.gathering_id);
+    if (live) g = live.title || live.name || '';
+  }
+  return g;
+}
+function kinverlyCleanActivityTitle(a, count) {
+  a = a || {};
+  var type = String(a.action_type || '').toLowerCase();
+  count = count || 1;
+  if (type.indexOf('chat') >= 0 || type.indexOf('message') >= 0) return count > 1 ? count + ' new messages' : 'New message';
+  if (type.indexOf('note') >= 0) return count > 1 ? count + ' important info updates' : 'Important info updated';
+  if (type.indexOf('rsvp') >= 0) return 'RSVP updated';
+  if (type.indexOf('availability') >= 0 || type.indexOf('date') >= 0) return 'Schedule updated';
+  if (type.indexOf('task') >= 0) return 'Task updated';
+  if (type.indexOf('bring') >= 0) return 'Bring list updated';
+  if (type.indexOf('photo') >= 0) return count > 1 ? count + ' photos added' : 'Photo added';
+  if (type.indexOf('idea') >= 0) return 'Idea updated';
+  if (type.indexOf('poll') >= 0) return 'Poll updated';
+  if (type.indexOf('reminder') >= 0) return 'Reminder sent';
+  if (type.indexOf('gathering.created') >= 0) return 'Gathering created';
+  if (type.indexOf('gathering.updated') >= 0) return 'Gathering updated';
+  return 'Flock updated';
+}
+function kinverlyActivityGroupKey(a) {
+  a = a || {};
+  var type = String(a.action_type || '').toLowerCase();
+  var day = new Date(kinverlyActionTs(a) || Date.now()).toISOString().slice(0,10);
+  var gId = a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : '') || '';
+  // Notes/messages/tasks can create multiple low-value log rows. Group them by gathering/day.
+  if (/note|chat|message|task|bring|photo/.test(type)) return [type.replace(/\..*/,''), gId, day].join('|');
+  return [a.id || '', type, gId, kinverlyActionTs(a)].join('|');
+}
 function buildFlockActivity() {
   var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
-  var actions = kinverlyUserVisibleActions(flock, 30);
+  var actions = kinverlyUserVisibleActions(flock, 40);
   if (actions.length) {
-    return actions.map(function(a){
+    var grouped = [];
+    var byKey = {};
+    actions.forEach(function(a){
+      var key = kinverlyActivityGroupKey(a);
+      var row = byKey[key];
+      if (!row) {
+        row = byKey[key] = { action:a, count:0, sort:kinverlyActionTs(a) };
+        grouped.push(row);
+      }
+      row.count += 1;
+      row.sort = Math.max(row.sort || 0, kinverlyActionTs(a));
+    });
+    grouped.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
+    return grouped.map(function(row){
+      var a = row.action;
+      var gId = a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : null);
+      var gName = kinverlyActivityGatheringName(a);
+      var actor = kinverlyCleanActor(a);
+      var metaParts = [];
+      if (gName) metaParts.push(gName);
+      if (actor && actor !== 'Someone') metaParts.push(actor);
+      metaParts.push(kinverlyRelativeTime(row.sort));
       return {
         member: 'group',
-        text: kinverlyActionText(a, true),
-        time: kinverlyRelativeTime(kinverlyActionTs(a)),
-        sort: kinverlyActionTs(a),
+        title: kinverlyCleanActivityTitle(a, row.count),
+        text: kinverlyCleanActivityTitle(a, row.count),
+        meta: metaParts.filter(Boolean).join(' • '),
+        time: kinverlyRelativeTime(row.sort),
+        sort: row.sort,
         icon: kinverlyActionIcon(a),
-        gId: a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : null),
-        tab: kinverlyActionTab(a)
+        gId: gId,
+        tab: kinverlyActionTab(a),
+        count: row.count
       };
-    }).slice(0, 12);
+    }).slice(0, 6);
   }
 
   // Fallback for older flocks without action_log yet.
-  var manual = (DATA.activity||[]).slice(0, 12).map(function(a){
-    return { member: a.member || 'group', text: a.text || '', time: a.time || '', sort: a.ts || Date.parse(a.created_at || '') || 0, icon: a.icon || '✨', gId: a.gathering_id || null, tab: a.tab || 'overview' };
+  var manualGrouped = [];
+  var manualSeen = {};
+  (DATA.activity||[]).slice(0, 20).forEach(function(a){
+    var gId = a.gathering_id || null;
+    var key = [a.text || '', gId || '', Math.floor((a.ts || Date.parse(a.created_at || '') || 0) / 86400000)].join('|');
+    if (manualSeen[key]) { manualSeen[key].count += 1; return; }
+    var row = { member: a.member || 'group', title: a.text || 'Flock updated', text: a.text || 'Flock updated', meta: a.time || '', time: a.time || '', sort: a.ts || Date.parse(a.created_at || '') || 0, icon: a.icon || '✨', gId: gId, tab: a.tab || 'overview', count: 1 };
+    manualSeen[key] = row;
+    manualGrouped.push(row);
   });
-  manual.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
-  return manual.slice(0, 12);
+  manualGrouped.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
+  return manualGrouped.slice(0, 6);
 }
 
 // ── Activity logging ──
@@ -5447,11 +5528,11 @@ function renderHome() {
   } else {
   if (actTitle) actTitle.style.display = '';
   feed.style.display = '';
-  feed.classList.add('compact');
-  events.slice(0,5).forEach(function(a){
-    var m = a.member !== 'group' ? getMember(a.member) : null;
+  feed.classList.remove('compact');
+  feed.classList.add('clean');
+  events.slice(0,4).forEach(function(a){
     var item = document.createElement('div');
-    item.className = 'activity-item';
+    item.className = 'activity-item clean';
     var linkedG = a.gId ? getLiveGathering(a.gId) : inferActivityGathering(FLOCKS[currentFlockId], a);
     if (linkedG) {
       item.style.cursor = 'pointer';
@@ -5459,20 +5540,21 @@ function renderHome() {
       item.dataset.tab = a.tab || 'overview';
     }
     item.innerHTML =
-      (m ? makeAv(m.animal, 32) : '<div style="width:32px;height:32px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">'+(a.icon||'✨')+'</div>')+
-      '<div style="flex:1">'+
-        '<div class="activity-text">'+(m?'<strong>'+m.name+'</strong> ':'')+a.text+(linkedG ? ' <span class="activity-deeplink">Open →</span>' : '')+'</div>'+
-        '<div class="activity-time">'+a.time+'</div>'+
-      '</div>';
+      '<div class="activity-icon">'+(a.icon||'✨')+'</div>'+
+      '<div class="activity-body">'+
+        '<div class="activity-title">'+(a.title || a.text || 'Flock updated')+'</div>'+
+        '<div class="activity-meta">'+(a.meta || a.time || '')+'</div>'+
+      '</div>'+
+      (linkedG ? '<button class="activity-open-btn" type="button">Open</button>' : '');
     if (linkedG) {
       item.addEventListener('click', function(){ showPage('gatherings'); showDetail(item.dataset.gid, item.dataset.tab || 'overview'); });
     }
     feed.appendChild(item);
   });
-  if (events.length > 5) {
+  if (events.length > 4) {
     var more = document.createElement('button');
     more.className = 'home-see-more';
-    more.textContent = '+' + (events.length - 5) + ' more activity — open Gatherings';
+    more.textContent = 'View all activity';
     more.addEventListener('click', function(){ showPage('gatherings'); });
     feed.appendChild(more);
   }
