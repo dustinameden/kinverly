@@ -2117,6 +2117,225 @@ img,svg{display:block}
   font-size:13px;
 }
 
+
+
+/* ═══════════════════════════════════════════════
+   SPRINT 48 — ACCOUNT / ONBOARDING UI RESTORE
+   Fixes the account gate rendering as unstyled text/buttons.
+═══════════════════════════════════════════════ */
+#flock-overlay{
+  background:linear-gradient(180deg,#3D2B6E 0%,#2A1B52 100%)!important;
+  padding:20px!important;
+  display:none;
+  align-items:center!important;
+  justify-content:center!important;
+}
+#flock-inner{
+  width:100%!important;
+  max-width:420px!important;
+  max-height:calc(100vh - 40px)!important;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+}
+.flock-onboard-card{
+  width:100%;
+  background:rgba(255,255,255,.09);
+  border:1.5px solid rgba(255,255,255,.18);
+  border-radius:26px;
+  padding:28px 24px 24px;
+  box-shadow:0 18px 60px rgba(0,0,0,.20);
+  text-align:center;
+  color:#fff;
+}
+.flock-onboard-logo{
+  font-family:'Fredoka One',cursive;
+  font-size:38px;
+  line-height:1;
+  color:var(--gold);
+  margin-bottom:8px;
+}
+.flock-onboard-tag{
+  font-size:10px;
+  font-weight:900;
+  color:rgba(255,255,255,.42);
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  margin-bottom:22px;
+}
+.flock-onboard-mascot{
+  width:70px;
+  height:70px;
+  margin:0 auto 20px;
+  border-radius:22px;
+  background:rgba(240,192,48,.14);
+  border:1px solid rgba(240,192,48,.20);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:34px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
+}
+.flock-onboard-title{
+  font-family:'Fredoka One',cursive;
+  font-size:27px;
+  line-height:1.15;
+  color:#fff;
+  margin-bottom:8px;
+}
+.flock-onboard-copy{
+  max-width:315px;
+  margin:0 auto 22px;
+  font-size:14px;
+  line-height:1.55;
+  color:rgba(255,255,255,.66);
+  font-weight:700;
+}
+.flock-onboard-copy strong{color:#fff;font-weight:900;}
+.flock-onboard-actions{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:100%;
+}
+.flock-onboard-action{
+  width:100%;
+  min-height:76px;
+  border-radius:18px;
+  padding:14px 16px;
+  border:2px solid rgba(255,255,255,.16);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  text-align:left;
+  font-family:'Nunito',sans-serif;
+  cursor:pointer;
+  transition:transform .12s,background .15s,border-color .15s;
+}
+.flock-onboard-action:active{transform:scale(.985);}
+.flock-onboard-action.primary{
+  background:linear-gradient(135deg,var(--gold),#F5A623);
+  color:#2A1B52;
+  border-color:transparent;
+  box-shadow:0 8px 24px rgba(240,192,48,.22);
+}
+.flock-onboard-action.secondary{
+  background:rgba(255,255,255,.07);
+  color:#fff;
+}
+.flock-onboard-action.secondary:hover{border-color:rgba(240,192,48,.42);background:rgba(255,255,255,.10);}
+.flock-onboard-action-icon{
+  width:48px;
+  height:48px;
+  border-radius:14px;
+  flex:0 0 48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(61,43,110,.18);
+  font-size:24px;
+}
+.flock-onboard-action.secondary .flock-onboard-action-icon{background:rgba(255,255,255,.10);}
+.flock-onboard-action-title,
+.flock-onboard-action-sub{
+  display:block;
+}
+.flock-onboard-action-title{
+  font-size:16px;
+  font-weight:900;
+  line-height:1.25;
+}
+.flock-onboard-action-sub{
+  font-size:12px;
+  font-weight:800;
+  line-height:1.35;
+  margin-top:3px;
+  color:rgba(30,20,51,.72);
+}
+.flock-onboard-action.secondary .flock-onboard-action-sub{color:rgba(255,255,255,.55);}
+.flock-onboard-divider{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  color:rgba(255,255,255,.38);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  margin:2px 0;
+}
+.flock-onboard-divider:before,
+.flock-onboard-divider:after{
+  content:'';
+  height:1px;
+  flex:1;
+  background:rgba(255,255,255,.12);
+}
+.flock-logo,
+.flock-prompt,
+.flock-sub,
+.flock-field-label,
+.flock-err,
+.flock-input,
+.flock-btn,
+.flock-btn-outline{
+  font-family:'Nunito',sans-serif;
+}
+#flock-inner .flock-logo{
+  font-family:'Fredoka One',cursive!important;
+  color:var(--gold)!important;
+}
+#flock-inner .flock-field-label{
+  color:rgba(255,255,255,.52)!important;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-size:11px;
+  font-weight:900;
+  margin:12px 0 7px;
+}
+#flock-inner .flock-input{
+  display:block;
+  width:100%;
+  padding:13px 15px;
+  border-radius:14px;
+  border:2px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.09);
+  color:#fff;
+  font-size:15px;
+  font-weight:800;
+}
+#flock-inner .flock-input::placeholder{color:rgba(255,255,255,.32);}
+#flock-inner .flock-input:focus{border-color:var(--gold);}
+#flock-inner .flock-btn,
+#flock-inner .flock-btn-outline{
+  display:block;
+  width:100%;
+  border-radius:14px;
+  padding:13px 14px;
+  margin-top:10px;
+  font-size:15px;
+  font-weight:900;
+}
+#flock-inner .flock-btn{
+  background:var(--gold);
+  color:#2A1B52;
+  border:none;
+}
+#flock-inner .flock-btn-outline{
+  background:transparent;
+  color:rgba(255,255,255,.70);
+  border:2px solid rgba(255,255,255,.15);
+}
+#flock-inner .flock-sub{color:rgba(255,255,255,.62)!important;text-align:center;line-height:1.45;}
+#flock-inner .flock-err{color:var(--gold);font-size:12px;font-weight:900;margin-top:8px;}
+@media(max-width:460px){
+  #flock-overlay{padding:14px!important;}
+  .flock-onboard-card{padding:24px 18px 20px;border-radius:24px;}
+  .flock-onboard-logo{font-size:34px;}
+  .flock-onboard-title{font-size:24px;}
+  .flock-onboard-action{min-height:72px;padding:12px 14px;}
+}
+
 </style>
 </head>
 <body>
@@ -8742,7 +8961,9 @@ function getCurrentRole() {
 
 function can(action, memberId) {
   var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
-  if (!flock || !DATA.me) return false;
+  if (!DATA.me) return false;
+  if (typeof isGlobalAdminUser === 'function' && isGlobalAdminUser()) return true;
+  if (!flock) return false;
   var role = getCurrentRole();
   if (role === 'archived') return false;
   var allowed = ROLE_PERMISSIONS[role] || [];
@@ -9769,7 +9990,7 @@ async function removeMemberFromFlock(memberId) {
 }
 
 function openAdminPanel() {
-  if (!can('manage_flock')) { toast('Only flock owners can open organizer tools'); return; }
+  if (!can('manage_flock')) { toast('Only organizers or global admins can open admin tools'); return; }
   var body = document.getElementById('edit-body');
   var overlay = document.getElementById('edit-overlay');
   var titleEl = overlay.querySelector('.sheet-title');
@@ -11111,6 +11332,7 @@ function ensureUsersTable() {
         display_name: DATA.me.name,
         avatar: DATA.me.animal || 'bear',
         status: 'active',
+        global_role: DATA.me.global_role || 'user',
         created_at: DATA.me.created_at || nowISO(),
         updated_at: nowISO(),
         deleted_at: null,
@@ -11153,6 +11375,7 @@ function setCurrentKinverlyUser(user) {
   DATA.me.created_at = user.created_at || DATA.me.created_at || nowISO();
   DATA.me.updated_at = nowISO();
   DATA.me.deleted_at = null;
+  DATA.me.global_role = user.global_role || 'user';
   try { localStorage.setItem('kinverly_current_user_id', String(uid)); localStorage.setItem('kinverly_current_username', DATA.me.username || ''); } catch(e){}
   if (typeof persistMyProfile === 'function') persistMyProfile();
 }
@@ -11171,6 +11394,7 @@ function createKinverlyAccount(username, password, displayName) {
     display_name: String(displayName).trim(),
     avatar: 'bear',
     status: 'active',
+    global_role: 'user',
     created_at: stamp,
     updated_at: stamp,
     deleted_at: null,
@@ -11192,6 +11416,92 @@ function signInKinverlyAccount(username, password) {
   if (typeof saveLocal === 'function') saveLocal();
   return { user:user };
 }
+
+// ═══════════════════════════════════════════════
+// GLOBAL ADMIN ACCOUNTS
+// global_role = 'admin' grants cross-flock access without creating fake flock_members rows.
+// Normal flock access still comes from flock_members.user_id + flock_members.flock_id.
+// ═══════════════════════════════════════════════
+function isGlobalAdminUser(user) {
+  user = user || DATA.me || {};
+  return String(user.global_role || '').toLowerCase() === 'admin';
+}
+function hasAnyGlobalAdminAccount() {
+  return ensureUsersTable().some(function(u){ return isGlobalAdminUser(u) && !u.deleted_at; });
+}
+function createKinverlyAdminAccount(username, password, displayName) {
+  var users = ensureUsersTable();
+  var uname = normalizeUsername(username);
+  if (!uname) return { error:'Choose an admin username.' };
+  if (!password || String(password).length < 6) return { error:'Use at least 6 characters for the admin password.' };
+  if (!String(displayName || '').trim()) return { error:'Add the admin display name.' };
+  if (users.some(function(u){ return normalizeUsername(u.username) === uname && !u.deleted_at; })) return { error:'That username already exists.' };
+
+  // Bootstrap rule: the first admin can be created when no global admin exists.
+  // After that, only an existing global admin can create more admin accounts.
+  if (hasAnyGlobalAdminAccount() && !isGlobalAdminUser()) {
+    return { error:'Only a global admin can create another admin account.' };
+  }
+
+  var stamp = nowISO();
+  var user = {
+    user_id: nextGlobalNumericId('user'),
+    username: uname,
+    password_hash: demoPasswordHash(password),
+    display_name: String(displayName).trim(),
+    avatar: 'leopard',
+    status: 'active',
+    global_role: 'admin',
+    created_at: stamp,
+    updated_at: stamp,
+    deleted_at: null,
+    firestore_id: null
+  };
+  users.push(user);
+  setCurrentKinverlyUser(user);
+  if (typeof saveLocal === 'function') saveLocal();
+  return { user:user };
+}
+function getVisibleFlocksForCurrentUser() {
+  var all = Object.keys(FLOCKS || {}).map(function(key){ return { key:key, flock:FLOCKS[key] }; }).filter(function(x){ return x.flock && !x.flock.deleted_at; });
+  if (isGlobalAdminUser()) return all;
+  var uid = Number(DATA.me && (DATA.me.user_id || DATA.me.id));
+  return all.filter(function(x){
+    var members = x.flock.members || {};
+    return Object.values(members).some(function(m){ return m && !m.deleted_at && Number(m.user_id || m.id) === uid; });
+  });
+}
+function recoverAdminOrMemberFlock() {
+  var visible = getVisibleFlocksForCurrentUser();
+  if (!visible.length) return false;
+  var preferred = currentFlockId && visible.find(function(x){ return x.key === currentFlockId || String(x.flock.flock_id || x.flock.id) === String(currentFlockId); });
+  var pick = preferred || visible[0];
+  currentFlockId = pick.key;
+  try { localStorage.setItem('kinverly_current_flock', currentFlockId); } catch(e){}
+  return true;
+}
+function renderCreateAdminAccount(nextStep) {
+  var inner = document.getElementById('flock-inner');
+  if (!inner) return;
+  inner.innerHTML = '';
+  var title = document.createElement('div'); title.className='flock-logo'; title.style.cssText='font-size:26px;text-align:center;margin-bottom:8px'; title.textContent='Create admin login'; inner.appendChild(title);
+  var sub = document.createElement('div'); sub.className='flock-sub'; sub.style.marginBottom='16px'; sub.innerHTML = 'Global admins can access every flock without fake membership rows.'; inner.appendChild(sub);
+  function label(t){ var d=document.createElement('div'); d.className='flock-field-label'; d.textContent=t; inner.appendChild(d); return d; }
+  label('Admin username'); var u=document.createElement('input'); u.className='flock-input'; u.placeholder='e.g. admin'; u.autocapitalize='none'; inner.appendChild(u);
+  label('Admin password'); var p=document.createElement('input'); p.className='flock-input'; p.placeholder='Create admin password'; p.type='password'; inner.appendChild(p);
+  label('Display name'); var n=document.createElement('input'); n.className='flock-input'; n.placeholder='e.g. Kinverly Admin'; inner.appendChild(n);
+  var err=document.createElement('div'); err.className='flock-err'; inner.appendChild(err);
+  var btn=document.createElement('button'); btn.className='flock-btn'; btn.textContent='Create admin login'; inner.appendChild(btn);
+  btn.addEventListener('click', function(){
+    var res=createKinverlyAdminAccount(u.value,p.value,n.value);
+    if(res.error){err.textContent=res.error;err.style.display='block';return;}
+    toast('Admin login created');
+    if (recoverAdminOrMemberFlock()) { hideFlockOverlay(); renderAll && renderAll(); }
+    else renderPostAccountFlockChoice(nextStep || 'create');
+  });
+  var b=document.createElement('button'); b.className='flock-btn-outline'; b.textContent='Back'; b.addEventListener('click', function(){ renderAccountGate(nextStep || 'join'); }); inner.appendChild(b);
+}
+
 function requireSignedInBeforeFlock(nextStep) {
   if (DATA.me && DATA.me.user_id && DATA.me.username) return true;
   toast('Create an account or sign in first');
@@ -11216,11 +11526,15 @@ function renderAccountGate(nextStep) {
       '</button>'+
       '<button type="button" class="flock-onboard-action secondary" id="acct-signin">'+
         '<span class="flock-onboard-action-icon">🔐</span><span><span class="flock-onboard-action-title">Sign in</span><span class="flock-onboard-action-sub">Already have a Kinverly account</span></span>'+
+      '</button>'+ 
+      '<button type="button" class="flock-onboard-action secondary" id="acct-admin">'+
+        '<span class="flock-onboard-action-icon">🛡️</span><span><span class="flock-onboard-action-title">Create admin login</span><span class="flock-onboard-action-sub">Access all flocks with global_role = admin</span></span>'+ 
       '</button>'+
     '</div>';
   inner.appendChild(box);
   document.getElementById('acct-create').addEventListener('click', function(){ renderCreateAccount(nextStep); });
   document.getElementById('acct-signin').addEventListener('click', function(){ renderSignIn(nextStep); });
+  var adminBtn = document.getElementById('acct-admin'); if (adminBtn) adminBtn.addEventListener('click', function(){ renderCreateAdminAccount(nextStep); });
 }
 function renderCreateAccount(nextStep) {
   var inner = document.getElementById('flock-inner');
@@ -11244,7 +11558,7 @@ function renderSignIn(nextStep) {
   label('Password'); var p=document.createElement('input'); p.className='flock-input'; p.placeholder='Password'; p.type='password'; inner.appendChild(p);
   var err=document.createElement('div'); err.className='flock-err'; inner.appendChild(err);
   var btn=document.createElement('button'); btn.className='flock-btn'; btn.textContent='Sign in'; inner.appendChild(btn);
-  btn.addEventListener('click', function(){ var res=signInKinverlyAccount(u.value,p.value); if(res.error){err.textContent=res.error;err.style.display='block';return;} toast('Signed in'); if(Object.keys(FLOCKS||{}).length && currentFlockId){ hideFlockOverlay(); renderAll && renderAll(); } else renderPostAccountFlockChoice(nextStep); });
+  btn.addEventListener('click', function(){ var res=signInKinverlyAccount(u.value,p.value); if(res.error){err.textContent=res.error;err.style.display='block';return;} toast('Signed in'); if((typeof recoverAdminOrMemberFlock === 'function' && recoverAdminOrMemberFlock()) || (Object.keys(FLOCKS||{}).length && currentFlockId)){ hideFlockOverlay(); renderAll && renderAll(); } else renderPostAccountFlockChoice(nextStep); });
   var b=document.createElement('button'); b.className='flock-btn-outline'; b.textContent='Back'; b.addEventListener('click', renderFlockWelcome); inner.appendChild(b);
 }
 function renderPostAccountFlockChoice(nextStep) {
@@ -11260,6 +11574,11 @@ function renderFlockWelcome() {
 
   if (!DATA.me || !DATA.me.user_id || !DATA.me.username) {
     renderAccountGate('join');
+    return;
+  }
+  if (typeof isGlobalAdminUser === 'function' && isGlobalAdminUser() && typeof recoverAdminOrMemberFlock === 'function' && recoverAdminOrMemberFlock()) {
+    hideFlockOverlay();
+    if (typeof renderAll === 'function') renderAll();
     return;
   }
 
@@ -18786,6 +19105,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
         display_name: DATA.me.display_name || DATA.me.name || DATA.me.username || ('User ' + uid),
         avatar: DATA.me.animal || DATA.me.avatar || 'bear',
         status: 'active',
+        global_role: DATA.me.global_role || 'user',
         created_at: DATA.me.created_at || stamp(),
         updated_at: stamp(),
         deleted_at: null,
@@ -20305,3 +20625,89 @@ Kinverly now identifies the person before flock membership.
 `flock_members` owns membership fields: `member_id`, `flock_id`, `user_id`, `role`, `status`, `joined_at`, `created_at`, `updated_at`, `deleted_at`.
 
 No relationship field should store values like `mom`, `dustin_mnxgziqo`, or Firestore ids. Those values only belong in `firestore_id` / legacy debug columns.
+
+
+---
+
+<!--
+
+## Sprint 47 — Global Admin Account Access
+
+Kinverly now separates **global platform access** from **flock membership**.
+
+### Identity rules
+
+| Field | Meaning | Type |
+|---|---|---|
+| `user_id` | Kinverly-wide account id | numeric |
+| `member_id` | A user's membership row inside one flock | numeric |
+| `flock_id` | The family/group context | numeric |
+| `global_role` | Platform-level role on `users` | string enum |
+
+### `users.global_role`
+
+Allowed values:
+
+```text
+user
+admin
+```
+
+A global admin can access every flock without creating fake `flock_members` rows.
+
+### Admin account creation
+
+The onboarding/account screen now includes:
+
+```text
+Create account
+Sign in
+Create admin login
+```
+
+Creating an admin login writes a user row like:
+
+```json
+{
+  "user_id": 1,
+  "username": "admin",
+  "password_hash": "demo$...",
+  "display_name": "Kinverly Admin",
+  "global_role": "admin",
+  "status": "active"
+}
+```
+
+### Access model
+
+Normal flock access:
+
+```text
+users.user_id → flock_members.user_id → flock_members.flock_id → flocks.flock_id
+```
+
+Admin flock access:
+
+```text
+users.global_role = "admin" → all flocks
+```
+
+### Guardrail
+
+Do **not** create one `flock_members` row per flock for the admin. That would pollute membership counts and activity. Admin visibility is controlled only by `users.global_role = 'admin'`.
+
+### Admin recovery
+
+After sign-in, Kinverly now runs:
+
+```text
+recoverAdminOrMemberFlock()
+```
+
+This allows:
+
+- global admins to open the first available flock automatically
+- normal users to recover from their numeric `flock_members` relationships
+- onboarding to appear only when the signed-in user has no membership and is not a global admin
+
+-->
