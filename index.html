@@ -2328,6 +2328,24 @@ img,svg{display:block}
 }
 #flock-inner .flock-sub{color:rgba(255,255,255,.62)!important;text-align:center;line-height:1.45;}
 #flock-inner .flock-err{color:var(--gold);font-size:12px;font-weight:900;margin-top:8px;}
+
+.flock-recovery-link{
+  margin:16px auto 0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:0;
+  background:transparent;
+  color:rgba(255,255,255,.66);
+  font-size:13px;
+  font-weight:900;
+  text-decoration:underline;
+  text-underline-offset:4px;
+  cursor:pointer;
+  font-family:'Nunito',sans-serif;
+}
+.flock-recovery-link:hover{color:var(--gold);}
+
 @media(max-width:460px){
   #flock-overlay{padding:14px!important;}
   .flock-onboard-card{padding:24px 18px 20px;border-radius:24px;}
@@ -11592,7 +11610,7 @@ function renderFlockWelcome() {
     '<div class="flock-onboard-copy">Signed in as <strong>' + escapeHtml(DATA.me.name || DATA.me.username) + '</strong>. Join with an invite code or create a new flock.</div>'+
     '<div class="flock-onboard-actions">'+
       '<button type="button" class="flock-onboard-action primary" id="onboard-join-code">'+
-        '<span class="flock-onboard-action-icon">🔑</span><span><span class="flock-onboard-action-title">Join with a code</span><span class="flock-onboard-action-sub">Creates your numeric member_id in that flock</span></span>'+ 
+        '<span class="flock-onboard-action-icon">🔑</span><span><span class="flock-onboard-action-title">Join a Family</span><span class="flock-onboard-action-sub">Use an invitation code from your organizer.</span></span>'+ 
       '</button>'+ 
       '<div class="flock-onboard-divider">or</div>'+ 
       '<button type="button" class="flock-onboard-action secondary" id="onboard-create-flock">'+
@@ -21535,12 +21553,12 @@ signInKinverlyAccount = function(username, password) {
         '<div class="flock-onboard-logo">Kinverly.</div>'+
         '<div class="flock-onboard-tag">Your people. Your place. Your turn.</div>'+
         '<div class="flock-onboard-mascot" aria-hidden="true">🐆</div>'+
-        '<div class="flock-onboard-title">Sign in to Kinverly</div>'+
-        '<div class="flock-onboard-copy">Use your account first. Kinverly will then find your flocks or admin access using numeric IDs.</div>'+
+        '<div class="flock-onboard-title">Welcome back</div>'+
+        '<div class="flock-onboard-copy">Sign in to continue planning with your family.</div>'+
         '<div class="flock-onboard-actions">'+
-          '<button type="button" class="flock-onboard-action primary" id="auth-signin"><span class="flock-onboard-action-icon">🔐</span><span><span class="flock-onboard-action-title">Sign in</span><span class="flock-onboard-action-sub">Username and password</span></span></button>'+
-          '<button type="button" class="flock-onboard-action secondary" id="auth-create"><span class="flock-onboard-action-icon">✨</span><span><span class="flock-onboard-action-title">Create account</span><span class="flock-onboard-action-sub">Creates numeric user_id</span></span></button>'+
-          '<button type="button" class="flock-onboard-action secondary" id="auth-admin"><span class="flock-onboard-action-icon">🛡️</span><span><span class="flock-onboard-action-title">Create admin login</span><span class="flock-onboard-action-sub">Global access to all flocks</span></span></button>'+
+          '<button type="button" class="flock-onboard-action primary" id="auth-signin"><span class="flock-onboard-action-icon">🔐</span><span><span class="flock-onboard-action-title">Sign in</span><span class="flock-onboard-action-sub">Use your Kinverly account</span></span></button>'+
+          '<button type="button" class="flock-onboard-action secondary" id="auth-create"><span class="flock-onboard-action-icon">✨</span><span><span class="flock-onboard-action-title">Create account</span><span class="flock-onboard-action-sub">Start your Kinverly profile</span></span></button>'+
+          '<button type="button" class="flock-onboard-action secondary" id="auth-admin"><span class="flock-onboard-action-icon">🛡️</span><span><span class="flock-onboard-action-title">Admin sign in setup</span><span class="flock-onboard-action-sub">Create an administrator login</span></span></button>'+
         '</div>'+
       '</div>';
     var s = document.getElementById('auth-signin'); if (s) s.onclick = function(){ renderSignInForm(mode || 'join'); };
@@ -21560,7 +21578,7 @@ signInKinverlyAccount = function(username, password) {
 
   function renderSignInForm(next){
     showOverlay(); hideApp();
-    formShell('Sign in', 'After sign-in, Kinverly routes you by <strong>global_role</strong> or <strong>flock_members</strong>.',
+    formShell('Sign in', 'Welcome back. Enter your Kinverly username and password.',
       field('Username','auth-username','text','username') + field('Password','auth-password','password','password') +
       '<button type="button" class="flock-btn" id="auth-submit-signin">Sign in</button><button type="button" class="flock-btn-outline" id="auth-back">Back</button>');
     document.getElementById('auth-submit-signin').onclick = function(){
@@ -21572,7 +21590,7 @@ signInKinverlyAccount = function(username, password) {
   }
   function renderCreateAccountForm(next){
     showOverlay(); hideApp();
-    formShell('Create account', 'This creates your permanent numeric <strong>user_id</strong>. You can join or create a flock after this.',
+    formShell('Create account', 'Create your Kinverly profile. After this, you can join or create a family flock.',
       field('Username','new-username','text','e.g. dustin') + field('Password','new-password','password','at least 4 characters') + field('Display name','new-name','text','e.g. Dustin') +
       '<button type="button" class="flock-btn" id="auth-submit-create">Create account</button><button type="button" class="flock-btn-outline" id="auth-back">Back</button>');
     document.getElementById('auth-submit-create').onclick = function(){
@@ -21584,7 +21602,7 @@ signInKinverlyAccount = function(username, password) {
   }
   function renderCreateAdminForm(next){
     showOverlay(); hideApp();
-    formShell('Create admin login', 'Admin access uses <strong>users.global_role = admin</strong> and does not create fake flock memberships.',
+    formShell('Create admin login', 'Create an administrator account that can view every flock from the Admin Directory.',
       field('Admin username','admin-username-501','text','admin') + field('Admin password','admin-password-501','password','at least 6 characters') + field('Display name','admin-name-501','text','Kinverly Admin') +
       '<button type="button" class="flock-btn" id="auth-submit-admin">Create admin login</button><button type="button" class="flock-btn-outline" id="auth-back">Back</button>');
     document.getElementById('auth-submit-admin').onclick = function(){
@@ -21598,18 +21616,50 @@ signInKinverlyAccount = function(username, password) {
   function renderJoinCreate(){
     showOverlay(); hideApp();
     var root = inner(); if (!root) return;
-    root.innerHTML = '<div class="flock-onboard-card"><div class="flock-onboard-logo">Kinverly.</div><div class="flock-onboard-title">Join or create a flock</div><div class="flock-onboard-copy">Signed in as <strong>'+safe(DATA.me && (DATA.me.name || DATA.me.username))+'</strong>. A member_id is created only when you join or create a flock.</div><div class="flock-onboard-actions"><button type="button" class="flock-onboard-action primary" id="auth-join-flock"><span class="flock-onboard-action-icon">🔑</span><span><span class="flock-onboard-action-title">Join with a code</span><span class="flock-onboard-action-sub">Creates member_id in that flock</span></span></button><button type="button" class="flock-onboard-action secondary" id="auth-create-flock"><span class="flock-onboard-action-icon">🏠</span><span><span class="flock-onboard-action-title">Create a new flock</span><span class="flock-onboard-action-sub">Creates flock_id + creator member_id</span></span></button></div><button type="button" class="flock-recovery-link" id="auth-switch-user">Switch account</button></div>';
+    var who = safe(DATA.me && (DATA.me.display_name || DATA.me.name || DATA.me.username) || 'there');
+    root.innerHTML = ''+
+      '<div class="flock-onboard-card">'+
+        '<div class="flock-onboard-logo">Kinverly.</div>'+
+        '<div class="flock-onboard-tag">Your people. Your place. Your turn.</div>'+
+        '<div class="flock-onboard-mascot" aria-hidden="true">🐾</div>'+
+        '<div class="flock-onboard-title">Welcome, '+who+'</div>'+
+        '<div class="flock-onboard-copy">You are signed in. Now let's connect you to a family flock.</div>'+
+        '<div class="flock-onboard-actions">'+
+          '<button type="button" class="flock-onboard-action primary" id="auth-join-flock"><span class="flock-onboard-action-icon">🔑</span><span><span class="flock-onboard-action-title">Join a Family</span><span class="flock-onboard-action-sub">Use an invitation code from your organizer.</span></span></button>'+
+          '<button type="button" class="flock-onboard-action secondary" id="auth-create-flock"><span class="flock-onboard-action-icon">🏡</span><span><span class="flock-onboard-action-title">Create a Family</span><span class="flock-onboard-action-sub">Start a new family group and invite others.</span></span></button>'+
+        '</div>'+
+        '<button type="button" class="flock-recovery-link" id="auth-switch-user">Switch account</button>'+
+      '</div>';
     document.getElementById('auth-join-flock').onclick = function(){ if (typeof renderFlockJoin === 'function') renderFlockJoin(); };
     document.getElementById('auth-create-flock').onclick = function(){ if (typeof renderFlockCreate === 'function') renderFlockCreate(); };
     document.getElementById('auth-switch-user').onclick = function(){ logoutKinverly(); };
+  }
+
+  function renderChooseFlock(memberships){
+    showOverlay(); hideApp();
+    var root = inner(); if (!root) return;
+    memberships = memberships || [];
+    root.innerHTML = ''+
+      '<div class="flock-onboard-card">'+
+        '<div class="flock-onboard-logo">Kinverly.</div>'+
+        '<div class="flock-onboard-tag">Choose Family</div>'+
+        '<div class="flock-onboard-title">Which family?</div>'+
+        '<div class="flock-onboard-copy">You belong to more than one flock. Choose where you want to go.</div>'+
+        '<div style="max-height:360px;overflow-y:auto;margin-top:12px">'+
+          memberships.map(function(m){ var f=m.flock||{}; return '<button type="button" class="flock-list-item" data-choose-flock="'+safe(f.flock_id || m.key)+'"><span class="flock-list-icon">'+safe(f.emoji||'🏡')+'</span><span style="flex:1;text-align:left"><span class="flock-list-name">'+safe(f.name||'Family flock')+'</span><span class="flock-list-sub">'+Object.keys(f.members||{}).length+' members</span></span></button>'; }).join('')+
+        '</div>'+
+        '<button type="button" class="flock-btn-outline" id="choose-switch-user">Switch account</button>'+
+      '</div>';
+    root.querySelectorAll('[data-choose-flock]').forEach(function(btn){ btn.onclick = function(){ var found = memberships.find(function(m){ return String(m.flock && m.flock.flock_id || m.key) === String(btn.getAttribute('data-choose-flock')); }); if (found) setActiveFlock(found); }; });
+    var sw = document.getElementById('choose-switch-user'); if (sw) sw.onclick = function(){ logoutKinverly(); };
   }
 
   function renderAdminDirectory(){
     showOverlay(); hideApp();
     var flocks = flockEntries();
     var root = inner(); if (!root) return;
-    root.innerHTML = '<div class="flock-onboard-card"><div class="flock-onboard-logo">Kinverly.</div><div class="flock-onboard-tag">Admin</div><div class="flock-onboard-title">Admin Flock Directory</div><div class="flock-onboard-copy">Choose any flock. Admin access comes from your user account, not flock membership.</div><div style="max-height:360px;overflow-y:auto;margin-top:12px">'+
-      (flocks.length ? flocks.map(function(e){ var f=e.flock; return '<button type="button" class="flock-list-item" data-admin-open="'+safe(f.flock_id)+'"><span class="flock-list-icon">'+safe(f.emoji||'🏠')+'</span><span style="flex:1;text-align:left"><span class="flock-list-name">'+safe(f.name)+'</span><span class="flock-list-sub">flock_id '+safe(f.flock_id)+' · '+Object.keys(f.members||{}).length+' members</span></span></button>'; }).join('') : '<div class="planning-empty">No flocks exist yet.</div>')+
+    root.innerHTML = '<div class="flock-onboard-card"><div class="flock-onboard-logo">Kinverly.</div><div class="flock-onboard-tag">Administrator</div><div class="flock-onboard-title">Flock Directory</div><div class="flock-onboard-copy">Choose a family flock to view or manage.</div><div style="max-height:360px;overflow-y:auto;margin-top:12px">'+
+      (flocks.length ? flocks.map(function(e){ var f=e.flock; return '<button type="button" class="flock-list-item" data-admin-open="'+safe(f.flock_id)+'"><span class="flock-list-icon">'+safe(f.emoji||'🏡')+'</span><span style="flex:1;text-align:left"><span class="flock-list-name">'+safe(f.name || 'Family flock')+'</span><span class="flock-list-sub">'+Object.keys(f.members||{}).length+' members</span></span></button>'; }).join('') : '<div class="planning-empty">No flocks exist yet.</div>')+
       '</div><button type="button" class="flock-btn" id="admin-create-flock-501">Create new flock</button><button type="button" class="flock-btn-outline" id="admin-logout-501">Log out</button></div>';
     root.querySelectorAll('[data-admin-open]').forEach(function(btn){ btn.onclick = function(){ var e=findFlock(btn.getAttribute('data-admin-open')); if(e) setActiveFlock(e); }; });
     var cf = document.getElementById('admin-create-flock-501'); if (cf) cf.onclick = function(){ if (typeof renderFlockCreate === 'function') renderFlockCreate(); };
@@ -21622,14 +21672,19 @@ signInKinverlyAccount = function(username, password) {
     if (!uid) { renderAccountGate('join'); return 'account_gate'; }
     if (isAdmin()) { renderAdminDirectory(); return 'admin_directory'; }
     var memberships = membershipsFor(uid);
-    if (memberships.length) {
+    if (memberships.length === 1) {
+      setActiveFlock(memberships[0]);
+      return 'enter_flock';
+    }
+    if (memberships.length > 1) {
       var preferred = null;
       try {
         var last = localStorage.getItem('kinverly_last_active_flock_id_' + uid) || localStorage.getItem('kinverly_current_flock');
         preferred = memberships.find(function(m){ return String(m.key) === String(last) || String(m.flock.flock_id) === String(last); });
       } catch(e){}
-      setActiveFlock(preferred || memberships[0]);
-      return 'enter_flock';
+      if (preferred) { setActiveFlock(preferred); return 'enter_flock'; }
+      renderChooseFlock(memberships);
+      return 'choose_flock';
     }
     renderJoinCreate();
     return 'join_create';
@@ -21680,11 +21735,12 @@ signInKinverlyAccount = function(username, password) {
     flock.flock_id = fid; flock.id = fid;
     flock.members = flock.members || {};
     var existing = flock.members[String(uid)] || {};
+    var resolvedMemberId = n(existing.member_id) || nextMemberId(flock);
     var member = Object.assign({}, existing, {
-      id: uid,
+      id: resolvedMemberId,
       user_id: uid,
       flock_id: fid,
-      member_id: n(existing.member_id) || nextMemberId(flock),
+      member_id: resolvedMemberId,
       name: DATA.me.name || DATA.me.display_name || DATA.me.username || ('User ' + uid),
       animal: DATA.me.animal || existing.animal || 'bear',
       role: existing.role || role || 'member',
