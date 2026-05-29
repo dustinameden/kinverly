@@ -5724,241 +5724,248 @@ function wireDetailButtons(g) {
   }
 }
 
-function buildStandardDetail(g) {
-  var tasksDone  = (g.tasks||[]).filter(function(t){ return t.done; }).length;
-  var tasksTotal = (g.tasks||[]).length;
 
-  var taskHTML = (g.tasks||[]).map(function(t){
-    var owner = getMember(t.owner);
-    return '<div class="task-item" id="task-row-'+t.id+'">' +
-      '<div class="task-check'+(t.done?' done':'')+'" id="chk-'+t.id+'">' +
-        (t.done ? '<svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '') +
+function getGatheringMode(g) {
+  if (!g) return 'collecting_availability';
+  if (g.deleted_at || g.status === 'deleted') return 'deleted';
+  if (g.status === 'archived') return 'archived';
+  if (g.status === 'completed') return 'completed';
+  if (g.status === 'planning') return 'collecting_availability';
+  var hasDate = !!(g.date_label || g.month || g.day || g.confirmed_date || g.start_date);
+  if (hasDate) return 'collecting_rsvp';
+  return 'collecting_availability';
+}
+
+function cleanConfirmedDateLabel(g) {
+  return (getGatheringDateDisplay(g) || 'Date TBD').replace(/^Confirmed:\s*/,'');
+}
+
+function buildStatusTimelineCard(g, state, mode) {
+  var total = state.totalMembers || 0;
+  var availDone = state.submittedCount || 0;
+  var replies = state.repliedCount || 0;
+  var going = state.attendingCount || 0;
+  var steps = [];
+  if (mode === 'collecting_availability') {
+    steps = [
+      {label:'Availability', value:availDone + '/' + total + ' shared', cls:availDone ? 'done' : 'active'},
+      {label:'Date decision', value:state.recommendedWindow ? ('Recommended: ' + state.recommendedWindow.dates) : 'Waiting for responses', cls:availDone ? 'active' : ''},
+      {label:'RSVPs', value:'Opens after date is selected', cls:''}
+    ];
+  } else if (mode === 'completed') {
+    steps = [
+      {label:'Completed', value:cleanConfirmedDateLabel(g), cls:'done'},
+      {label:'Attendance', value:going + ' attended', cls:'done'},
+      {label:'Memories', value:((g.photos||[]).length) + ' photos', cls:(g.photos||[]).length ? 'done' : 'active'}
+    ];
+  } else {
+    steps = [
+      {label:'Date selected', value:cleanConfirmedDateLabel(g), cls:'done'},
+      {label:'RSVPs', value:replies + '/' + total + ' replied', cls:replies >= total && total ? 'done' : 'active'},
+      {label:'Attendance', value:going + ' going so far', cls:going ? 'done' : 'active'}
+    ];
+  }
+  return '<div class="card" style="margin-bottom:14px">' +
+    '<div style="font-size:11px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Status</div>' +
+    '<div class="planning-steps">' + steps.map(function(st, idx){
+      return '<div class="planning-step ' + st.cls + '">' +
+        '<div class="planning-step-num">' + (st.cls === 'done' ? '✓' : (idx+1)) + '</div>' +
+        '<div class="planning-step-body"><div class="planning-step-title">' + escapeHtml(st.label) + '</div>' +
+        '<div class="planning-step-sub">' + escapeHtml(st.value) + '</div></div>' +
+      '</div>';
+    }).join('') + '</div></div>';
+}
+
+function buildMyGatheringActionCard(g, state, mode) {
+  var my = getRsvpForMember(g.id, DATA.me.id) || {};
+  if (mode === 'collecting_availability') {
+    var submitted = hasSubmittedAvailability(my);
+    return '<div class="card" style="margin-bottom:14px">' +
+      '<div style="display:flex;gap:12px;align-items:flex-start">' +
+        '<div style="width:42px;height:42px;border-radius:12px;background:#ede8ff;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📅</div>' +
+        '<div style="flex:1"><div style="font-size:17px;font-weight:900;color:var(--text1);margin-bottom:3px">' + (submitted ? 'Availability shared ✓' : 'Share your availability') + '</div>' +
+        '<div style="font-size:13px;color:var(--text2);line-height:1.45">' + (submitted ? 'You can still review or adjust your answers before dates are finalized.' : 'Answer which proposed dates work for you. My Calendar fills in conflicts first.') + '</div></div>' +
       '</div>' +
-      makeAv((owner&&owner.animal)||'bear', 28) +
-      '<div class="task-info">' +
-        '<div class="task-title'+(t.done?' done':'')+'" id="task-title-'+t.id+'">' + t.title + '</div>' +
-        '<div class="task-owner">' + (owner?owner.name:t.owner) + ' &middot; ' + t.note + '</div>' +
-      '</div>' +
+      '<button class="btn-primary" id="open-avail-btn" style="margin-top:14px">' + (submitted ? 'Review availability' : 'Share availability') + '</button>' +
+    '</div>';
+  }
+  if (mode === 'completed') {
+    return '<div class="card" style="margin-bottom:14px"><div style="font-size:17px;font-weight:900;color:var(--text1);margin-bottom:4px">Gathering complete 🎉</div><div style="font-size:13px;color:var(--text2);line-height:1.45">Photos, notes, and memories live here now.</div></div>';
+  }
+  var status = my.status || '';
+  var label = status === 'yes' ? 'You’re going ✅' : status === 'virtual' ? 'You’re joining virtually 💻' : status === 'no' ? 'You can’t make it' : 'Are you going?';
+  var sub = status ? ('Confirmed for ' + cleanConfirmedDateLabel(g)) : 'Let the flock know so everyone can plan.';
+  return '<div class="card" style="margin-bottom:14px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">' +
+      '<div><div style="font-size:11px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Your RSVP</div>' +
+      '<div style="font-size:22px;font-weight:900;color:var(--text1);font-family:Fredoka One,cursive;line-height:1.2">' + escapeHtml(label) + '</div>' +
+      '<div style="font-size:13px;color:var(--text2);margin-top:5px">' + escapeHtml(sub) + '</div></div>' +
+    '</div>' +
+    '<button class="btn-primary" id="rsvp-btn">' + (status ? 'Change my RSVP' : 'Respond now') + '</button>' +
+  '</div>';
+}
+
+function buildAvailabilitySummaryCard(g, state, mode) {
+  var my = getRsvpForMember(g.id, DATA.me.id) || {};
+  var liveWindows = computeLiveWindowSummaries(g);
+  if (mode === 'collecting_availability') {
+    return '<div class="card" style="margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Availability status</div>' +
+      '<div style="font-size:17px;font-weight:900;color:var(--text1);margin-bottom:8px">' + state.submittedCount + ' of ' + state.totalMembers + ' shared</div>' +
+      buildPeopleStatusRows(state.submittedMembers, state.pendingAvailabilityMembers, 'availability') +
+    '</div>';
+  }
+  if (!liveWindows.length && !hasSubmittedAvailability(my)) return '';
+  var mySummary = liveWindows.map(function(w){
+    var ans = my.windowResponses && (my.windowResponses[w.id] || my.windowResponses[w.dates]);
+    if (!ans && w.isRecommended) ans = my.status === 'no' ? 'No' : (hasSubmittedAvailability(my) ? 'Works' : '');
+    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:13px;font-weight:800;color:var(--text1)">' + escapeHtml(w.dates || 'Date option') + '</span>' +
+      '<span style="font-size:12px;font-weight:800;color:var(--text2)">' + escapeHtml(ans || liveWindowSubtitle(w) || 'Not answered') + '</span>' +
     '</div>';
   }).join('');
+  return '<details class="card" style="margin-bottom:14px">' +
+    '<summary style="cursor:pointer;font-size:15px;font-weight:900;color:var(--text1);list-style:none">Availability summary <span style="float:right;color:var(--text3)">⌄</span></summary>' +
+    '<div style="font-size:12px;color:var(--text2);line-height:1.45;margin:8px 0 6px">The date is selected, so availability is tucked away as planning history.</div>' +
+    mySummary +
+    '<button class="btn-secondary" id="open-avail-btn" style="margin-top:12px">Review availability</button>' +
+  '</details>';
+}
 
-  // Seed rsvpData from attending array (for pre-existing gatherings)
-  if (!rsvpData[g.id]) {
-    rsvpData[g.id] = {};
-    (g.attending||[]).forEach(function(id){
-      rsvpData[g.id][id] = {status:'yes', memberName:'', guests:0, dietary:'', travelFrom:'', travelTo:''};
-    });
-  }
-
-  // Build RSVP-aware member list
-  var allFlock = getActiveFlockMembers();
-  var confirmed = [], notComing = [], noReply = [];
-  allFlock.forEach(function(m){
-    if (!m) return;
-    var rsvp = rsvpData[g.id] && rsvpData[g.id][m.id];
-    if (rsvp) {
-      if (rsvp.status==='yes' || rsvp.status==='virtual') confirmed.push({m:m, rsvp:rsvp});
-      else if (rsvp.status==='no') notComing.push({m:m, rsvp:rsvp});
-    } else {
-      noReply.push(m);
-    }
+function buildPeopleStatusRows(doneList, pendingList, kind) {
+  var rows = '';
+  doneList.forEach(function(x){
+    var m = x.member || x.m || x;
+    var label = kind === 'attendance' ? 'going' : 'shared';
+    rows += '<div class="member-row">' + makeAv(m.animal,32) + '<div class="member-info"><div class="member-name">' + escapeHtml(m.name || 'Member') + '</div><div class="member-loc">' + escapeHtml(m.location || '') + '</div></div><span class="pill pill-green">' + label + '</span></div>';
   });
+  pendingList.forEach(function(x){
+    var m = x.member || x.m || x;
+    rows += '<div class="member-row">' + makeAv(m.animal,32) + '<div class="member-info"><div class="member-name">' + escapeHtml(m.name || 'Member') + '</div><div class="member-loc">' + escapeHtml(m.location || '') + '</div></div><span class="pill pill-amber">waiting</span></div>';
+  });
+  return rows || '<div style="font-size:13px;color:var(--text2);padding:6px 0">No members to show yet.</div>';
+}
 
-  function rsvpBadge(rsvp) {
-    if (!rsvp) return '<span class="rsvp-badge pending">No reply</span>';
-    if (rsvp.status==='yes')     return '<span class="rsvp-badge going">In person</span>';
-    if (rsvp.status==='virtual') return '<span class="rsvp-badge virtual">Virtual</span>';
-    if (rsvp.status==='no')      return '<span class="rsvp-badge no">Can\'t make it</span>';
-    return '';
+function buildPeopleResponseCard(g, state, mode) {
+  if (mode === 'collecting_availability') {
+    return '<div class="section-title">Who has shared availability</div><div class="card">' + buildPeopleStatusRows(state.submittedMembers, state.pendingAvailabilityMembers, 'availability') + '</div>';
   }
+  var going = state.confirmedMembers.concat(state.virtualMembers);
+  var notComing = state.declinedMembers || [];
+  var pending = state.pendingReplyMembers || [];
+  var rows = '';
+  going.forEach(function(x){ var m=x.member; rows += '<div class="member-row">' + makeAv(m.animal,32) + '<div class="member-info"><div class="member-name">' + escapeHtml(m.name || 'Member') + '</div><div class="member-loc">' + escapeHtml(m.location || '') + '</div></div><span class="pill pill-green">going</span></div>'; });
+  pending.forEach(function(x){ var m=x.member; rows += '<div class="member-row">' + makeAv(m.animal,32) + '<div class="member-info"><div class="member-name">' + escapeHtml(m.name || 'Member') + '</div><div class="member-loc">' + escapeHtml(m.location || '') + '</div></div><span class="pill pill-amber">waiting</span></div>'; });
+  notComing.forEach(function(x){ var m=x.member; rows += '<div class="member-row" style="opacity:.65">' + makeAv(m.animal,32) + '<div class="member-info"><div class="member-name">' + escapeHtml(m.name || 'Member') + '</div><div class="member-loc">' + escapeHtml(m.location || '') + '</div></div><span class="pill pill-red">can’t go</span></div>'; });
+  return '<div class="section-title">Attendance</div><div class="card">' + (rows || '<div style="font-size:13px;color:var(--text2);padding:6px 0">No replies yet.</div>') + '</div>';
+}
 
-  function memberRsvpRow(m, rsvp) {
-    var isMe = m.id === DATA.me.id;
-    var hasDetails = rsvp && (rsvp.guests || rsvp.dietary || rsvp.travelFrom || rsvp.travelTo);
-    var detailHtml = '';
-    if (hasDetails) {
-      var details = [];
-      if (rsvp.guests) details.push('+' + rsvp.guests + ' guest' + (rsvp.guests>1?'s':''));
-      if (rsvp.dietary) details.push('Dietary: ' + escapeHtml(rsvp.dietary));
-      if (rsvp.travelFrom) details.push('From: ' + escapeHtml(rsvp.travelFrom));
-      if (rsvp.travelTo) details.push('Arriving: ' + escapeHtml(rsvp.travelTo));
-      if (rsvp.departTo) details.push('Leaving: ' + escapeHtml(rsvp.departTo));
-      detailHtml = '<div class="rsvp-expand-details" style="display:none;padding:8px 0 4px 44px;font-size:11px;color:var(--text2);line-height:1.7">' +
-        details.join('<br>') +
-      '</div>';
-    }
-    return '<div class="member-row rsvp-member-row' + (rsvp&&rsvp.status==='no' ? ' dimmed' : '') + '"' +
-      (hasDetails ? ' style="cursor:pointer" onclick="var d=this.nextElementSibling;if(d&&d.classList.contains(\'rsvp-expand-details\')){d.style.display=d.style.display===\'none\'?\'\':\'none\'}"' : '') + '>' +
-      makeAv(m.animal, 34) +
-      '<div class="member-info">' +
-        '<div class="member-name">' + (isMe ? 'You (' + m.name + ')' : m.name) + '</div>' +
-        (m.location ? '<div class="member-loc">' + m.location + '</div>' : '') +
-      '</div>' +
-      rsvpBadge(rsvp) +
-      (hasDetails ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-left:4px"><polyline points="6 9 12 15 18 9"/></svg>' : '') +
-    '</div>' + detailHtml;
-  }
+function buildSmartReminderCard(g, state, mode) {
+  var pending = mode === 'collecting_availability' ? state.pendingAvailabilityMembers : state.pendingReplyMembers;
+  if (!pending || !pending.length || mode === 'completed') return '';
+  var names = pending.map(function(x){ return escapeHtml((x.member && x.member.name) || 'Someone'); }).slice(0,3).join(', ');
+  if (pending.length > 3) names += ' +' + (pending.length - 3) + ' more';
+  return '<div class="card" style="background:#fffaf0;border-color:rgba(240,192,48,.35);margin-top:12px">' +
+    '<div style="font-size:11px;font-weight:900;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Reminder</div>' +
+    '<div style="font-size:16px;font-weight:900;color:var(--text1);margin-bottom:4px">Waiting on ' + names + '</div>' +
+    '<div style="font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:12px">Send one friendly reminder to the people who still need to respond.</div>' +
+    '<button class="btn-secondary" id="nudge-btn">Send reminder</button>' +
+  '</div>';
+}
 
-  var rsvpRows = '';
-  confirmed.forEach(function(x)  { rsvpRows += memberRsvpRow(x.m, x.rsvp); });
-  noReply.forEach(function(m)    { rsvpRows += memberRsvpRow(m, null); });
-  notComing.forEach(function(x)  { rsvpRows += memberRsvpRow(x.m, x.rsvp); });
+function buildPlanningHistoryCard(g, state) {
+  var liveWindows = computeLiveWindowSummaries(g);
+  if (!liveWindows.length) return '';
+  var rows = liveWindows.map(function(w){
+    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">' +
+      '<span style="font-size:13px;font-weight:900;color:var(--text1)">' + escapeHtml(w.dates || 'TBD') + '</span>' +
+      '<span style="font-size:12px;color:var(--text2);font-weight:800">' + escapeHtml(liveWindowSubtitle(w)) + '</span>' +
+    '</div>';
+  }).join('');
+  return '<details class="card" style="margin-bottom:14px"><summary style="cursor:pointer;font-size:15px;font-weight:900;color:var(--text1);list-style:none">Planning history <span style="float:right;color:var(--text3)">⌄</span></summary><div style="margin-top:8px">' + rows + '</div></details>';
+}
 
-  // My current RSVP
-  var myRsvp = rsvpData[g.id] && rsvpData[g.id][DATA.me.id];
-  var iHaveRsvpd = !!(myRsvp && myRsvp.status);
-  var myStatusLabel = '';
-  if (iHaveRsvpd) {
-    if (myRsvp.status==='yes')     myStatusLabel = '\u2705 You\u2019re going \u2014 in person';
-    else if (myRsvp.status==='virtual') myStatusLabel = '\ud83d\udcbb You\u2019re joining virtually';
-    else                                myStatusLabel = '\ud83d\udc94 You can\u2019t make this one';
-  }
-
-  var rsvpBannerHtml = iHaveRsvpd
-    ? '<div class="my-rsvp-banner">' +
-        '<div class="my-rsvp-status">' + myStatusLabel + '</div>' +
-        (myRsvp.guests  ? '<div class="my-rsvp-detail">+' + myRsvp.guests + ' guest' + (myRsvp.guests>1?'s':'') + '</div>' : '') +
-        (myRsvp.dietary ? '<div class="my-rsvp-detail">Dietary: ' + myRsvp.dietary + '</div>' : '') +
-        (myRsvp.travelFrom ? '<div class="my-rsvp-detail">Traveling from ' + myRsvp.travelFrom + '</div>' : '') +
-        (myRsvp.travelTo ? '<div class="my-rsvp-detail">\u2708\ufe0f Arriving ' + myRsvp.travelTo + (myRsvp.departTo ? ' \u2192 Leaving ' + myRsvp.departTo : '') + '</div>' : '') +
-      '</div>'
-    : '<div class="rsvp-cta-banner">' +
-        '<div class="rsvp-cta-question">Are you coming?</div>' +
-        '<div class="rsvp-cta-sub">Let the flock know so everyone can plan.</div>' +
-      '</div>';
-
-  // Status-aware eyebrow
-  var eyebrow = g.status === 'completed' ? '✅ Completed' :
-                g.status === 'next' ? '⭐ Confirmed' :
-                g.status === 'upcoming' ? '✅ Confirmed' :
-                g.status === 'planning' ? '🗓️ Choosing dates' :
-                g.type === 'planned' ? 'Planned gathering' : '✨ Bonus gathering';
-
-  // Quick-glance stats based on what matters NOW
-  var statsHtml = '';
-  if (g.status === 'planning') {
-    var state = deriveGatheringState(g);
-    statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + state.submittedCount + '/' + state.totalMembers + '</div><div class="detail-stat-l">submitted availability</div></div>';
-  } else if (g.status === 'completed') {
-    statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + confirmed.length + '</div><div class="detail-stat-l">attended</div></div>' +
-      (tasksTotal ? '<div class="detail-stat"><div class="detail-stat-n">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '') +
-      '<div class="detail-stat"><div class="detail-stat-n">' + (g.photos||[]).length + '</div><div class="detail-stat-l">photos</div></div>';
-  } else {
-    var totalGuests = 0;
-    confirmed.forEach(function(x){ totalGuests += parseInt(x.rsvp.guests)||0; });
-    var headcount = confirmed.length + totalGuests;
-    statsHtml =
-      '<div class="detail-stat"><div class="detail-stat-n">' + (confirmed.length+notComing.length) + '/' + allFlock.length + '</div><div class="detail-stat-l">replied</div></div>' +
-      '<div class="detail-stat"><div class="detail-stat-n">' + headcount + '</div><div class="detail-stat-l">total' + (totalGuests ? ' (+' + totalGuests + ' guests)' : '') + '</div></div>' +
-      (tasksTotal ? '<div class="detail-stat" id="detail-prog-count-wrap-'+g.id+'"><div class="detail-stat-n" id="detail-prog-count-'+g.id+'">' + tasksDone + '/' + tasksTotal + '</div><div class="detail-stat-l">tasks done</div></div>' : '');
-  }
-
-  // Summary cards for notes/polls/bring
+function buildCoordinatorSections(g) {
   var notesCount  = (g.notes||[]).length;
-  var pollsCount  = (g.polls||[]).length;
   var bringCount  = (g.bringList||[]).length;
   var bringClaimed = (g.bringList||[]).filter(function(b){return b.claimedBy;}).length;
   var expenseCount = (g.expenses||[]).length;
-
-  // Build inline sections for Notes, Bring, Budget
   var notesSectionHtml = '<div class="section-title" style="margin-top:16px">📌 Notes' + (notesCount ? ' (' + notesCount + ')' : '') + '</div><div id="overview-notes-' + g.id + '"></div>';
-
   var bringSectionHtml = '<div class="section-title" style="margin-top:16px">🎒 Bring list' + (bringCount ? ' (' + bringClaimed + '/' + bringCount + ')' : '') + '</div><div id="overview-bring-' + g.id + '"></div>';
-
   var budgetSectionHtml = '';
   if (expenseCount > 0) {
-    var total = 0;
-    (g.expenses||[]).forEach(function(e){ total += (parseFloat(e.amount)||0); });
+    var total = 0; (g.expenses||[]).forEach(function(e){ total += (parseFloat(e.amount)||0); });
     budgetSectionHtml = '<div class="section-title" style="margin-top:16px">💰 Expenses ($' + total.toFixed(0) + ')</div><div id="overview-budget-' + g.id + '"></div>';
   }
+  return notesSectionHtml + bringSectionHtml + budgetSectionHtml;
+}
 
-  return '<div class="detail-hero">' +
+function buildManageGatheringFooter(g) {
+  var canManage = g.host === DATA.me.id || can('finalize_gathering') || can('edit_gathering');
+  if (!canManage) return '';
+  if (g.status === 'completed') return '<button class="btn-secondary" id="reopen-gathering-btn" style="margin-top:16px;border-color:var(--brand);color:var(--brand)">↩️ Reopen this gathering</button>';
+  return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)"><button id="complete-gathering-btn" style="width:100%;padding:14px;border-radius:14px;background:var(--green);color:#fff;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">✅ Mark as complete</button><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px">Moves this gathering to Completed.</div></div>';
+}
+
+function buildGatheringHero(g, state, mode, isBeach) {
+  var eyebrow = mode === 'collecting_availability' ? '✨ Collecting availability' : mode === 'completed' ? '✅ Completed' : '✅ Date selected';
+  var sub = mode === 'collecting_availability'
+    ? 'Choosing dates · ' + escapeHtml(g.theme || 'Gathering') + ' · ' + escapeHtml(g.location || 'Location TBD')
+    : cleanConfirmedDateLabel(g) + ' · ' + escapeHtml(g.location || 'Location TBD');
+  var stats = '';
+  if (mode === 'collecting_availability') {
+    stats = '<div class="detail-stat"><div class="detail-stat-n">' + state.submittedCount + '/' + state.totalMembers + '</div><div class="detail-stat-l">shared availability</div></div>' +
+            '<div class="detail-stat"><div class="detail-stat-n">' + state.pendingAvailabilityCount + '</div><div class="detail-stat-l">waiting</div></div>';
+  } else if (mode === 'completed') {
+    stats = '<div class="detail-stat"><div class="detail-stat-n">' + state.attendingCount + '</div><div class="detail-stat-l">attended</div></div>' +
+            '<div class="detail-stat"><div class="detail-stat-n">' + ((g.photos||[]).length) + '</div><div class="detail-stat-l">photos</div></div>';
+  } else {
+    stats = '<div class="detail-stat"><div class="detail-stat-n">' + state.attendingCount + '</div><div class="detail-stat-l">going</div></div>' +
+            '<div class="detail-stat"><div class="detail-stat-n">' + state.pendingReplyCount + '</div><div class="detail-stat-l">waiting</div></div>';
+  }
+  var windowsHTML = '';
+  if (mode === 'collecting_availability') {
+    var liveWindows = computeLiveWindowSummaries(g);
+    windowsHTML = liveWindows.length ? '<div class="window-grid">' + liveWindows.map(function(w){
+      var cls = w.isRecommended ? 'best' : (w.counts && w.counts.submitted ? 'partial' : 'blocked');
+      return '<div class="window-opt '+cls+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(liveWindowSubtitle(w))+'</div></div>';
+    }).join('') + '</div>' : '';
+  }
+  return '<div class="detail-hero' + (isBeach ? ' beach' : '') + '">' +
     '<div class="detail-eyebrow">' + eyebrow + '</div>' +
-    '<div class="detail-title">' + g.name + '</div>' +
-    '<div class="detail-sub">' + getGatheringDateDisplay(g) + ' · ' + (g.location||'TBD') + '</div>' +
-    '<div class="detail-stats">' + statsHtml + '</div>' +
-  '</div>' +
+    '<div class="detail-title">' + escapeHtml(g.name || 'Gathering') + '</div>' +
+    '<div class="detail-sub">' + sub + '</div>' +
+    '<div class="detail-stats">' + stats + '</div>' + windowsHTML +
+  '</div>';
+}
 
-  buildQuietGatheringCard(g) +
+function buildStateDrivenGatheringDetail(g, isBeach) {
+  var state = deriveGatheringState(g);
+  var mode = getGatheringMode(g);
+  var html = buildGatheringHero(g, state, mode, isBeach);
+  html += buildStatusTimelineCard(g, state, mode);
+  html += buildMyGatheringActionCard(g, state, mode);
+  if (mode === 'collecting_availability') {
+    html += buildQuietGatheringCard(g);
+    html += buildPeopleResponseCard(g, state, mode);
+    html += buildSmartReminderCard(g, state, mode);
+  } else {
+    html += buildAvailabilitySummaryCard(g, state, mode);
+    html += buildPeopleResponseCard(g, state, mode);
+    html += buildSmartReminderCard(g, state, mode);
+    html += buildPlanningHistoryCard(g, state);
+    html += buildCoordinatorSections(g);
+    html += buildManageGatheringFooter(g);
+  }
+  return html;
+}
 
-  '<div class="section-title" style="margin-top:4px">Who\'s coming</div>' +
-  '<div class="card"><div>' + rsvpRows + '</div></div>' +
-
-  (noReply.length > 0 && g.status !== 'completed' ?
-    '<button class="btn-secondary" id="nudge-btn" style="margin-top:8px">' + (g.status === 'planning' ? 'Nudge members missing availability' : 'Nudge the ' + noReply.length + ' who haven\'t replied') + '</button>'
-  : '') +
-
-  // Complete / Reopen button (host, creator, or admin only)
-  (function(){
-    var canManage = g.host === DATA.me.id || can('finalize_gathering') || can('edit_gathering');
-    if (!canManage) return '';
-    if (g.status === 'completed') {
-      return '<button class="btn-secondary" id="reopen-gathering-btn" style="margin-top:16px;border-color:var(--brand);color:var(--brand)">' +
-        '↩️ Reopen this gathering</button>';
-    } else {
-      return '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">' +
-        '<button id="complete-gathering-btn" style="width:100%;padding:14px;border-radius:14px;background:var(--green);color:#fff;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">' +
-          '✅ Mark as complete' +
-        '</button>' +
-        '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px">This moves the gathering to "Completed" and hides the RSVP</div>' +
-      '</div>';
-    }
-  })() +
-
-  notesSectionHtml + bringSectionHtml + budgetSectionHtml;
+function buildStandardDetail(g) {
+  return buildStateDrivenGatheringDetail(g, false);
 }
 
 function buildBeachDetail(g) {
-  var state = deriveGatheringState(g);
-  var responded = state.submittedCount;
-  var total = state.totalMembers;
-
-  var liveWindows = computeLiveWindowSummaries(g);
-  var windowsHTML = liveWindows.length
-    ? liveWindows.map(function(w){
-        var cls = w.isRecommended ? 'best' : (w.counts && w.counts.submitted ? 'partial' : 'blocked');
-        return '<div class="window-opt '+cls+'"><div class="window-date">'+escapeHtml(w.dates || 'TBD')+'</div><div class="window-sub">'+escapeHtml(liveWindowSubtitle(w))+'</div></div>';
-      }).join('')
-    : '';
-
-  var responseRows = state.activeMembers.map(function(m){
-    var rd = getRsvpForMember(g.id, m.id);
-    var done = rd && rd.availSubmitted;
-    var blockedCount = rd && rd.blockedDates ? rd.blockedDates.length : 0;
-    return '<div class="member-row">'+
-      makeAv(m.animal,32)+
-      '<div class="member-info"><div class="member-name">'+escapeHtml(m.name || 'Member')+'</div><div class="member-loc">'+escapeHtml(m.location || '')+'</div></div>'+
-      (done
-        ? '<span class="pill pill-green">submitted' + (blockedCount ? ' · ' + blockedCount + ' blocked' : '') + '</span>'
-        : '<span class="pill pill-amber">waiting</span>')+
-    '</div>';
-  }).join('');
-
-  return '<div class="detail-hero beach">'+
-    '<div class="detail-eyebrow">✨ Collecting availability</div>'+
-    '<div class="detail-title">'+escapeHtml(g.name || 'Gathering')+'</div>'+
-    '<div class="detail-sub">'+ getGatheringDateDisplay(g) +' · '+escapeHtml(g.theme||'Trip')+' · '+escapeHtml(g.location||'Location TBD')+'</div>'+
-    '<div class="detail-stats">'+
-      '<div class="detail-stat"><div class="detail-stat-n">'+responded+'/'+total+'</div><div class="detail-stat-l">submitted availability</div></div>'+
-      '<div class="detail-stat"><div class="detail-stat-n">'+state.pendingAvailabilityCount+'</div><div class="detail-stat-l">waiting</div></div>'+
-    '</div>'+
-    (windowsHTML ? '<div class="window-grid">'+windowsHTML+'</div>' : '')+
-  '</div>'+
-  buildQuietGatheringCard(g)+
-  '<div class="collab-box">'+
-    '<div class="collab-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>'+
-    '<div><div class="collab-title">Review your availability</div><div class="collab-sub">My Calendar checks your unavailable dates first. Confirm them here for this gathering.</div></div>'+
-  '</div>'+
-  '<div class="section-title">Availability check</div>'+
-  '<button class="btn-primary" id="open-avail-btn" style="margin-bottom:12px">'+
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
-    'Review my availability'+
-  '</button>'+
-  '<div class="section-title">Responses</div>'+
-  '<div class="card"><div>'+responseRows+'</div></div>'+
-  '<button class="btn-secondary" id="nudge-btn" style="margin-top:4px">Nudge pending members</button>';
+  return buildStateDrivenGatheringDetail(g, true);
 }
 
 // -- IDEAS ----------------------------------------
@@ -9714,7 +9721,7 @@ function showFlockSheet() {
         var confirmBox = document.createElement('div');
         confirmBox.style.cssText = 'display:none;background:var(--red-bg);border:1.5px solid var(--red);border-radius:12px;padding:12px 14px;flex:1';
         confirmBox.innerHTML =
-          '<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px">Delete this gathering?</div>' +
+          '<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
           '<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">This will permanently delete <strong>' + flock.name.replace(/</g,'&lt;') + '</strong> and all its gatherings, ideas, and data for everyone. This can\'t be undone.</div>' +
           '<div style="display:flex;gap:8px">' +
             '<button class="flock-del-yes" style="flex:1;padding:9px;border-radius:8px;background:var(--red);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
@@ -12860,10 +12867,10 @@ try {
 
       // ── Delete ──
       '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">' +
-        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Delete this gathering</button>' +
+        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Archive this gathering</button>' +
       '</div>' +
       '<div id="ge-delete-confirm" style="display:none;margin-top:10px;background:var(--red-bg);border:1.5px solid var(--red);border-radius:14px;padding:16px">' +
-        '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Delete this gathering?</div>' +
+        '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
         '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px">This will permanently remove <strong>' + g.name.replace(/</g,'&lt;') + '</strong> and all its tasks, RSVPs, and photos. This can\'t be undone.</div>' +
         '<div style="display:flex;gap:8px">' +
           '<button id="ge-delete-yes" style="flex:1;padding:11px;border-radius:10px;background:var(--red);color:#fff;font-size:13px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
@@ -12991,7 +12998,16 @@ try {
       document.getElementById('ge-delete-btn').style.display = '';
     });
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
-      confirmDeleteGatheringFromEdit(g.id, this);
+      var archived = archiveGatheringById(g.id, 'Archived from edit sheet');
+      if (!archived) { toast('Could not archive gathering'); return; }
+      saveAndSync();
+      document.getElementById('gather-edit-overlay').classList.add('hidden');
+      showPage('gatherings');
+      renderGatherings();
+      renderHome();
+      if (typeof renderMyWorld === 'function') renderMyWorld();
+      if (detailOpen && window._currentDetailGathering && String(window._currentDetailGathering.id) === String(g.id)) closeDetail();
+      toast('Gathering archived');
     });
 
     // Wire save
@@ -13061,62 +13077,6 @@ try {
     });
 
     document.getElementById('gather-edit-overlay').classList.remove('hidden');
-  }
-
-
-
-  // Centralized gathering delete/archive flow. This is a soft delete: the gathering
-  // stays in the flock document and exports with deleted_at, but disappears from
-  // active flock pages, My World, calendar, requests, nudges, and counts.
-  async function confirmDeleteGatheringFromEdit(gatheringId, btn) {
-    var g = getGatheringById(gatheringId) || (editingGathering && String(editingGathering.id) === String(gatheringId) ? editingGathering : null) || window._currentDetailGathering;
-    if (!g || !g.id) { toast('Could not find that gathering'); return; }
-    var oldText = btn ? btn.textContent : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Deleting…';
-    }
-    try {
-      var deleted = archiveGatheringById(g.id, 'Deleted from edit sheet');
-      if (!deleted) throw new Error('archiveGatheringById returned null');
-      // Make the soft-delete fields explicit for exports / tables.
-      deleted.deleted_at = deleted.deleted_at || nowISO();
-      deleted.deleted_by = deleted.deleted_by || (DATA.me && DATA.me.id ? DATA.me.id : '');
-      deleted.updated_at = nowISO();
-      deleted.updatedAt = Date.now();
-      deleted.status = 'archived';
-      deleted.archived_at = deleted.archived_at || deleted.deleted_at;
-
-      var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
-      if (flock && Array.isArray(flock.gatherings)) {
-        flock.gatherings = flock.gatherings.map(function(row){
-          return row && String(row.id) === String(deleted.id) ? deleted : row;
-        });
-      }
-      DATA.gatherings = getActiveGatheringsForUi((flock && flock.gatherings) || DATA.gatherings || []);
-
-      saveLocal();
-      if (typeof syncFlockToFirebase === 'function') await syncFlockToFirebase();
-      else if (typeof pushToFirebase === 'function') pushToFirebase();
-
-      var overlay = document.getElementById('gather-edit-overlay');
-      if (overlay) overlay.classList.add('hidden');
-      editingGathering = null;
-      if (detailOpen && window._currentDetailGathering && String(window._currentDetailGathering.id) === String(deleted.id)) closeDetail();
-      if (typeof showPage === 'function') showPage('gatherings');
-      if (typeof renderGatherings === 'function') renderGatherings();
-      if (typeof renderHome === 'function') renderHome();
-      if (typeof renderMyWorld === 'function') renderMyWorld();
-      if (typeof renderFlocksPage === 'function') renderFlocksPage();
-      toast('Gathering deleted from active flock ✓');
-    } catch (err) {
-      console.warn('[Kinverly] Gathering delete failed:', err);
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = oldText || 'Yes, delete it';
-      }
-      toast('Could not delete gathering yet');
-    }
   }
 
   window.openGatherEdit = openGatherEdit;
@@ -13226,36 +13186,6 @@ try {
       saveGatheringEditFromSheet(btn);
     }, true);
   }
-
-  if (gatherEditOverlay && !gatherEditOverlay.dataset.hardenedDeleteBound) {
-    gatherEditOverlay.dataset.hardenedDeleteBound = '1';
-    gatherEditOverlay.addEventListener('click', function(e){
-      var target = e.target && e.target.closest ? e.target.closest('#ge-delete-btn,#ge-delete-no,#ge-delete-yes') : null;
-      if (!target) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-      if (target.id === 'ge-delete-btn') {
-        var panel = document.getElementById('ge-delete-confirm');
-        if (panel) panel.style.display = 'block';
-        target.style.display = 'none';
-        return;
-      }
-      if (target.id === 'ge-delete-no') {
-        var panelNo = document.getElementById('ge-delete-confirm');
-        var delBtn = document.getElementById('ge-delete-btn');
-        if (panelNo) panelNo.style.display = 'none';
-        if (delBtn) delBtn.style.display = '';
-        return;
-      }
-      if (target.id === 'ge-delete-yes') {
-        var g = editingGathering || window._currentDetailGathering;
-        confirmDeleteGatheringFromEdit(g && g.id, target);
-      }
-    }, true);
-  }
-
   if (gatherEditOverlay && !gatherEditOverlay.dataset.autoSaveBound) {
     gatherEditOverlay.dataset.autoSaveBound = '1';
     var autoTimer = null;
