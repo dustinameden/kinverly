@@ -3113,6 +3113,152 @@ function patchGatheringById(gatheringId, patchOrMutator, actionName) {
 
 
 // ═══════════════════════════════════════════════
+//  DELEGATED GATHERING ACTION BUTTONS
+//  Keeps dynamically rendered Notes, Bring List, and Complete buttons connected.
+// ═══════════════════════════════════════════════
+function kinCurrentDetailGatheringId() {
+  var g = window._currentDetailGathering || null;
+  return g && (g.id || g.gathering_id) || '';
+}
+function kinAfterGatheringButtonSave(gid, message) {
+  var live = getLiveGathering(gid) || (window._currentDetailGathering || null);
+  if (live) window._currentDetailGathering = live;
+  try { if (live && typeof renderDetail === 'function') renderDetail(live); } catch(e) { console.warn('[Kinverly] renderDetail after save failed', e); }
+  try { if (typeof renderGatherings === 'function') renderGatherings(); } catch(e) {}
+  try { if (typeof renderHome === 'function') renderHome(); } catch(e) {}
+  try { if (typeof renderWorld === 'function') renderWorld(); } catch(e) {}
+  if (message && typeof toast === 'function') toast(message);
+}
+function kinLogUserAction(type, entityType, entityId, gid, title, summary, metadata) {
+  try {
+    if (window.appendKinverlyActionLog) {
+      window.appendKinverlyActionLog({
+        action_type: type,
+        action_status: 'success',
+        entity_type: entityType,
+        entity_id: entityId || '',
+        gathering_id: gid || '',
+        gathering_title: title || '',
+        visible_to_users: true,
+        summary: summary || type,
+        metadata: metadata || {}
+      });
+    }
+  } catch(e) { console.warn('[Kinverly] action log failed', e); }
+}
+function kinHandleNotePostButton(btn) {
+  var gid = btn.getAttribute('data-gathering-id') || kinCurrentDetailGatheringId();
+  var row = btn.parentElement;
+  var input = row ? row.querySelector('input') : null;
+  var text = input ? input.value.trim() : '';
+  if (!text) { if (input) input.focus(); return; }
+  btn.disabled = true;
+  var now = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+  var noteId = 'note_' + Date.now().toString(36);
+  patchGatheringById(gid, function(g){
+    if (!Array.isArray(g.notes)) g.notes = [];
+    g.notes.unshift({
+      id: noteId,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+      created_by_user_id: getCurrentActionUserId(),
+      updated_by_user_id: getCurrentActionUserId(),
+      user_id: getCurrentActionUserId(),
+      text: text,
+      note_text: text,
+      author: currentActorKey(),
+      author_user_id: getCurrentActionUserId(),
+      authorName: currentActorName(),
+      pinned: false,
+      ts: Date.now()
+    });
+    kinLogUserAction('note.created', 'note', noteId, g.id || gid, g.name || g.title || '', ((DATA.me && DATA.me.name) || 'Someone') + ' added a note to ' + (g.name || g.title || 'a gathering'), {preview:text});
+  }, 'note.created').then(function(){
+    if (input) input.value = '';
+    kinAfterGatheringButtonSave(gid, 'Note posted');
+  }).catch(function(err){
+    console.error('[Kinverly] note post failed', err);
+    if (typeof toast === 'function') toast('Could not post note. Try again.');
+  }).finally(function(){ btn.disabled = false; });
+}
+function kinHandleBringAddButton(btn) {
+  var gid = btn.getAttribute('data-gathering-id') || kinCurrentDetailGatheringId();
+  var row = btn.parentElement;
+  var input = row ? row.querySelector('input') : null;
+  var text = input ? input.value.trim() : '';
+  if (!text) { if (input) input.focus(); return; }
+  btn.disabled = true;
+  var emojis = ['🍕','🥗','🎮','🏖️','🧊','🪑','🎵','🍺','🧸','🎒','🔌','🎂','🧴','🏕️','🛏️'];
+  var now = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+  var itemId = 'bring_' + Date.now().toString(36);
+  patchGatheringById(gid, function(g){
+    if (!Array.isArray(g.bringList)) g.bringList = [];
+    g.bringList.push({
+      id: itemId,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+      created_by_user_id: getCurrentActionUserId(),
+      updated_by_user_id: getCurrentActionUserId(),
+      user_id: getCurrentActionUserId(),
+      name: text,
+      title: text,
+      emoji: emojis[Math.floor(Math.random()*emojis.length)],
+      claimedBy: null,
+      claimed_user_id: null,
+      claimedName: null,
+      addedBy: currentActorKey(),
+      added_by_user_id: getCurrentActionUserId()
+    });
+    kinLogUserAction('bring_item.created', 'bring_item', itemId, g.id || gid, g.name || g.title || '', ((DATA.me && DATA.me.name) || 'Someone') + ' added ' + text + ' to the bring list', {item:text});
+  }, 'bring_item.created').then(function(){
+    if (input) input.value = '';
+    kinAfterGatheringButtonSave(gid, 'Added to bring list');
+  }).catch(function(err){
+    console.error('[Kinverly] bring list add failed', err);
+    if (typeof toast === 'function') toast('Could not add item. Try again.');
+  }).finally(function(){ btn.disabled = false; });
+}
+function kinHandleCompleteGatheringButton(btn) {
+  var gid = btn.getAttribute('data-gathering-id') || kinCurrentDetailGatheringId();
+  if (!gid) return;
+  btn.disabled = true;
+  var now = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+  patchGatheringById(gid, function(g){
+    g.status = 'completed';
+    g.gathering_state = 'completed';
+    g.completed_at = g.completed_at || now;
+    g.completed_by_user_id = getCurrentActionUserId();
+    g.themePill = 'pill-gray';
+    kinLogUserAction('gathering.completed', 'gathering', g.id || gid, g.id || gid, g.name || g.title || '', ((DATA.me && DATA.me.name) || 'Someone') + ' marked ' + (g.name || g.title || 'a gathering') + ' as complete', {});
+  }, 'gathering.completed').then(function(){
+    kinAfterGatheringButtonSave(gid, 'Gathering marked complete');
+  }).catch(function(err){
+    console.error('[Kinverly] complete gathering failed', err);
+    if (typeof toast === 'function') toast('Could not mark complete. Try again.');
+  }).finally(function(){ btn.disabled = false; });
+}
+if (!window.__kinverlyDelegatedGatheringButtons) {
+  window.__kinverlyDelegatedGatheringButtons = true;
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!btn) return;
+    var action = btn.getAttribute('data-kin-action') || '';
+    if (!action && btn.id === 'complete-gathering-btn') action = 'gathering-complete';
+    if (action === 'note-post' || action === 'bring-add' || action === 'gathering-complete') {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (action === 'note-post') return kinHandleNotePostButton(btn);
+      if (action === 'bring-add') return kinHandleBringAddButton(btn);
+      if (action === 'gathering-complete') return kinHandleCompleteGatheringButton(btn);
+    }
+  }, true);
+}
+
+
+// ═══════════════════════════════════════════════
 //  GATHERING ACCESS / SHARE HELPERS
 //  A flock gathering should be visible to every active flock member unless
 //  explicitly removed. These helpers make that relationship explicit so
@@ -10840,6 +10986,8 @@ function renderPinboard(g) {
     var addBtn = document.createElement('button');
     addBtn.className = 'pin-add-btn';
     addBtn.textContent = 'Post';
+    addBtn.setAttribute('data-kin-action','note-post');
+    addBtn.setAttribute('data-gathering-id', g.id || '');
     addBtn.addEventListener('click', function(){
       var text = addInp.value.trim();
       if (!text) return;
@@ -11137,6 +11285,8 @@ function renderBringList(g) {
     var addBtn = document.createElement('button');
     addBtn.className = 'pin-add-btn';
     addBtn.textContent = 'Add';
+    addBtn.setAttribute('data-kin-action','bring-add');
+    addBtn.setAttribute('data-gathering-id', g.id || '');
     addBtn.addEventListener('click', function(){
       var text = addInp.value.trim();
       if (!text) return;
