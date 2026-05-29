@@ -25297,3 +25297,149 @@ signInKinverlyAccount = function(username, password) {
   console.info('[Kinverly] Sprint 52.6 removed member admin controls patch loaded');
 })();
 </script>
+
+<!-- Sprint 52.7 — Shell Click Recovery Patch
+     Purpose: make tab navigation and gathering cards clickable again after admin/recovery overlays render. -->
+<style id="kv-shell-click-recovery-css">
+  .bottom-nav{pointer-events:auto!important;z-index:9999!important;}
+  .bottom-nav .nav-btn{pointer-events:auto!important;position:relative!important;z-index:10000!important;}
+  .page-wrap{pointer-events:auto!important;}
+  .overlay.hidden,
+  .task-detail-overlay.hidden,
+  .photo-lightbox.hidden,
+  #login-screen.hidden{display:none!important;pointer-events:none!important;}
+  .kv-click-through-blocker{pointer-events:none!important;}
+</style>
+<script id="kv-shell-click-recovery-patch">
+(function(){
+  if (window.__kvShellClickRecoveryPatch) return;
+  window.__kvShellClickRecoveryPatch = true;
+
+  function qsa(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function safe(fn){ try { return fn && fn(); } catch(e){ console.warn('[Kinverly] shell recovery safe error', e); } }
+  function normalizePage(p){ return p === 'myworld' ? 'availability' : p; }
+
+  function closeBlockingChrome(){
+    // Only close overlays that are truly modal and currently visible. This prevents invisible shells from blocking taps.
+    qsa('#login-screen.hidden,.overlay.hidden,.task-detail-overlay.hidden,.photo-lightbox.hidden').forEach(function(el){
+      el.style.display = 'none';
+      el.style.pointerEvents = 'none';
+    });
+    qsa('.overlay,.task-detail-overlay,.photo-lightbox').forEach(function(el){
+      if (el.classList.contains('hidden')) {
+        el.style.display = 'none';
+        el.style.pointerEvents = 'none';
+      }
+    });
+  }
+
+  function renderPageSafe(page){
+    var p = normalizePage(page);
+    safe(function(){ if (typeof window.renderPage === 'function') window.renderPage(p); });
+    safe(function(){ if (p === 'home' && typeof window.renderHome === 'function') window.renderHome(); });
+    safe(function(){ if (p === 'availability' && typeof window.renderMyWorld === 'function') window.renderMyWorld(); });
+    safe(function(){ if (p === 'availability' && typeof window.renderAvailabilityPage === 'function') window.renderAvailabilityPage(); });
+    safe(function(){ if (p === 'gatherings' && typeof window.renderGatherings === 'function') window.renderGatherings(); });
+    safe(function(){ if (p === 'ideas' && typeof window.renderIdeas === 'function') window.renderIdeas(); });
+    safe(function(){ if (p === 'flock' && typeof window.renderFlockPage === 'function') window.renderFlockPage(); });
+    safe(function(){ if (p === 'profile' && typeof window.renderProfile === 'function') window.renderProfile(); });
+  }
+
+  function goPage(page){
+    var p = normalizePage(page || 'home');
+    closeBlockingChrome();
+    safe(function(){ if (typeof window.saveFlockState === 'function') window.saveFlockState(); });
+    if (typeof window.showPage === 'function') {
+      safe(function(){ window.showPage(p); });
+    } else if (typeof showPage === 'function') {
+      safe(function(){ showPage(p); });
+    } else {
+      qsa('.page').forEach(function(el){ el.classList.remove('active'); });
+      var target = document.getElementById('page-' + p);
+      if (target) target.classList.add('active');
+      qsa('.nav-btn').forEach(function(btn){ btn.classList.toggle('active', normalizePage(btn.dataset.page) === p); });
+    }
+    renderPageSafe(p);
+    setTimeout(closeBlockingChrome, 0);
+  }
+
+  function findGatheringIdFromCard(card){
+    if (!card) return null;
+    return card.getAttribute('data-gathering-id') || card.getAttribute('data-gid') || card.getAttribute('data-id') || card.dataset.gatheringId || card.dataset.gid || card.dataset.id || null;
+  }
+
+  function openGatheringFromCard(card){
+    var gid = findGatheringIdFromCard(card);
+    if (!gid && window.DATA && Array.isArray(DATA.gatherings)) {
+      // Last-resort fallback: infer from visible title/date if card has no data id.
+      var txt = (card.textContent || '').trim();
+      var hit = DATA.gatherings.find(function(g){
+        var name = String(g.name || g.title || '');
+        return name && txt.indexOf(name) >= 0;
+      });
+      gid = hit && (hit.id || hit.gathering_id);
+    }
+    if (!gid) return false;
+    closeBlockingChrome();
+    if (typeof window.showDetail === 'function') {
+      safe(function(){ window.showDetail(gid, 'overview'); });
+      return true;
+    }
+    if (typeof showDetail === 'function') {
+      safe(function(){ showDetail(gid, 'overview'); });
+      return true;
+    }
+    return false;
+  }
+
+  // Capture-phase nav rescue. Runs before broken bubble handlers or stale admin overlays can swallow clicks.
+  document.addEventListener('click', function(e){
+    var navBtn = e.target && e.target.closest ? e.target.closest('.bottom-nav .nav-btn') : null;
+    if (navBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      goPage(navBtn.dataset.page || 'home');
+      return false;
+    }
+
+    var detailBack = e.target && e.target.closest ? e.target.closest('#detail-back,.back-btn[data-page],.context-back') : null;
+    if (detailBack && detailBack.id === 'detail-back' && typeof window.closeDetail === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      safe(function(){ window.closeDetail(); });
+      return false;
+    }
+
+    var card = e.target && e.target.closest ? e.target.closest('.g-card,.gathering-card,[data-gathering-id],[data-gid]') : null;
+    if (card && !e.target.closest('button,input,textarea,select,a')) {
+      var inGatheringsPage = document.querySelector('#page-gatherings.active') || card.closest('#page-gatherings');
+      if (inGatheringsPage && openGatheringFromCard(card)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        return false;
+      }
+    }
+  }, true);
+
+  // Re-attach simple click handlers after any render that replaces nav/card DOM.
+  function bindShellClicks(){
+    closeBlockingChrome();
+    qsa('.bottom-nav .nav-btn').forEach(function(btn){
+      if (btn.__kvShellClickBound) return;
+      btn.__kvShellClickBound = true;
+      btn.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        goPage(btn.dataset.page || 'home');
+      });
+    });
+  }
+  bindShellClicks();
+  setInterval(bindShellClicks, 1000);
+  setTimeout(function(){ goPage((window.currentPage || 'home')); }, 100);
+  console.info('[Kinverly] Sprint 52.7 shell click recovery patch loaded');
+})();
+</script>
