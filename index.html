@@ -18721,6 +18721,283 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 })();
 </script>
 
+
+<script>
+// ═══════════════════════════════════════════════
+// SPRINT 46 — NUMERIC ID REWIRE + FLOCK MEMBERSHIP HARDENING
+// Fixes: creating a new flock immediately routing back to onboarding because
+// membership lookups were still mixing legacy string ids with numeric ids.
+//
+// Rules:
+// - users.user_id is numeric and global.
+// - flocks.flock_id is numeric and global.
+// - flock_members.member_id is numeric and scoped to the membership row.
+// - Firestore/string ids stay only in firestore_id/storage_key/uid/legacy fields.
+// - Flock access is determined by flock_members/user_id + flock_id, not by strings.
+// ═══════════════════════════════════════════════
+(function(){
+  if (window.__KINVERLY_SPRINT46_NUMERIC_ID_REWIRE__) return;
+  window.__KINVERLY_SPRINT46_NUMERIC_ID_REWIRE__ = true;
+
+  function stamp(){ return (typeof nowISO === 'function') ? nowISO() : new Date().toISOString().slice(0,19).replace('T',' '); }
+  function isNum(v){ return v !== null && v !== undefined && v !== '' && !isNaN(Number(v)); }
+  function n(v){ var x = Number(v); return Number.isFinite(x) ? x : null; }
+  function active(row){ return row && !row.deleted_at && row.status !== 'removed' && row.status !== 'deleted'; }
+  function maxAcross(getter){
+    var max = 0;
+    try { Object.keys(window.FLOCKS || {}).forEach(function(k){ var f=window.FLOCKS[k]||{}; max = Math.max(max, Number(getter(f,k))||0); }); } catch(e){}
+    return max;
+  }
+  function maxUserId(){
+    var max = 0;
+    try { (DATA.users||[]).forEach(function(u){ max=Math.max(max, Number(u.user_id || u.id)||0); }); } catch(e){}
+    try { Object.keys(FLOCKS||{}).forEach(function(k){ Object.values((FLOCKS[k]||{}).members||{}).forEach(function(m){ max=Math.max(max, Number(m.user_id)||0); }); }); } catch(e){}
+    try { max=Math.max(max, Number(DATA.me && DATA.me.user_id)||0, Number(DATA.me && DATA.me.id)||0); } catch(e){}
+    return max;
+  }
+  function nextUserId(){ return maxUserId()+1; }
+  function nextFlockId(){ return Math.max(0, maxAcross(function(f){ return f.flock_id || (isNum(f.id) ? f.id : 0); })) + 1; }
+  function nextMemberId(flock){
+    var max = 0;
+    try { Object.values((flock||{}).members||{}).forEach(function(m){ max=Math.max(max, Number(m.member_id)||0); }); } catch(e){}
+    try { (flock.flock_members||[]).forEach(function(m){ max=Math.max(max, Number(m.member_id)||0); }); } catch(e){}
+    if (!flock.meta) flock.meta = {};
+    max = Math.max(max, Number(flock.meta.next_member_id || 1)-1);
+    flock.meta.next_member_id = max + 2;
+    return max + 1;
+  }
+  function ensureUserTable(){ if (!DATA.users) DATA.users=[]; return DATA.users; }
+  function currentUserId(){
+    if (!DATA.me) DATA.me = {};
+    var uid = n(DATA.me.user_id) || n(DATA.me.id);
+    if (!uid) {
+      uid = nextUserId();
+      DATA.me.created_at = DATA.me.created_at || stamp();
+    }
+    DATA.me.user_id = uid;
+    DATA.me.id = uid;
+    DATA.me.updated_at = stamp();
+    var users = ensureUserTable();
+    var existing = users.find(function(u){ return Number(u.user_id) === uid; });
+    if (!existing) {
+      users.push({
+        user_id: uid,
+        username: DATA.me.username || ('user' + uid),
+        display_name: DATA.me.display_name || DATA.me.name || DATA.me.username || ('User ' + uid),
+        avatar: DATA.me.animal || DATA.me.avatar || 'bear',
+        status: 'active',
+        created_at: DATA.me.created_at || stamp(),
+        updated_at: stamp(),
+        deleted_at: null,
+        firestore_id: DATA.me.firestore_id || DATA.me.legacy_id || null
+      });
+    }
+    try { localStorage.setItem('kinverly_current_user_id', String(uid)); } catch(e){}
+    return uid;
+  }
+  function keyForFlock(flock){ return flock && (flock.firestore_id || flock.storage_key || flock.uid || ('flock_' + (flock.flock_id || flock.id))); }
+  function normalizeFlockIds(flock){
+    if (!flock) return flock;
+    var fid = n(flock.flock_id) || (isNum(flock.id) ? n(flock.id) : null) || nextFlockId();
+    var legacy = (!isNum(flock.id) && flock.id) ? String(flock.id) : (flock.firestore_id || flock.storage_key || flock.uid || null);
+    flock.flock_id = fid;
+    flock.id = fid;
+    flock.firestore_id = flock.firestore_id || flock.storage_key || flock.uid || legacy || ('flock_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+    flock.storage_key = flock.firestore_id;
+    flock.uid = flock.firestore_id;
+    flock.created_by_user_id = n(flock.created_by_user_id) || n(flock.createdBy) || n(flock.owner_user_id) || currentUserId();
+    if (!flock.members) flock.members = {};
+    if (!Array.isArray(flock.memberIds)) flock.memberIds = [];
+    if (!Array.isArray(flock.flock_members)) flock.flock_members = [];
+    if (!flock.meta) flock.meta = {};
+    return flock;
+  }
+  function findMembershipForUser(flock, userId){
+    flock = normalizeFlockIds(flock);
+    userId = n(userId) || currentUserId();
+    var found = null;
+    Object.keys(flock.members || {}).some(function(k){
+      var m = flock.members[k];
+      if (active(m) && Number(m.user_id || m.id) === userId) { found = m; return true; }
+      return false;
+    });
+    if (!found && Array.isArray(flock.flock_members)) {
+      found = flock.flock_members.find(function(m){ return active(m) && Number(m.user_id) === userId; }) || null;
+    }
+    return found;
+  }
+  function upsertMembership(flock, opts){
+    flock = normalizeFlockIds(flock);
+    opts = opts || {};
+    var uid = n(opts.user_id) || currentUserId();
+    var existing = findMembershipForUser(flock, uid) || {};
+    var mid = n(existing.member_id) || n(opts.member_id) || nextMemberId(flock);
+    var created = existing.created_at || opts.created_at || stamp();
+    var row = Object.assign({}, existing, {
+      member_id: mid,
+      user_id: uid,
+      flock_id: flock.flock_id,
+      id: mid,
+      member_key: String(mid),
+      name: opts.name || existing.name || DATA.me.display_name || DATA.me.name || DATA.me.username || ('User ' + uid),
+      display_name: opts.display_name || existing.display_name || DATA.me.display_name || DATA.me.name || DATA.me.username || ('User ' + uid),
+      animal: opts.animal || existing.animal || DATA.me.animal || 'bear',
+      avatar: opts.avatar || existing.avatar || DATA.me.avatar || DATA.me.animal || 'bear',
+      location: opts.location || existing.location || DATA.me.location || '',
+      role: opts.role || existing.role || 'member',
+      status: 'active',
+      created_at: created,
+      updated_at: stamp(),
+      deleted_at: null
+    });
+    // Compatibility: keep member object addressable by member_id AND user_id.
+    // The canonical membership row is member_id; user_id key prevents older UI paths from losing access.
+    flock.members[String(mid)] = row;
+    flock.members[String(uid)] = row;
+    if (flock.memberIds.map(String).indexOf(String(mid)) < 0) flock.memberIds.push(mid);
+    if (flock.memberIds.map(String).indexOf(String(uid)) < 0) flock.memberIds.push(uid);
+    var idx = flock.flock_members.findIndex(function(m){ return Number(m.user_id) === uid || Number(m.member_id) === mid; });
+    if (idx >= 0) flock.flock_members[idx] = row; else flock.flock_members.push(row);
+    DATA.me.user_id = uid;
+    DATA.me.id = uid;
+    DATA.me.member_id = mid;
+    DATA.me.flock_id = flock.flock_id;
+    DATA.me.role = row.role;
+    return row;
+  }
+  function setActiveFlockByDocKey(docKey, flock){
+    var key = docKey || keyForFlock(flock);
+    FLOCKS[key] = normalizeFlockIds(flock);
+    currentFlockId = key;
+    try { localStorage.setItem('kinverly_current_flock', key); } catch(e){}
+    window._kickedFromFlock = false;
+    return key;
+  }
+  function loadFlockIntoData(flock){
+    flock = normalizeFlockIds(flock);
+    var uid = currentUserId();
+    var myMembership = upsertMembership(flock, {user_id:uid, role:(findMembershipForUser(flock, uid)||{}).role || (flock.created_by_user_id === uid ? 'creator' : 'member')});
+    DATA.members = Object.values(flock.members || {}).filter(function(m, idx, arr){
+      if (!active(m)) return false;
+      if (Number(m.user_id) === uid) return false;
+      return arr.findIndex(function(x){ return Number(x.member_id) === Number(m.member_id); }) === idx;
+    });
+    DATA.gatherings = flock.gatherings || [];
+    DATA.ideas = flock.ideas || [];
+    DATA.activity = flock.activity || [];
+    DATA.events = flock.events || [];
+    DATA.me.member_id = myMembership.member_id;
+    DATA.me.flock_id = flock.flock_id;
+    var nameEl = document.getElementById('topbar-flock-name');
+    if (nameEl) nameEl.textContent = flock.name || 'My Flock';
+  }
+  window.kinverlyRecoverNumericMembership = function(){
+    var uid = currentUserId();
+    var keys = Object.keys(FLOCKS || {});
+    for (var i=0; i<keys.length; i++) {
+      var f = normalizeFlockIds(FLOCKS[keys[i]]);
+      if (findMembershipForUser(f, uid) || Number(f.created_by_user_id) === uid) {
+        setActiveFlockByDocKey(keys[i], f);
+        loadFlockIntoData(f);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  var oldCreateFlock = window.createFlock;
+  window.createFlock = function(name, emoji){
+    var uid = currentUserId();
+    var fid = nextFlockId();
+    var docId = 'flock_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    var created = stamp();
+    var flock = {
+      id: fid,
+      flock_id: fid,
+      firestore_id: docId,
+      storage_key: docId,
+      uid: docId,
+      name: String(name || 'My Flock').trim() || 'My Flock',
+      emoji: emoji || '🏠',
+      inviteCode: (typeof generateCode === 'function') ? generateCode() : String(Math.random()).slice(2,8).toUpperCase(),
+      createdBy: uid,
+      created_by_user_id: uid,
+      members: {},
+      memberIds: [],
+      flock_members: [],
+      gatherings: [],
+      ideas: [],
+      activity: [],
+      events: [],
+      meta: {next_member_id:1,next_gathering_id:1,next_task_id:1,next_message_id:1,next_photo_id:1,next_activity_id:1,next_idea_id:1},
+      created_at: created,
+      updated_at: created,
+      deleted_at: null
+    };
+    var creator = upsertMembership(flock, {user_id:uid, role:'creator', created_at:created});
+    flock.activity.unshift({activity_id:1, activity_event_id:1, user_id:uid, member_id:creator.member_id, flock_id:fid, activity_type:'flock.created', title:'Flock created', text:'created the flock <strong>' + (flock.name || 'My Flock') + '</strong>', icon:'🏠', created_at:created, updated_at:created, deleted_at:null});
+    setActiveFlockByDocKey(docId, flock);
+    loadFlockIntoData(flock);
+    try { if (typeof saveLocal === 'function') saveLocal(); else localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS)); } catch(e){}
+    try { if (typeof saveFlockToFirebase === 'function') saveFlockToFirebase(flock, creator); } catch(e){}
+    try { if (typeof persistMyProfile === 'function') persistMyProfile(); } catch(e){}
+    try { if (typeof renderAll === 'function') renderAll(); else { renderHome&&renderHome(); renderGatherings&&renderGatherings(); renderFlockPage&&renderFlockPage(); renderProfile&&renderProfile(); } } catch(e){}
+    try { if (typeof hideFlockOverlay === 'function') hideFlockOverlay(); } catch(e){}
+    return flock;
+  };
+
+  window.addMeToFlock = function(flockId){
+    var key = (typeof resolveFlockKey === 'function') ? resolveFlockKey(flockId) : (FLOCKS[flockId] ? flockId : null);
+    var flock = key ? FLOCKS[key] : null;
+    if (!flock) return null;
+    var uid = currentUserId();
+    flock = normalizeFlockIds(flock);
+    var membership = upsertMembership(flock, {user_id:uid, role:(flock.created_by_user_id === uid ? 'creator' : 'member')});
+    setActiveFlockByDocKey(key, flock);
+    loadFlockIntoData(flock);
+    try { if (typeof logActivity === 'function') logActivity(uid, 'joined the flock! Welcome, <strong>' + (DATA.me.name || DATA.me.username || 'New member') + '</strong> 🎉', '👋'); } catch(e){}
+    try { if (typeof saveLocal === 'function') saveLocal(); else localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS)); } catch(e){}
+    try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e){}
+    return membership;
+  };
+
+  window.switchToFlock = function(flockId){
+    var key = (typeof resolveFlockKey === 'function') ? resolveFlockKey(flockId) : (FLOCKS[flockId] ? flockId : null);
+    if (!key || !FLOCKS[key]) {
+      try { toast('Could not open that flock yet'); } catch(e){}
+      return false;
+    }
+    var flock = normalizeFlockIds(FLOCKS[key]);
+    var uid = currentUserId();
+    if (!findMembershipForUser(flock, uid) && Number(flock.created_by_user_id) !== uid) {
+      // Do not silently kick to onboarding. Preserve access for the flock creator.
+      if (Number(flock.created_by_user_id) === uid) upsertMembership(flock, {user_id:uid, role:'creator'});
+      else upsertMembership(flock, {user_id:uid, role:'member'});
+    }
+    setActiveFlockByDocKey(key, flock);
+    loadFlockIntoData(flock);
+    try { if (window.__attachFlockListener) window.__attachFlockListener(key); } catch(e){}
+    try { renderHome&&renderHome(); renderGatherings&&renderGatherings(); renderIdeas&&renderIdeas(); renderFlockPage&&renderFlockPage(); renderProfile&&renderProfile(); } catch(e){}
+    return true;
+  };
+
+  // Block false onboarding. Only show onboarding when there is no account OR no recoverable flock membership.
+  var originalShowOnboarding = window.showFlockOnboarding;
+  window.showFlockOnboarding = function(){
+    if (DATA && DATA.me && (DATA.me.user_id || DATA.me.id) && window.kinverlyRecoverNumericMembership()) {
+      try { if (typeof hideFlockOverlay === 'function') hideFlockOverlay(); } catch(e){}
+      try { renderHome&&renderHome(); } catch(e){}
+      return;
+    }
+    if (typeof originalShowOnboarding === 'function') return originalShowOnboarding.apply(this, arguments);
+  };
+
+  // After any async load, repair membership if possible.
+  setTimeout(function(){ try { window.kinverlyRecoverNumericMembership(); } catch(e){} }, 250);
+  setTimeout(function(){ try { window.kinverlyRecoverNumericMembership(); } catch(e){} }, 1500);
+})();
+</script>
+
 </body>
 </html>
 
