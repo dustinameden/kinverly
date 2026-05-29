@@ -2753,12 +2753,11 @@ function normalizeKinverlySchema(flock) {
   if (!flock) return flock;
   var meta = ensureFlockMeta(flock);
   ensureAuditFields(flock);
-  if (typeof flock.id !== 'number') {
-    if (typeof flock.flock_id === 'number') flock.id = flock.flock_id;
-    else flock.id = nextEntityInt(flock, 'flock');
+  // Preserve existing string IDs — only assign numeric flock_id for analytics
+  if (typeof flock.flock_id !== 'number') {
+    flock.flock_id = nextEntityInt(flock, 'flock');
   }
-  flock.flock_id = flock.id;
-  reserveMax(meta, 'next_flock_id', flock.id);
+  reserveMax(meta, 'next_flock_id', flock.flock_id);
   var members = flock.members || {};
   Object.keys(members).forEach(function(k){
     var m = members[k];
@@ -2770,7 +2769,7 @@ function normalizeKinverlySchema(flock) {
     if (!m.role) m.role = (m.id === flock.createdBy ? 'owner' : 'member');
     if (!m.membership_status) m.membership_status = m.deleted_at ? 'archived' : 'active';
     if (!('deleted_at' in m)) m.deleted_at = null;
-    m.flock_id = flock.id;
+    m.flock_id = flock.flock_id;
     reserveMax(meta, 'next_member_id', m.member_id);
   });
   normalizeRemovedMemberLogs(flock);
@@ -2792,13 +2791,13 @@ function normalizeKinverlySchema(flock) {
     if (!Array.isArray(g.bringList)) g.bringList = [];
     if (!Array.isArray(g.expenses)) g.expenses = [];
     if (!Array.isArray(g.attending)) g.attending = [];
-    g.flock_id = flock.id;
+    g.flock_id = flock.flock_id;
     ensureGatheringSharedWithActiveMembers(g, flock, 'schema_normalization');
     reserveMax(meta, 'next_gathering_id', g.gathering_id);
     (g.tasks || []).forEach(function(t){
       ensureAuditFields(t, g.created_at);
       if (typeof t.task_id !== 'number') t.task_id = nextEntityInt(flock, 'task');
-      t.flock_id = flock.id;
+      t.flock_id = flock.flock_id;
       t.gathering_id = g.gathering_id;
       reserveMax(meta, 'next_task_id', t.task_id);
       if (t.done && !t.completed_at) t.completed_at = t.updated_at || nowISO();
@@ -2807,14 +2806,14 @@ function normalizeKinverlySchema(flock) {
     (g.chat || []).forEach(function(m){
       ensureAuditFields(m, g.created_at);
       if (typeof m.message_id !== 'number') m.message_id = nextEntityInt(flock, 'message');
-      m.flock_id = flock.id;
+      m.flock_id = flock.flock_id;
       m.gathering_id = g.gathering_id;
       reserveMax(meta, 'next_message_id', m.message_id);
     });
     (g.photos || []).forEach(function(ph){
       ensureAuditFields(ph, g.created_at);
       if (typeof ph.photo_id !== 'number') ph.photo_id = nextEntityInt(flock, 'photo');
-      ph.flock_id = flock.id;
+      ph.flock_id = flock.flock_id;
       ph.gathering_id = g.gathering_id;
       reserveMax(meta, 'next_photo_id', ph.photo_id);
       if (!ph.uploaded_at) ph.uploaded_at = ph.created_at;
@@ -2829,7 +2828,7 @@ function normalizeKinverlySchema(flock) {
   (flock.ideas || []).forEach(function(i){
     ensureAuditFields(i, flock.created_at);
     if (typeof i.idea_id !== 'number') i.idea_id = nextEntityInt(flock, 'idea');
-    i.flock_id = flock.id;
+    i.flock_id = flock.flock_id;
     reserveMax(meta, 'next_idea_id', i.idea_id);
   });
   flock.ideas = (flock.ideas || []).filter(function(i){ return i && !i.deleted_at; });
@@ -2838,7 +2837,7 @@ function normalizeKinverlySchema(flock) {
     ensureAuditFields(a, flock.created_at);
     if (typeof a.activity_id !== 'number') a.activity_id = nextEntityInt(flock, 'activity');
     a.id = a.activity_id;
-    a.flock_id = flock.id;
+    a.flock_id = flock.flock_id;
     reserveMax(meta, 'next_activity_id', a.activity_id);
   });
 
@@ -2847,7 +2846,7 @@ function normalizeKinverlySchema(flock) {
     ensureAuditFields(ev, flock.created_at);
     if (typeof ev.event_id !== 'number') ev.event_id = nextEntityInt(flock, 'event');
     ev.id = ev.event_id;
-    ev.flock_id = flock.id;
+    ev.flock_id = flock.flock_id;
     reserveMax(meta, 'next_event_id', ev.event_id);
     if (!ev.event_type) ev.event_type = 'unknown';
     if (!ev.entity_type) ev.entity_type = 'unknown';
