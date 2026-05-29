@@ -2598,7 +2598,7 @@ function renderReminderQueueCard(g) {
       (due.length ? due.length + ' reminder' + (due.length === 1 ? ' is' : 's are') + ' ready to send now.' : 'Next reminder scheduled for ' + formatReminderTime(next && next.next_ts) + '.') +
     '</div>' +
     '<div style="display:flex;gap:8px">' +
-      '<button class="btn-primary" style="flex:1" onclick="nudgeGatheringById(\'' + escapeHtml(String(g.id)) + '\')">Send now</button>' +
+      '<button class="btn-primary kin-reminder-send-btn" style="flex:1" data-gid="' + escapeHtml(String(g.id || '')) + '" onclick="nudgeGatheringById(\'' + escapeHtml(String(g.id || '')) + '\')">Send now</button>' +
       '<button class="btn-secondary" style="flex:1" onclick="toast(\'Reminder left in queue\')">Skip for now</button>' +
     '</div>' +
   '</div>';
@@ -2607,6 +2607,8 @@ window.computeReminderQueue = computeReminderQueue;
 window.sendGatheringReminder = sendGatheringReminder;
 window.maybeRunAutomaticReminderQueue = maybeRunAutomaticReminderQueue;
 window.renderReminderQueueCard = renderReminderQueueCard;
+window.saveKinverlyAction = saveKinverlyAction;
+window.patchGatheringById = patchGatheringById;
 function getCanonicalMemberId(memberOrId) {
   if (memberOrId && typeof memberOrId === 'object') return memberOrId.member_id || memberOrId.id || memberOrId.uid || memberOrId.memberKey || '';
   return memberOrId;
@@ -2962,6 +2964,155 @@ function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
 
 
 // ═══════════════════════════════════════════════
+//  CENTRAL ACTION / SAVE / FILTER LAYER
+//  All user-triggered changes flow through the same normalization path before
+//  saving. This prevents local-only saves, mixed user/member IDs, and archived
+//  records leaking back into active UI surfaces.
+// ═══════════════════════════════════════════════
+function getCurrentFlockRecord() {
+  var key = (typeof resolveFlockKey === 'function') ? resolveFlockKey(currentFlockId) : currentFlockId;
+  return key && FLOCKS && FLOCKS[key] ? FLOCKS[key] : null;
+}
+function getCurrentActionUserId() {
+  return getCanonicalUserId(DATA && DATA.me ? DATA.me : null, DATA && DATA.me ? DATA.me.id : '') || (DATA && DATA.me ? String(DATA.me.id || '') : '');
+}
+function isLiveEntityRecord(entity) {
+  if (!entity) return false;
+  var status = String(entity.status || entity.state || '').toLowerCase();
+  return !(entity.deleted_at || entity.archived_at || status === 'deleted' || status === 'archived' || status === 'removed');
+}
+function ensureUserScopedFields(obj, fallbackUser) {
+  if (!obj || typeof obj !== 'object') return obj;
+  var fallback = fallbackUser || getCurrentActionUserId();
+  var raw = obj.user_id || obj.canonical_user_id || obj.actor_user_id || obj.member_user_id || obj.created_by_user_id || obj.createdByUserId || obj.owner_user_id || obj.assigned_user_id || obj.claimed_by_user_id || obj.memberId || obj.member_id || obj.createdBy || obj.author || obj.owner || obj.assignedTo || obj.claimedBy || obj.by || fallback;
+  var uid = getCanonicalUserId(raw, fallback);
+  if (uid) {
+    if (!obj.user_id) obj.user_id = uid;
+    if (!obj.canonical_user_id) obj.canonical_user_id = uid;
+  }
+  return obj;
+}
+function normalizeGatheringChildRows(g, flock) {
+  if (!g || typeof g !== 'object') return g;
+  ensureAuditFields(g);
+  if (!('deleted_at' in g)) g.deleted_at = null;
+  if (!Array.isArray(g.notes)) g.notes = [];
+  if (!Array.isArray(g.bringList)) g.bringList = [];
+  if (!Array.isArray(g.tasks)) g.tasks = [];
+  if (!Array.isArray(g.chat)) g.chat = [];
+  if (!Array.isArray(g.polls)) g.polls = [];
+  if (!Array.isArray(g.photos)) g.photos = [];
+  if (!Array.isArray(g.expenses)) g.expenses = [];
+  if (!Array.isArray(g.attending)) g.attending = [];
+
+  ['notes','bringList','tasks','chat','polls','photos','expenses'].forEach(function(listName){
+    (g[listName] || []).forEach(function(row){
+      if (!row || typeof row !== 'object') return;
+      ensureAuditFields(row, g.created_at);
+      ensureUserScopedFields(row);
+      if (row.member_id && !row.user_id) row.user_id = getCanonicalUserId(row.member_id);
+      if (row.createdBy && !row.created_by_user_id) row.created_by_user_id = getCanonicalUserId(row.createdBy);
+      if (row.author && !row.author_user_id) row.author_user_id = getCanonicalUserId(row.author);
+      if (row.assignedTo && !row.assigned_user_id) row.assigned_user_id = getCanonicalUserId(row.assignedTo);
+      if (row.claimedBy && !row.claimed_by_user_id) row.claimed_by_user_id = getCanonicalUserId(row.claimedBy);
+    });
+  });
+
+  // Store RSVP/attendance membership by user_id. Keep old labels for display/export,
+  // but the canonical decision key is always user_id.
+  var activeMembers = flock ? getActiveMembersForFlockRecord(flock) : getActiveFlockMembers();
+  var activeUserIds = {};
+  (activeMembers || []).forEach(function(m){
+    var uid = getCanonicalUserId(m);
+    if (uid) activeUserIds[String(uid)] = true;
+  });
+  g.attending = (g.attending || []).map(function(v){ return getCanonicalUserId(v, v); }).filter(function(uid, idx, arr){ return uid && activeUserIds[String(uid)] && arr.indexOf(uid) === idx; });
+  if (Array.isArray(g.gathering_members)) {
+    g.gathering_members.forEach(function(row){
+      ensureAuditFields(row, g.created_at);
+      ensureUserScopedFields(row, row && (row.member_id || row.user_id));
+      if (row && row.user_id && !activeUserIds[String(row.user_id)] && !row.deleted_at) {
+        row.membership_status = row.membership_status || 'historical';
+      }
+    });
+  }
+  return g;
+}
+function normalizeRsvpDataByUserIdForFlock(flock) {
+  if (!flock || typeof rsvpData === 'undefined' || !rsvpData) return;
+  var memberByAlias = {};
+  Object.keys(flock.members || {}).forEach(function(k){
+    var m = flock.members[k];
+    if (!m) return;
+    ensureMemberUserIdentity(m, k);
+    getMemberIdentityKeys(m).forEach(function(alias){ if (alias !== undefined && alias !== null && alias !== '') memberByAlias[String(alias)] = m; });
+  });
+  Object.keys(rsvpData || {}).forEach(function(gid){
+    var bucket = rsvpData[gid];
+    if (!bucket || typeof bucket !== 'object') return;
+    Object.keys(bucket).forEach(function(oldKey){
+      var row = bucket[oldKey];
+      if (!row || typeof row !== 'object') return;
+      var m = memberByAlias[String(oldKey)] || null;
+      var uid = getCanonicalUserId(m || row.user_id || row.member_id || oldKey, oldKey);
+      if (!uid) return;
+      row.user_id = uid;
+      row.canonical_user_id = uid;
+      row.updated_at = row.updated_at || nowISO();
+      bucket[uid] = Object.assign({}, bucket[uid] || {}, row);
+      bucket[String(uid)] = bucket[uid];
+    });
+  });
+}
+function normalizeActionLayerState(flock) {
+  flock = flock || getCurrentFlockRecord();
+  if (!flock) return flock;
+  normalizeKinverlySchema(flock);
+  reconcileFlockMemberships(flock);
+  (flock.gatherings || []).forEach(function(g){ normalizeGatheringChildRows(g, flock); });
+  normalizeRsvpDataByUserIdForFlock(flock);
+  DATA.gatherings = getActiveGatheringsForUi(flock.gatherings || []);
+  DATA.ideas = (flock.ideas || []).filter(isLiveEntityRecord);
+  DATA.activity = flock.activity || DATA.activity || [];
+  DATA.events = flock.events || DATA.events || [];
+  return flock;
+}
+function saveKinverlyAction(actionName, mutator, opts) {
+  opts = opts || {};
+  try {
+    var flock = getCurrentFlockRecord();
+    if (!flock) return Promise.resolve(false);
+    normalizeActionLayerState(flock);
+    var before = opts.before || null;
+    var result = (typeof mutator === 'function') ? mutator(flock) : mutator;
+    normalizeActionLayerState(flock);
+    touchEntity(flock);
+    if (opts.log && typeof recordEvent === 'function') {
+      try { recordEvent(opts.event_type || actionName || 'action.saved', opts.entity_type || 'app', opts.entity_id || '', before, opts.after || result || null, opts.summary || actionName || 'Saved change', opts.icon || '💾'); } catch(_e) {}
+    }
+    saveLocal();
+    return pushToFirebase();
+  } catch (err) {
+    console.error('[Kinverly] action save failed:', actionName, err);
+    if (typeof toast === 'function') toast('Could not save. Please try again.');
+    return Promise.reject(err);
+  }
+}
+function patchGatheringById(gatheringId, patchOrMutator, actionName) {
+  return saveKinverlyAction(actionName || 'gathering.updated', function(flock){
+    var id = String(gatheringId || '');
+    var g = (flock.gatherings || []).find(function(row){ return row && String(row.id || row.gathering_id) === id; });
+    if (!g) return null;
+    if (typeof patchOrMutator === 'function') patchOrMutator(g, flock);
+    else Object.assign(g, patchOrMutator || {});
+    touchEntity(g);
+    normalizeGatheringChildRows(g, flock);
+    return g;
+  });
+}
+
+
+// ═══════════════════════════════════════════════
 //  GATHERING ACCESS / SHARE HELPERS
 //  A flock gathering should be visible to every active flock member unless
 //  explicitly removed. These helpers make that relationship explicit so
@@ -3211,7 +3362,7 @@ function applySoftDelete(entity, actorSummary) {
 function isArchivedGatheringRecord(g) {
   if (!g) return true;
   var status = String(g.status || '').toLowerCase();
-  return !!(g.deleted_at || g.archived_at || status === 'archived');
+  return !!(g.deleted_at || g.archived_at || status === 'archived' || status === 'deleted' || status === 'removed');
 }
 function getActiveGatheringsForUi(list) {
   return (list || []).filter(function(g){ return g && !isArchivedGatheringRecord(g); });
@@ -5869,7 +6020,7 @@ function buildSmartReminderCard(g, state, mode) {
     '<div style="font-size:11px;font-weight:900;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Reminder</div>' +
     '<div style="font-size:16px;font-weight:900;color:var(--text1);margin-bottom:4px">Waiting on ' + names + '</div>' +
     '<div style="font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:12px">Send one friendly reminder to the people who still need to respond.</div>' +
-    '<button class="btn-secondary" id="nudge-btn">Send reminder</button>' +
+    '<button class="btn-secondary kin-reminder-send-btn" id="nudge-btn" data-gid="' + escapeHtml(String(g.id || '')) + '" onclick="nudgeGatheringById(\'' + escapeHtml(String(g.id || '')) + '\')">Send reminder</button>' +
   '</div>';
 }
 
@@ -6149,7 +6300,7 @@ function getMemberNumericId(m, fallbackIndex) {
 }
 
 function isActiveMember(m) {
-  return !!(m && !m.deleted_at && normalizeRole(m.role || 'member') !== 'archived');
+  return isActiveMemberRecord(m);
 }
 
 function getMemberDisplayStatus(m) {
@@ -8900,6 +9051,7 @@ function saveLocal() {
     if (currentFlockId && FLOCKS[currentFlockId]) {
       normalizeAppState();
       var _f = FLOCKS[currentFlockId];
+      normalizeActionLayerState(_f);
 
       // Normalize gatherings
       (DATA.gatherings||[]).forEach(function(g){
@@ -8945,32 +9097,40 @@ function saveLocal() {
 
 function pushToFirebase() {
   // Never push if kicked
-  if (window._kickedFromFlock) return;
+  if (window._kickedFromFlock) return Promise.resolve(false);
   if (typeof syncFlockToFirebase === 'function') {
-    syncFlockToFirebase().then(function(){
+    return syncFlockToFirebase().then(function(){
       var ind = document.getElementById('sync-indicator');
       if (ind) { ind.textContent = '✓ Saved'; ind.style.color = 'var(--green)'; ind.style.opacity = '1'; }
       setTimeout(function(){ if(ind) ind.style.opacity = '0'; }, 2000);
     }).catch(function(){
       var ind = document.getElementById('sync-indicator');
       if (ind) { ind.textContent = '⚠ Offline'; ind.style.color = 'var(--amber)'; ind.style.opacity = '1'; }
+      return false;
     });
   }
+  return Promise.resolve(false);
 }
 
 // Combined save + push for user actions
 function saveAndSync() {
-  if (window._kickedFromFlock) return;
+  if (window._kickedFromFlock) return Promise.resolve(false);
+  normalizeActionLayerState();
   saveLocal();
-  pushToFirebase();
+  return pushToFirebase();
 }
 
-// Backward compat — old code calls saveFlockState everywhere
+// Backward compat — old code calls saveFlockState everywhere. It now routes
+// through the central action layer so every button gets the same normalization,
+// user_id repair, active/deleted filtering, local save, and Firebase sync.
 function saveFlockState() {
-  if (window._kickedFromFlock) return;
+  if (window._kickedFromFlock) return Promise.resolve(false);
+  normalizeActionLayerState();
   saveLocal();
   if (window._syncTimer) clearTimeout(window._syncTimer);
-  window._syncTimer = setTimeout(pushToFirebase, 250);
+  return new Promise(function(resolve){
+    window._syncTimer = setTimeout(function(){ resolve(pushToFirebase()); }, 250);
+  });
 }
 
 function loadPersistedExtras() {
@@ -9385,6 +9545,7 @@ async function syncFlockToFirebase() {
     var h = window.__firestoreHelpers;
     var flock = FLOCKS[currentFlockId];
     normalizeKinverlySchema(flock);
+    normalizeActionLayerState(flock);
     normalizeRemovedMemberLogs(flock);
     touchEntity(flock);
     var docId = getFlockFirestoreDocId(currentFlockId, flock);
@@ -9400,6 +9561,7 @@ async function syncFlockToFirebase() {
     if (latestRemote) {
       flock = mergeCanonicalFlockRecords(latestRemote, flock);
       FLOCKS[currentFlockId] = flock;
+      normalizeActionLayerState(flock);
     }
     var safeGatherings = getGatheringsForFirestore(flock.gatherings || []);
 
@@ -10520,6 +10682,20 @@ function getLiveGathering(gId) {
   return DATA.gatherings.find(function(x){ return x.id === gId; });
 }
 
+function currentActorKey() {
+  return (DATA.me && (DATA.me.user_id || DATA.me.id || DATA.me.member_id)) || 'me';
+}
+
+function currentActorName() {
+  return (DATA.me && DATA.me.name) || 'You';
+}
+
+function touchGathering(g) {
+  if (!g) return;
+  if (typeof nowLocal === 'function') g.updated_at = nowLocal();
+  else g.updated_at = new Date().toISOString();
+}
+
 function renderPinboard(g) {
   if (!g.notes) g.notes = [];
   var wrap = document.createElement('div');
@@ -10542,16 +10718,25 @@ function renderPinboard(g) {
     addBtn.addEventListener('click', function(){
       var text = addInp.value.trim();
       if (!text) return;
-      g.notes.unshift({
+      var liveG = getLiveGathering(g.id) || g;
+      if (!Array.isArray(liveG.notes)) liveG.notes = [];
+      liveG.notes.unshift({
         id:'note_'+Date.now().toString(36),
         text:text,
-        author:DATA.me.id,
-        authorName:DATA.me.name,
+        author:currentActorKey(),
+        author_user_id:DATA.me && DATA.me.user_id || null,
+        authorName:currentActorName(),
         pinned:false,
-        ts:Date.now()
+        ts:Date.now(),
+        created_at:(typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()),
+        updated_at:(typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()),
+        deleted_at:null
       });
+      g.notes = liveG.notes;
+      touchGathering(liveG);
       saveFlockState();
-      logActivity(DATA.me.id, 'added a note to <strong>'+escapeHtml(g.name)+'</strong>', '📌');
+      logActivity(currentActorKey(), 'added a note to <strong>'+escapeHtml(liveG.name || g.name)+'</strong>', '📌');
+      addInp.value = '';
       rebuild();
     });
     addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBtn.click(); });
@@ -10560,7 +10745,10 @@ function renderPinboard(g) {
     wrap.appendChild(addRow);
 
     if (g.notes.length === 0) {
-      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">📌</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No notes yet</div><div style="font-size:12px;margin-top:4px">Add details everyone needs to know — dietary needs, parking info, what to expect.</div></div>';
+      var emptyNotes = document.createElement('div');
+      emptyNotes.style.cssText = 'text-align:center;padding:30px 16px;color:var(--text3)';
+      emptyNotes.innerHTML = '<div style="font-size:36px;margin-bottom:8px">📌</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No notes yet</div><div style="font-size:12px;margin-top:4px">Add details everyone needs to know — dietary needs, parking info, what to expect.</div>';
+      wrap.appendChild(emptyNotes);
       return;
     }
 
@@ -10589,6 +10777,7 @@ function renderPinboard(g) {
         pinBtn.title = note.pinned ? 'Unpin' : 'Pin to top';
         pinBtn.addEventListener('click', function(){
           note.pinned = !note.pinned;
+          touchGathering(getLiveGathering(g.id) || g);
           saveFlockState();
           rebuild();
         });
@@ -10600,6 +10789,7 @@ function renderPinboard(g) {
         delBtn.addEventListener('click', function(){
           var idx = g.notes.findIndex(function(n){ return n.id === note.id; });
           if (idx >= 0) g.notes.splice(idx, 1);
+          touchGathering(getLiveGathering(g.id) || g);
           saveFlockState();
           rebuild();
           toast('Note removed');
@@ -10636,7 +10826,10 @@ function renderPolls(g) {
     wrap.appendChild(createBtn);
 
     if (g.polls.length === 0) {
-      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🗳️</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No polls yet</div><div style="font-size:12px;margin-top:4px">Create a quick poll to settle decisions — dinner plans, activities, dates.</div></div>';
+      var emptyPolls = document.createElement('div');
+      emptyPolls.style.cssText = 'text-align:center;padding:30px 16px;color:var(--text3)';
+      emptyPolls.innerHTML = '<div style="font-size:36px;margin-bottom:8px">🗳️</div><div style="font-size:14px;font-weight:700;color:var(--text2)">No polls yet</div><div style="font-size:12px;margin-top:4px">Create a quick poll to settle decisions — dinner plans, activities, dates.</div>';
+      wrap.appendChild(emptyPolls);
       return;
     }
 
@@ -10820,14 +11013,23 @@ function renderBringList(g) {
     addBtn.addEventListener('click', function(){
       var text = addInp.value.trim();
       if (!text) return;
-      g.bringList.push({
+      var liveG = getLiveGathering(g.id) || g;
+      if (!Array.isArray(liveG.bringList)) liveG.bringList = [];
+      liveG.bringList.push({
         id:'bring_'+Date.now().toString(36),
         name:text,
         emoji: ITEM_EMOJIS[Math.floor(Math.random()*ITEM_EMOJIS.length)],
         claimedBy:null,
+        claimed_user_id:null,
         claimedName:null,
-        addedBy:DATA.me.id
+        addedBy:currentActorKey(),
+        added_by_user_id:DATA.me && DATA.me.user_id || null,
+        created_at:(typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()),
+        updated_at:(typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()),
+        deleted_at:null
       });
+      g.bringList = liveG.bringList;
+      touchGathering(liveG);
       saveFlockState();
       addInp.value = '';
       rebuild();
@@ -10837,22 +11039,23 @@ function renderBringList(g) {
     addRow.appendChild(addBtn);
     wrap.appendChild(addRow);
 
-    if (g.bringList.length === 0) {
+    if ((g.bringList||[]).filter(function(b){ return !b.deleted_at; }).length === 0) {
       wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🎒</div><div style="font-size:14px;font-weight:700;color:var(--text2)">Nothing on the list yet</div><div style="font-size:12px;margin-top:4px">Add items the group needs — grill, games, high chair, snacks — and claim what you\'ll bring.</div></div>';
       return;
     }
 
     // Stats
-    var claimed = g.bringList.filter(function(b){ return b.claimedBy; }).length;
+    var activeBringList = (g.bringList||[]).filter(function(b){ return !b.deleted_at; });
+    var claimed = activeBringList.filter(function(b){ return b.claimedBy; }).length;
     var statsEl = document.createElement('div');
     statsEl.style.cssText = 'font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px';
-    statsEl.textContent = claimed + ' of ' + g.bringList.length + ' items claimed';
+    statsEl.textContent = claimed + ' of ' + activeBringList.length + ' items claimed';
     wrap.appendChild(statsEl);
 
-    g.bringList.forEach(function(item){
+    activeBringList.forEach(function(item){
       var row = document.createElement('div');
       row.className = 'bring-item' + (item.claimedBy ? ' claimed' : '');
-      var isMyClaim = item.claimedBy === DATA.me.id;
+      var isMyClaim = item.claimedBy === currentActorKey() || (item.claimed_user_id && DATA.me && item.claimed_user_id === DATA.me.user_id);
 
       row.innerHTML =
         '<div class="bring-icon">' + (item.emoji||'📦') + '</div>' +
@@ -10868,10 +11071,13 @@ function renderBringList(g) {
       if (!item.claimedBy) {
         btn.textContent = 'I\'ll bring it';
         btn.addEventListener('click', function(){
-          item.claimedBy = DATA.me.id;
-          item.claimedName = DATA.me.name;
+          item.claimedBy = currentActorKey();
+          item.claimed_user_id = DATA.me && DATA.me.user_id || null;
+          item.claimedName = currentActorName();
+          item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+          touchGathering(getLiveGathering(g.id) || g);
           saveFlockState();
-          logActivity(DATA.me.id, 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
+          logActivity(currentActorKey(), 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
           rebuild();
         });
       } else if (isMyClaim) {
@@ -10879,7 +11085,10 @@ function renderBringList(g) {
         btn.style.cssText += ';font-size:10px';
         btn.addEventListener('click', function(){
           item.claimedBy = null;
+          item.claimed_user_id = null;
           item.claimedName = null;
+          item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+          touchGathering(getLiveGathering(g.id) || g);
           saveFlockState();
           rebuild();
         });
@@ -10891,13 +11100,17 @@ function renderBringList(g) {
       row.appendChild(btn);
 
       // Delete button for item adder
-      if (item.addedBy === DATA.me.id) {
+      if (item.addedBy === currentActorKey() || (item.added_by_user_id && DATA.me && item.added_by_user_id === DATA.me.user_id)) {
         var del = document.createElement('button');
         del.style.cssText = 'width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
         del.innerHTML = '&times;';
         del.addEventListener('click', function(){
           var idx = g.bringList.findIndex(function(b){ return b.id === item.id; });
-          if (idx >= 0) g.bringList.splice(idx, 1);
+          if (idx >= 0) {
+            g.bringList[idx].deleted_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+            g.bringList[idx].updated_at = g.bringList[idx].deleted_at;
+          }
+          touchGathering(getLiveGathering(g.id) || g);
           saveFlockState();
           rebuild();
         });
@@ -11008,7 +11221,10 @@ function renderBudget(g) {
       });
       wrap.appendChild(listCard);
     } else {
-      wrap.innerHTML += '<div style="text-align:center;padding:20px 16px;color:var(--text3)"><div style="font-size:13px;font-weight:600">No expenses recorded yet.</div><div style="font-size:12px;margin-top:4px">Add costs as they come up — Kinverly calculates who owes what.</div></div>';
+      var emptyExpenses = document.createElement('div');
+      emptyExpenses.style.cssText = 'text-align:center;padding:20px 16px;color:var(--text3)';
+      emptyExpenses.innerHTML = '<div style="font-size:13px;font-weight:600">No expenses recorded yet.</div><div style="font-size:12px;margin-top:4px">Add costs as they come up — Kinverly calculates who owes what.</div>';
+      wrap.appendChild(emptyExpenses);
     }
   }
   rebuild();
@@ -13902,33 +14118,68 @@ try {
   // route it through the notification spine, not just a toast.
   async function nudgeGatheringById(gid){
     var g = resolveG(gid);
-    if (!g) return;
+    if (!g) { if (typeof toast === 'function') toast('Could not find that gathering.'); return 0; }
     try {
       if (typeof shareGatheringWithActiveFlockMembers === 'function') {
         await shareGatheringWithActiveFlockMembers(g.id, 'nudge_repair');
         g = resolveG(gid) || g;
       }
     } catch(_shareErr) { console.warn('[Kinverly] gathering access repair failed before nudge:', _shareErr && _shareErr.message); }
-    var planning = g.status === 'planning';
-    var pending = (typeof getActiveFlockMembers === 'function' ? getActiveFlockMembers() : []).filter(function(mem){
-      var rd = (typeof getRsvpForMemberRecord === 'function') ? getRsvpForMemberRecord(g.id, mem) : (rsvpData[g.id] && rsvpData[g.id][mem.id]);
-      return planning ? !(rd && (rd.availSubmitted || rd.availability_submitted)) : !(rd && rd.status);
-    });
-    if (!pending.length){ toast(planning ? 'Everyone\u2019s shared their dates \u2713' : 'Everyone\u2019s replied \u2713'); return; }
-    pending.forEach(function(mem){
-      if (typeof pushNotification === 'function' && mem.id !== (DATA.me && DATA.me.id)){
-        pushNotification(mem.id, {
-          text: (planning ? 'Quick reminder \u2014 share when you\u2019re free for ' : 'Quick reminder \u2014 RSVP for ') +
-                '<strong>' + escapeHtml(g.name || 'a gathering') + '</strong>.',
-          kind: 'nudge', icon: '\ud83d\udc4b', gid: g.id, tab: 'overview'
-        });
-      }
-    });
-    if (typeof logActivity === 'function') logActivity(DATA.me.id, 'nudged ' + pending.length + ' member' + (pending.length === 1 ? '' : 's') + ' about <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', '\ud83d\udc4b');
-    if (typeof kEmit === 'function') kEmit('gathering.nudged', { gathering: g });
-    toast('\ud83d\udc4b Nudge sent to ' + pending.map(function(mem){ return DATA.me && mem.id === DATA.me.id ? 'you' : mem.name; }).join(', '));
+
+    var rows = [];
+    if (typeof computeReminderQueue === 'function') {
+      rows = computeReminderQueue(g) || [];
+    }
+    // Fall back to state-derived pending members if the reminder queue has not initialized yet.
+    if (!rows.length) {
+      var planning = (typeof reminderKindForGathering === 'function' ? reminderKindForGathering(g) : (g.status === 'planning' ? 'availability' : 'rsvp')) === 'availability';
+      var pending = (typeof getActiveFlockMembers === 'function' ? getActiveFlockMembers() : []).filter(function(mem){
+        var rd = (typeof getRsvpForMemberRecord === 'function') ? getRsvpForMemberRecord(g.id, mem) : (rsvpData[g.id] && (rsvpData[g.id][mem.id] || rsvpData[g.id][String(mem.id)]));
+        return planning ? !(rd && (rd.availSubmitted || rd.availability_submitted || rd.availability_reviewed_at)) : !(rd && rd.status);
+      });
+      rows = pending.map(function(mem){ return { member: mem, user_id: (typeof getCanonicalUserId === 'function' ? getCanonicalUserId(mem) : mem.id), due: true }; });
+    }
+    if (!rows.length){ if (typeof toast === 'function') toast('Everyone is caught up ✓'); return 0; }
+
+    var sent = 0;
+    if (typeof sendGatheringReminder === 'function') {
+      sent = sendGatheringReminder(g, rows, 'manual') || 0;
+    } else {
+      sent = rows.length;
+    }
+
+    try { if (typeof saveFlockState === 'function') await saveFlockState(); } catch(_saveErr) { console.warn('[Kinverly] reminder save failed:', _saveErr && _saveErr.message); }
+    try { if (typeof renderAll === 'function') renderAll(); else if (typeof renderDetailPage === 'function') renderDetailPage(g.id); } catch(_renderErr) {}
+    if (typeof toast === 'function') toast('👋 Reminder sent to ' + sent + ' member' + (sent === 1 ? '' : 's'));
+    return sent;
   }
   window.nudgeGatheringById = nudgeGatheringById;
+
+  if (!window.__kinReminderDelegatedHandlerInstalled) {
+    window.__kinReminderDelegatedHandlerInstalled = true;
+    document.addEventListener('click', function(e){
+      var btn = e.target && e.target.closest && e.target.closest('.kin-reminder-send-btn, #nudge-btn');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var gid = btn.getAttribute('data-gid') || (window.currentGatheringId || (typeof currentGatheringId !== 'undefined' ? currentGatheringId : ''));
+      if (!gid) {
+        var activeDetail = document.querySelector('[data-gid]');
+        if (activeDetail) gid = activeDetail.getAttribute('data-gid');
+      }
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      Promise.resolve(window.nudgeGatheringById && window.nudgeGatheringById(gid)).catch(function(err){
+        console.error('[Kinverly] reminder send failed:', err);
+        if (typeof toast === 'function') toast('Could not send reminder. Try again.');
+      }).finally(function(){
+        btn.disabled = false;
+        btn.textContent = original || 'Send reminder';
+      });
+    }, true);
+  }
+
 
   // One tap to confirm/decline attendance — preserves any shared
   // availability, mirrors how the RSVP modal writes data.
