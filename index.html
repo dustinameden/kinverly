@@ -23009,4 +23009,214 @@ signInKinverlyAccount = function(username, password) {
 
   console.info('[Kinverly] Sprint 50.7 member dedupe + global admin tools loaded');
 })();
+
+
+/* ═══════════════════════════════════════════════
+   SPRINT 51.1 — ADMIN EDIT USER ACCOUNTS
+   Admins can edit account/profile details from the Flock page and Admin Panel.
+   This updates the canonical user record and every matching flock membership row.
+═══════════════════════════════════════════════ */
+(function(){
+  function esc(v){ return (typeof escapeHtml === 'function') ? escapeHtml(v == null ? '' : String(v)) : String(v == null ? '' : v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function stamp(){ return (typeof nowISO === 'function') ? nowISO() : new Date().toISOString(); }
+  function isAdminLike(){
+    try { if (typeof isGlobalAdminUser === 'function' && isGlobalAdminUser()) return true; } catch(e) {}
+    try { if (typeof can === 'function' && (can('manage_flock') || can('manage_member_roles') || can('remove_member'))) return true; } catch(e) {}
+    return false;
+  }
+  function roleOf(m){
+    try { return (typeof normalizeRole === 'function') ? normalizeRole(m && m.role) : String((m && m.role) || 'member').toLowerCase(); }
+    catch(e){ return String((m && m.role) || 'member').toLowerCase(); }
+  }
+  function currentFlock(){ return window.FLOCKS && window.currentFlockId ? (FLOCKS[currentFlockId] || FLOCKS[String(currentFlockId)]) : null; }
+  function memberKey(m){ return String((m && (m.member_id || m.id || m.user_id)) || ''); }
+  function memberIsRemoved(m){ return !!(m && (m.deleted_at || m.removed_at || String(m.status||'').toLowerCase()==='removed' || String(m.membership_status||'').toLowerCase()==='removed')); }
+  function findMember(mid){
+    var f = currentFlock();
+    if (!f || !f.members) return null;
+    if (f.members[mid]) return f.members[mid];
+    var vals = Object.values(f.members || {});
+    return vals.find(function(m){ return String(m.id)===String(mid) || String(m.member_id)===String(mid) || String(m.user_id)===String(mid); }) || null;
+  }
+  function ensureUsers(){
+    try { if (typeof ensureUsersTable === 'function') return ensureUsersTable(); } catch(e) {}
+    if (!window.DATA) window.DATA = {};
+    if (!DATA.users) DATA.users = [];
+    return DATA.users;
+  }
+  function findUserByMember(m){
+    if (!m) return null;
+    var uid = Number(m.user_id || m.id);
+    var users = ensureUsers();
+    return users.find(function(u){ return Number(u.user_id || u.id) === uid; }) || null;
+  }
+  function upsertUserFromMember(m, patch){
+    if (!m) return;
+    var users = ensureUsers();
+    var uid = Number(m.user_id || m.id);
+    var u = users.find(function(x){ return Number(x.user_id || x.id) === uid; });
+    if (!u) {
+      u = { user_id: uid, username: m.username || '', display_name: m.name || m.display_name || 'Member', avatar: m.animal || m.avatar || 'bear', status:'active', global_role:'user', created_at:m.created_at || stamp(), updated_at:stamp(), deleted_at:null, firestore_id:m.firestore_id || null };
+      users.push(u);
+    }
+    Object.assign(u, patch || {}, { updated_at: stamp() });
+  }
+  function updateMemberEverywhere(targetMember, patch){
+    if (!targetMember) return;
+    var uid = Number(targetMember.user_id || targetMember.id);
+    var now = stamp();
+    Object.keys(window.FLOCKS || {}).forEach(function(fid){
+      var f = FLOCKS[fid];
+      if (!f || !f.members) return;
+      Object.keys(f.members).forEach(function(k){
+        var m = f.members[k];
+        if (!m) return;
+        if (Number(m.user_id || m.id) === uid) {
+          Object.assign(m, patch, { updated_at: now });
+        }
+      });
+    });
+    if (window.DATA && DATA.me && Number(DATA.me.user_id || DATA.me.id) === uid) {
+      if (patch.name || patch.display_name) { DATA.me.name = patch.name || patch.display_name; DATA.me.display_name = DATA.me.name; }
+      if (patch.username) DATA.me.username = patch.username;
+      if (patch.location !== undefined) DATA.me.location = patch.location;
+      if (patch.animal || patch.avatar) DATA.me.animal = patch.animal || patch.avatar;
+      if (patch.global_role) DATA.me.global_role = patch.global_role;
+    }
+  }
+  function persistAll(){
+    try { if (typeof saveFlockState === 'function') saveFlockState(); } catch(e) {}
+    try { if (typeof saveLocal === 'function') saveLocal(); } catch(e) {}
+    try { if (typeof persistMyProfile === 'function') persistMyProfile(); } catch(e) {}
+    try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e) {}
+  }
+
+  window.openAdminEditMemberAccount = function(memberId){
+    if (!isAdminLike()) { if (typeof toast === 'function') toast('Only admins can edit accounts'); return; }
+    var member = findMember(memberId);
+    if (!member) { if (typeof toast === 'function') toast('Member not found'); return; }
+    var user = findUserByMember(member) || {};
+    var overlay = document.getElementById('edit-overlay');
+    var body = document.getElementById('edit-body');
+    if (!overlay || !body) {
+      // Fallback for older builds.
+      var newName = prompt('Display name', member.name || member.display_name || '');
+      if (newName === null) return;
+      var newLocation = prompt('Location', member.location || '');
+      if (newLocation === null) return;
+      var patch = { name:String(newName).trim(), display_name:String(newName).trim(), location:String(newLocation).trim(), updated_at:stamp() };
+      updateMemberEverywhere(member, patch);
+      upsertUserFromMember(member, { display_name: patch.display_name, location: patch.location });
+      persistAll();
+      if (typeof renderFlockPage === 'function') renderFlockPage();
+      if (typeof toast === 'function') toast('Account updated');
+      return;
+    }
+    var titleEl = overlay.querySelector('.sheet-title');
+    if (titleEl) titleEl.textContent = 'Edit account';
+    var currentName = member.name || member.display_name || user.display_name || '';
+    var currentUsername = member.username || user.username || '';
+    var currentLocation = member.location || user.location || '';
+    var currentAnimal = member.animal || member.avatar || user.avatar || 'bear';
+    var currentRole = roleOf(member);
+    var currentStatus = memberIsRemoved(member) ? 'removed' : 'active';
+    var globalRole = user.global_role || member.global_role || 'user';
+    body.innerHTML =
+      '<div style="font-size:13px;color:var(--text2);line-height:1.45;margin-bottom:14px">Update this person’s profile and login details. Their flock access stays tied to their membership.</div>'+ 
+      '<div class="field-group"><div class="field-label">Display name</div><input id="admin-edit-name" class="input-field" value="'+esc(currentName)+'"></div>'+ 
+      '<div class="field-group"><div class="field-label">Username</div><input id="admin-edit-username" class="input-field" autocapitalize="none" value="'+esc(currentUsername)+'"></div>'+ 
+      '<div class="field-group"><div class="field-label">Location</div><input id="admin-edit-location" class="input-field" value="'+esc(currentLocation)+'"></div>'+ 
+      '<div class="field-group"><div class="field-label">Avatar animal</div><select id="admin-edit-animal" class="input-field">'+
+        ['bear','bunny','deer','panda','fox','cat','dog','owl','turtle','leopard'].map(function(a){ return '<option value="'+a+'" '+(a===currentAnimal?'selected':'')+'>'+a.charAt(0).toUpperCase()+a.slice(1)+'</option>'; }).join('')+
+      '</select></div>'+ 
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+        '<div class="field-group"><div class="field-label">Flock role</div><select id="admin-edit-role" class="input-field"><option value="member">Member</option><option value="organizer">Organizer</option><option value="owner">Owner</option></select></div>'+ 
+        '<div class="field-group"><div class="field-label">Status</div><select id="admin-edit-status" class="input-field"><option value="active">Active</option><option value="removed">Removed</option></select></div>'+ 
+      '</div>'+ 
+      '<div class="field-group"><div class="field-label">Global access</div><select id="admin-edit-global-role" class="input-field"><option value="user">Regular user</option><option value="admin">Global admin</option></select><div style="font-size:11px;color:var(--text3);margin-top:5px;line-height:1.4">Global admin access should be used sparingly. Admins can open all flocks.</div></div>'+ 
+      '<button id="admin-edit-save" class="btn-primary">Save account changes</button>'+ 
+      '<button id="admin-edit-reset" class="btn-secondary" style="margin-top:8px;border-color:var(--amber);color:var(--amber)">Reset password</button>'+ 
+      '<button id="admin-edit-back" class="btn-secondary" style="margin-top:8px">Back to Admin Panel</button>';
+    var roleEl = body.querySelector('#admin-edit-role'); if (roleEl) roleEl.value = currentRole === 'creator' ? 'owner' : currentRole;
+    var statusEl = body.querySelector('#admin-edit-status'); if (statusEl) statusEl.value = currentStatus;
+    var gEl = body.querySelector('#admin-edit-global-role'); if (gEl) gEl.value = String(globalRole).toLowerCase() === 'admin' ? 'admin' : 'user';
+    body.querySelector('#admin-edit-save').addEventListener('click', function(){
+      var name = String(body.querySelector('#admin-edit-name').value || '').trim();
+      var username = String(body.querySelector('#admin-edit-username').value || '').trim().toLowerCase();
+      var location = String(body.querySelector('#admin-edit-location').value || '').trim();
+      var animal = body.querySelector('#admin-edit-animal').value || 'bear';
+      var role = body.querySelector('#admin-edit-role').value || 'member';
+      var status = body.querySelector('#admin-edit-status').value || 'active';
+      var nextGlobalRole = body.querySelector('#admin-edit-global-role').value || 'user';
+      if (!name) { if (typeof toast === 'function') toast('Add a display name'); return; }
+      var now = stamp();
+      var memberPatch = { name:name, display_name:name, username:username, location:location, animal:animal, avatar:animal, role:role, status:status, membership_status:status, updated_at:now };
+      if (status === 'removed') {
+        memberPatch.deleted_at = member.deleted_at || now;
+        memberPatch.removed_at = member.removed_at || now;
+      } else {
+        memberPatch.deleted_at = null;
+        memberPatch.removed_at = null;
+        memberPatch.membership_status = 'active';
+      }
+      updateMemberEverywhere(member, memberPatch);
+      upsertUserFromMember(member, { username:username, display_name:name, name:name, location:location, avatar:animal, status:status === 'removed' ? 'active' : 'active', global_role:nextGlobalRole });
+      persistAll();
+      try { if (typeof renderFlockPage === 'function') renderFlockPage(); } catch(e) {}
+      try { if (typeof renderProfile === 'function') renderProfile(); } catch(e) {}
+      try { if (typeof openAdminPanel === 'function') openAdminPanel(); } catch(e) { overlay.classList.add('hidden'); }
+      if (typeof toast === 'function') toast('Account updated');
+    });
+    body.querySelector('#admin-edit-reset').addEventListener('click', function(){
+      if (typeof openAdminResetPassword === 'function') openAdminResetPassword(member.id || member.member_id || member.user_id || memberId);
+    });
+    body.querySelector('#admin-edit-back').addEventListener('click', function(){ if (typeof openAdminPanel === 'function') openAdminPanel(); });
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+  };
+
+  // Make flock member rows directly editable for admins.
+  var originalRow = window.renderMemberRowForFamily;
+  window.renderMemberRowForFamily = function(m, opts){
+    var html = originalRow ? originalRow(m, opts) : '';
+    if (!isAdminLike() || !m) return html;
+    var id = memberKey(m);
+    var editBtn = '<button class="family-admin-edit-member" data-mid="'+esc(id)+'" style="font-size:10px;font-weight:900;padding:6px 10px;border-radius:9px;border:1.5px solid var(--brand);background:#fff;color:var(--brand);cursor:pointer;font-family:inherit;margin-left:6px">Edit</button>';
+    if (html && html.indexOf('</div>') >= 0) return html.replace(/<\/div>\s*$/, editBtn + '</div>');
+    return '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)">'+(typeof makeAv==='function'?makeAv(m.animal||m.avatar||'bear',40):'')+'<div style="flex:1"><div style="font-weight:900">'+esc(m.name||m.display_name||'Member')+'</div><div style="font-size:11px;color:var(--text2)">'+esc(m.location||'Location not set')+'</div></div>'+editBtn+'</div>';
+  };
+
+  // Inject Edit buttons into Admin Panel action groups after it opens.
+  var originalAdminPanel = window.openAdminPanel;
+  window.openAdminPanel = function(){
+    if (originalAdminPanel) originalAdminPanel.apply(this, arguments);
+    setTimeout(function(){
+      var body = document.getElementById('edit-body');
+      if (!body || !isAdminLike()) return;
+      body.querySelectorAll('.admin-member-actions').forEach(function(group){
+        if (group.querySelector('.admin-edit-member')) return;
+        var mid = group.getAttribute('data-mid') || (group.querySelector('[data-mid]') && group.querySelector('[data-mid]').getAttribute('data-mid')) || '';
+        if (!mid) return;
+        var btn = document.createElement('button');
+        btn.className = 'admin-edit-member';
+        btn.setAttribute('data-mid', mid);
+        btn.textContent = 'Edit';
+        btn.style.cssText = 'font-size:10px;font-weight:800;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:#fff;color:var(--brand);cursor:pointer;font-family:inherit';
+        group.insertBefore(btn, group.firstChild);
+      });
+    }, 80);
+  };
+
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest && e.target.closest('.family-admin-edit-member,.admin-edit-member');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.openAdminEditMemberAccount(btn.getAttribute('data-mid'));
+  }, true);
+
+  setTimeout(function(){ try { if (typeof renderFlockPage === 'function') renderFlockPage(); } catch(e){} }, 200);
+  console.info('[Kinverly] Sprint 51.1 admin account editing loaded');
+})();
+
 </script>
