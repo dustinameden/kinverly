@@ -4283,12 +4283,36 @@ function buildCrossFlockActivity(limit) {
 var availabilityState = { offset: 0, selectedKey: null };
 var myWorldCalendarState = availabilityState;
 
+/*
+Data table backing Add To Your Schedule
+Table name: user_schedule_blocks
+Minimum columns: id, created_at, updated_at, deleted_at, user_id, flock_id, schedule_name, schedule_type, start_date, end_date, start_time, end_time, is_all_day, visibility, source.
+Purpose: each flock-level gathering can score candidate dates by joining to every member schedule block in the same flock and checking date overlap.
+*/
+
 // Personal calendar events live with the flock record, but are member-owned.
 // They power Availability first, then the family scheduler uses everyone’s saved schedule items to recommend the best gathering dates.
 function ensurePersonalCalendarStore(flock) {
   if (!flock) return [];
-  if (!Array.isArray(flock.calendar_events)) flock.calendar_events = [];
-  return flock.calendar_events;
+  // Normalized table: user_schedule_blocks
+  // Each row is one member-owned schedule item that can influence gathering date recommendations.
+  // Backward compatible with older prototype rows saved in flock.calendar_events.
+  if (!Array.isArray(flock.user_schedule_blocks)) {
+    flock.user_schedule_blocks = [];
+    if (Array.isArray(flock.calendar_events)) {
+      flock.user_schedule_blocks = flock.calendar_events.map(function(ev){
+        if (!ev) return ev;
+        ev.user_schedule_block_id = ev.user_schedule_block_id || ev.calendar_event_id || ev.id;
+        ev.schedule_name = ev.schedule_name || ev.title || 'Schedule item';
+        ev.schedule_type = ev.schedule_type || ev.event_type || (ev.is_unavailable ? 'unavailable' : 'personal');
+        ev.start_date = ev.start_date || (ev.start_at ? String(ev.start_at).slice(0,10) : '');
+        ev.end_date = ev.end_date || (ev.end_at ? String(ev.end_at).slice(0,10) : ev.start_date);
+        ev.is_all_day = ev.is_all_day !== false;
+        return ev;
+      }).filter(Boolean);
+    }
+  }
+  return flock.user_schedule_blocks;
 }
 function getCurrentMemberNumericId() {
   if (DATA.me && typeof DATA.me.member_id === 'number') return DATA.me.member_id;
@@ -4327,19 +4351,25 @@ function createPersonalCalendarEvent(opts) {
   ensureFlockMeta(flock);
   var list = ensurePersonalCalendarStore(flock);
   var now = nowISO();
-  var nextId = nextEntityInt(flock, 'calendar_event');
+  var nextId = nextEntityInt(flock, 'user_schedule_block');
   var ev = ensureAuditFields({
     id: nextId,
-    calendar_event_id: nextId,
+    user_schedule_block_id: nextId,
+    calendar_event_id: nextId, // legacy alias for older UI helpers
     flock_id: flock.id,
     member_id: getCurrentMemberNumericId(),
     member_key: DATA.me && DATA.me.id,
-    title: (opts && opts.title) || 'Personal event',
+    schedule_name: (opts && opts.title) || (opts && opts.schedule_name) || 'Schedule item',
+    title: (opts && opts.title) || (opts && opts.schedule_name) || 'Schedule item', // legacy display alias
     description: (opts && opts.description) || '',
-    event_type: (opts && opts.event_type) || 'personal',
+    schedule_type: (opts && opts.schedule_type) || (opts && opts.event_type) || 'unavailable',
+    event_type: (opts && opts.event_type) || (opts && opts.schedule_type) || 'unavailable', // legacy alias
     is_unavailable: !!(opts && opts.is_unavailable),
     start_date: (opts && opts.start_date) || isoDateKey(new Date()),
     end_date: (opts && opts.end_date) || ((opts && opts.start_date) || isoDateKey(new Date())),
+    start_time: (opts && opts.start_time) || null,
+    end_time: (opts && opts.end_time) || null,
+    is_all_day: opts && opts.is_all_day === false ? false : true,
     visibility: 'private',
     source: 'my_calendar',
     created_at: now,
@@ -4347,7 +4377,7 @@ function createPersonalCalendarEvent(opts) {
     deleted_at: null
   }, now);
   list.push(ev);
-  recordEvent('calendar_event.created', 'calendar_event', ev.id, null, ev, 'Added ' + (ev.is_unavailable ? 'unavailable' : 'personal') + ' schedule item: ' + ev.title, ev.is_unavailable ? '🚫' : '📌');
+  recordEvent('user_schedule_block.created', 'user_schedule_block', ev.id, null, ev, 'Added schedule item: ' + ev.title, ev.is_unavailable ? '🚫' : '📌');
   saveFlockState();
   // Loop-closer: a new unavailable may now clash with a date this member
   // already greenlit on a planning gathering — flag it immediately.
@@ -4362,7 +4392,7 @@ function findPersonalCalendarEvent(fid, eventId) {
   if (!flock) return null;
   var list = ensurePersonalCalendarStore(flock);
   var ev = list.find(function(x){
-    return x && !x.deleted_at && String(x.id || x.calendar_event_id) === String(eventId);
+    return x && !x.deleted_at && String(x.id || x.user_schedule_block_id || x.calendar_event_id) === String(eventId);
   });
   return ev ? { flock: flock, list: list, event: ev } : null;
 }
@@ -4433,12 +4463,14 @@ function saveAvailabilityConflictFromSheet() {
     var ev = found.event;
     var original = Object.assign({}, ev);
     ev.title = title;
+    ev.schedule_name = title;
     ev.start_date = start;
     ev.end_date = end;
+    ev.schedule_type = 'unavailable';
     ev.event_type = 'unavailable';
     ev.is_unavailable = true;
     ev.updated_at = nowISO();
-    recordEvent('calendar_event.updated', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Updated schedule item: ' + ev.title, '🚫');
+    recordEvent('user_schedule_block.updated', 'user_schedule_block', ev.id || ev.user_schedule_block_id || ev.calendar_event_id, original, ev, 'Updated schedule item: ' + ev.title, '🚫');
     saveFlockState();
     closeAvailabilityConflictSheet();
     renderAvailability();
@@ -4446,7 +4478,7 @@ function saveAvailabilityConflictFromSheet() {
     return;
   }
 
-  var created = createPersonalCalendarEvent({ title: title, start_date: start, end_date: end, event_type: 'unavailable', is_unavailable: true });
+  var created = createPersonalCalendarEvent({ title: title, schedule_name: title, start_date: start, end_date: end, schedule_type: 'unavailable', event_type: 'unavailable', is_unavailable: true });
   if (created) {
     closeAvailabilityConflictSheet();
     renderAvailability();
@@ -4463,7 +4495,7 @@ function deleteAvailabilityConflictFromSheet() {
   var original = Object.assign({}, ev);
   ev.deleted_at = nowISO();
   ev.updated_at = ev.deleted_at;
-  recordEvent('calendar_event.deleted', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Deleted schedule item: ' + (ev.title || ''), '🗑️');
+  recordEvent('user_schedule_block.deleted', 'user_schedule_block', ev.id || ev.user_schedule_block_id || ev.calendar_event_id, original, ev, 'Deleted schedule item: ' + (ev.title || ''), '🗑️');
   saveFlockState();
   closeAvailabilityConflictSheet();
   renderAvailability();
@@ -4481,7 +4513,7 @@ function deletePersonalCalendarEvent(fid, eventId) {
   var original = Object.assign({}, ev);
   ev.deleted_at = nowISO();
   ev.updated_at = ev.deleted_at;
-  recordEvent('calendar_event.deleted', 'calendar_event', ev.id || ev.calendar_event_id, original, ev, 'Deleted schedule item: ' + (ev.title || ''), '🗑️');
+  recordEvent('user_schedule_block.deleted', 'user_schedule_block', ev.id || ev.user_schedule_block_id || ev.calendar_event_id, original, ev, 'Deleted schedule item: ' + (ev.title || ''), '🗑️');
   saveFlockState();
   renderAvailability();
   toast('Schedule item deleted');
@@ -4573,7 +4605,7 @@ function getMyCalendarEventsAcrossFlocks() {
         fid: ev.fid || '',
         gid: null,
         tab: '',
-        event_id: ev.id || ev.calendar_event_id || '',
+        event_id: ev.id || ev.user_schedule_block_id || ev.calendar_event_id || '',
         source: 'personal_calendar',
         editable: true,
         sort: ev.is_unavailable ? 0 : 1
@@ -4887,7 +4919,7 @@ function renderAvailability() {
     var pattern = getAvailabilityPattern();
     var unavailable = getUpcomingUnavailableEvents(12);
     var unavailableHtml = unavailable.length ? unavailable.map(function(ev){
-      return '<div class="xflock-card availability-edit-card" data-fid="' + escapeHtml(ev.fid || '') + '" data-event-id="' + escapeHtml(ev.id || ev.calendar_event_id || '') + '">' +
+      return '<div class="xflock-card availability-edit-card" data-fid="' + escapeHtml(ev.fid || '') + '" data-event-id="' + escapeHtml(ev.id || ev.user_schedule_block_id || ev.calendar_event_id || '') + '">' +
         '<div class="xflock-top"><div class="xflock-icon">🚫</div><div class="xflock-body">' +
         '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable') + '</div>' +
         '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
@@ -8886,17 +8918,17 @@ function buildExportTables(payload) {
     });
   });
 
-  tables.calendar_events = ((flock.calendar_events || []) || []).map(function(ev){
+  tables.user_schedule_blocks = (ensurePersonalCalendarStore(flock) || []).map(function(ev){
     return firstColumns({
-      id: ev.calendar_event_id || ev.id || '',
+      id: ev.user_schedule_block_id || ev.calendar_event_id || ev.id || '',
       created_at: ev.created_at || '',
       updated_at: ev.updated_at || '',
       deleted_at: ev.deleted_at || '',
       flock_id: payload.flock.id,
       member_id: ev.member_id || '',
       member_name: getMemberNameForExport(ev.member_key || ev.member_id || ''),
-      event_type: ev.event_type || '',
-      title: ev.title || '',
+      schedule_type: ev.schedule_type || ev.event_type || '',
+      schedule_name: ev.schedule_name || ev.title || '',
       description: ev.description || '',
       is_unavailable: ev.is_unavailable ? 'yes' : 'no',
       start_date: ev.start_date || '',
@@ -9258,7 +9290,7 @@ function openAdminPanel() {
           '<button class="admin-export-tables" style="padding:9px;border-radius:10px;border:none;background:#2A1B52;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Download data tables</button>'+ 
           '<button class="admin-export-tables-json" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Tables JSON</button>'+ 
         '</div>'+ 
-        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">Clean tables export uses normalized rows: flocks, members, gatherings, gathering_members, windows, availability, tasks, chat, photos, ideas, calendar_events, activity, and event_log. Every table starts with id, created_at, updated_at, deleted_at.</div>'+ 
+        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">Clean tables export uses normalized rows: flocks, members, gatherings, gathering_members, windows, availability, tasks, chat, photos, ideas, user_schedule_blocks, activity, and event_log. Every table starts with id, created_at, updated_at, deleted_at.</div>'+ 
       '</div>'+ 
       '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + allMembers.length + ')</div>'+
       '<div>' + memberRows + '</div>'+
@@ -15913,7 +15945,7 @@ try {
         poll_votes: common.concat(['poll_id','poll_option_id','user_id','voted_at']),
         ideas: common.concat(['flock_id','user_id','title','description','status','vote_count']),
         idea_votes: common.concat(['idea_id','flock_id','user_id','voted_at']),
-        calendar_events: common.concat(['user_id','flock_id','gathering_id','event_type','title','start_at','end_at','visibility','source']),
+        user_schedule_blocks: common.concat(['user_id','flock_id','schedule_name','schedule_type','start_date','end_date','start_time','end_time','is_all_day','visibility','source']),
         reminders: common.concat(['flock_id','gathering_id','target_user_id','reminder_type','status','scheduled_for','sent_at','sent_by_user_id']),
         action_log: common.concat(['actor_user_id','flock_id','gathering_id','entity_type','entity_id','action_type','summary','before_json','after_json']),
         action_errors: common.concat(['actor_user_id','flock_id','gathering_id','entity_type','entity_id','action_type','error_message','error_stack'])
@@ -16325,13 +16357,14 @@ try {
     });
 
     var calSeed = [];
-    if (Array.isArray(flock.calendar_events)) calSeed = calSeed.concat(flock.calendar_events);
-    if (DATA && Array.isArray(DATA.calendar_events)) calSeed = calSeed.concat(DATA.calendar_events);
-    if (DATA && DATA.me && Array.isArray(DATA.me.calendar_events)) calSeed = calSeed.concat(DATA.me.calendar_events);
-    tables.calendar_events = calSeed.map(function(ev, idx){
+    if (Array.isArray(flock.user_schedule_blocks)) calSeed = calSeed.concat(flock.user_schedule_blocks);
+    if (Array.isArray(flock.calendar_events)) calSeed = calSeed.concat(flock.calendar_events); // legacy alias
+    if (DATA && Array.isArray(DATA.user_schedule_blocks)) calSeed = calSeed.concat(DATA.user_schedule_blocks);
+    if (DATA && DATA.me && Array.isArray(DATA.me.user_schedule_blocks)) calSeed = calSeed.concat(DATA.me.user_schedule_blocks);
+    tables.user_schedule_blocks = calSeed.map(function(ev, idx){
       var uid = userIdFromMember(getMemberSafe(ev.user_id || ev.member_id || ev.member_key), ev.user_id || ev.member_id || ev.member_key || actorUserId());
       return rowBase({
-        id: ev.calendar_event_id || ev.id || 'calendar-event-' + (idx + 1),
+        id: ev.user_schedule_block_id || ev.calendar_event_id || ev.id || 'schedule-block-' + (idx + 1),
         created_at: ev.created_at || ev.start_at || ev.start_date || '',
         updated_at: ev.updated_at || ev.created_at || ev.start_at || '',
         deleted_at: ev.deleted_at || '',
@@ -16339,11 +16372,13 @@ try {
         updated_by_user_id: ev.updated_by_user_id || uid || actorUserId(),
         user_id: uid || '',
         flock_id: ev.flock_id || flockId,
-        gathering_id: ev.gathering_id || '',
-        event_type: ev.event_type || ev.type || (ev.is_unavailable ? 'unavailable' : 'personal'),
-        title: ev.title || '',
-        start_at: atTime(ev.start_at || ev.start_date || ''),
-        end_at: atTime(ev.end_at || ev.end_date || ''),
+        schedule_name: ev.schedule_name || ev.title || '',
+        schedule_type: ev.schedule_type || ev.event_type || ev.type || (ev.is_unavailable ? 'unavailable' : 'personal'),
+        start_date: ev.start_date || (ev.start_at ? String(ev.start_at).slice(0,10) : ''),
+        end_date: ev.end_date || (ev.end_at ? String(ev.end_at).slice(0,10) : ''),
+        start_time: ev.start_time || '',
+        end_time: ev.end_time || '',
+        is_all_day: ev.is_all_day === false ? 'no' : 'yes',
         visibility: ev.visibility || 'private',
         source: ev.source || 'my_calendar'
       });
@@ -16871,19 +16906,25 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       if (typeof showToast === 'function') showToast('No flock found.');
       return;
     }
-    f.calendar_events = Array.isArray(f.calendar_events) ? f.calendar_events : [];
-    f.calendar_events.push({
-      id:'cal_' + Date.now(),
+    f.user_schedule_blocks = Array.isArray(f.user_schedule_blocks) ? f.user_schedule_blocks : [];
+    f.user_schedule_blocks.push({
+      id:'usb_' + Date.now(),
+      user_schedule_block_id:'usb_' + Date.now(),
       created_at:new Date().toISOString(),
       updated_at:new Date().toISOString(),
       deleted_at:null,
       user_id:userId(),
       created_by_user_id:userId(),
       updated_by_user_id:userId(),
+      schedule_type:'unavailable',
       event_type:'unavailable',
+      schedule_name:title,
       title,
-      start_at:start,
-      end_at:end,
+      start_date:start,
+      end_date:end,
+      start_time:null,
+      end_time:null,
+      is_all_day:true,
       source:'availability'
     });
     try{
