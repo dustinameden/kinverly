@@ -14392,9 +14392,38 @@ try {
           }
         }
 
-        // Detect if I was REMOVED from the flock. A removed member may still
-        // exist in the database as a historical record, so check deleted_at/status too.
-        if (myId && ((!merged[myId] && Object.keys(merged).length > 0) || isRemovedMemberRecord(merged[myId]))) {
+        // Detect if I was REMOVED from the flock.
+        // Sprint 50.3 hardening:
+        // - Never kick a user out because a stale first remote snapshot is missing
+        //   the membership that was just created locally by Join/Create Flock.
+        // - Resolve membership by numeric user_id, not by object key only.
+        // - Only treat a removal as real when the remote snapshot explicitly contains
+        //   this user's member row with removed/deleted status after the join grace window.
+        var myCanonicalId = (typeof getCanonicalUserId === 'function') ? getCanonicalUserId(DATA.me) : myId;
+        function _findMemberByUserId(map, uid) {
+          if (!map || !uid) return null;
+          return map[String(uid)] || Object.values(map).find(function(x){
+            return x && String((typeof getCanonicalUserId === 'function') ? getCanonicalUserId(x) : (x.user_id || x.id)) === String(uid);
+          }) || null;
+        }
+        var mergedMine = _findMemberByUserId(merged, myCanonicalId);
+        var localMine = _findMemberByUserId(localMembers, myCanonicalId);
+        var inJoinGrace = Date.now() < (window._kinverlySuppressRemovalUntil || 0);
+
+        if (!mergedMine && localMine && !isRemovedMemberRecord(localMine)) {
+          // Remote may not have received the membership write yet. Preserve the local
+          // active member row and continue rendering the joined flock.
+          merged[String(myCanonicalId)] = localMine;
+          local.members = merged;
+          local.memberIds = Object.keys(merged).filter(function(mid){ return isActiveMemberRecord(merged[mid]); });
+          mergedMine = localMine;
+        }
+
+        var explicitlyRemovedRemote = !!(mergedMine && isRemovedMemberRecord(mergedMine));
+        var missingFromRemoteButHadLocal = !mergedMine && !!localMine && !isRemovedMemberRecord(localMine);
+        var shouldKickForRemoval = !!myCanonicalId && explicitlyRemovedRemote && !inJoinGrace;
+
+        if (shouldKickForRemoval) {
           // Set flag FIRST — prevents any save/sync from re-adding us
           window._kickedFromFlock = true;
 
