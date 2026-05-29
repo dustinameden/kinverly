@@ -5456,7 +5456,7 @@ function renderHome() {
   // Check for unclaimed bring items
   (DATA.gatherings||[]).forEach(function(g){
     if (g.status === 'completed') return;
-    var unclaimed = (g.bringList||[]).filter(function(b){ return !b.claimedBy; });
+    var unclaimed = (g.bringList||[]).filter(function(b){ return !b.deleted_at && b.claim_required !== false && b.bring_type !== 'everyone_reminder' && !b.claimedBy; });
     if (unclaimed.length > 0) {
       todos.push({icon:'🎒', text:unclaimed.length+' unclaimed item'+(unclaimed.length>1?'s':'')+' for <strong>'+escapeHtml(g.name)+'</strong>', action:'bring', gId:g.id, priority:3});
     }
@@ -5822,7 +5822,7 @@ function renderGatheringsList() {
     var indicators = [];
     var tCount = (g.tasks||[]).filter(function(t){ return !t.done; }).length;
     var pCount = (g.polls||[]).length;
-    var bCount = (g.bringList||[]).filter(function(b){ return !b.claimedBy; }).length;
+    var bCount = (g.bringList||[]).filter(function(b){ return !b.deleted_at && b.claim_required !== false && b.bring_type !== 'everyone_reminder' && !b.claimedBy; }).length;
     var cCount = (g.chat||[]).length;
     var nCount = (g.notes||[]).length;
     if (tCount) indicators.push('📋' + tCount);
@@ -7070,11 +7070,13 @@ function buildPlanningHistoryCard(g, state) {
 
 function buildCoordinatorSections(g) {
   var notesCount  = (g.notes||[]).length;
-  var bringCount  = (g.bringList||[]).length;
-  var bringClaimed = (g.bringList||[]).filter(function(b){return b.claimedBy;}).length;
+  var activeBringForCount = (g.bringList||[]).filter(function(b){ return b && !b.deleted_at; });
+  var claimableBringForCount = activeBringForCount.filter(function(b){ return b.claim_required !== false && b.bring_type !== 'everyone_reminder'; });
+  var bringCount  = activeBringForCount.length;
+  var bringClaimed = claimableBringForCount.filter(function(b){return b.claimedBy;}).length;
   var expenseCount = (g.expenses||[]).length;
   var notesSectionHtml = '<div class="section-title" style="margin-top:16px">📌 Notes' + (notesCount ? ' (' + notesCount + ')' : '') + '</div><div id="overview-notes-' + g.id + '"></div>';
-  var bringSectionHtml = '<div class="section-title" style="margin-top:16px">🎒 Bring list' + (bringCount ? ' (' + bringClaimed + '/' + bringCount + ')' : '') + '</div><div id="overview-bring-' + g.id + '"></div>';
+  var bringSectionHtml = '<div class="section-title" style="margin-top:16px">🎒 Bring list' + (claimableBringForCount.length ? ' (' + bringClaimed + '/' + claimableBringForCount.length + ' claimed)' : '') + '</div><div id="overview-bring-' + g.id + '"></div>';
   var budgetSectionHtml = '';
   if (expenseCount > 0) {
     var total = 0; (g.expenses||[]).forEach(function(e){ total += (parseFloat(e.amount)||0); });
@@ -9110,6 +9112,30 @@ function exportDataTablesJson(scope, gatheringId) {
   toast('Data tables JSON downloaded');
 }
 
+
+function downloadSingleExportTableCsv(tableName) {
+  var payload = buildExportPayload('all', null);
+  var tables = buildExportTables(payload);
+  var rows = tables[tableName] || [];
+  var base = sanitizeFilenamePart((payload.flock && payload.flock.name) || 'kinverly');
+  downloadTextFile(base + '-' + tableName + '.csv', buildCsv(rows, csvColumnsForRows(rows)), 'text/csv;charset=utf-8');
+  logActivity(DATA.me.id, 'exported ' + tableName + ' table', '🧾');
+  saveFlockState();
+  toast(tableName + ' CSV downloaded');
+}
+
+function exportCardHtml(tableName, title, sub, rowEstimate) {
+  return '<div class="data-export-card" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px">' +
+    '<div style="width:34px;height:34px;border-radius:10px;background:#ede8ff;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🧾</div>' +
+    '<div style="flex:1;min-width:0">' +
+      '<div style="font-size:13px;font-weight:900;color:var(--text1);line-height:1.2">' + escapeHtml(title) + '</div>' +
+      '<div style="font-size:11px;color:var(--text2);line-height:1.35;margin-top:2px">' + escapeHtml(sub || '') + '</div>' +
+      (rowEstimate ? '<div style="font-size:10px;color:var(--text3);font-weight:800;margin-top:4px">' + escapeHtml(rowEstimate) + '</div>' : '') +
+    '</div>' +
+    '<button class="admin-export-single-table" data-table="' + escapeHtml(tableName) + '" style="padding:8px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;flex-shrink:0">CSV</button>' +
+  '</div>';
+}
+
 function exportGatheringsJson(scope, gatheringId) {
   var payload = buildExportPayload(scope || 'all', gatheringId || null);
   payload.tables = buildExportTables(payload);
@@ -9406,24 +9432,29 @@ function openAdminPanel() {
   body.innerHTML =
     '<div style="padding:4px 0">'+
       '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Family Organizer tools for <strong>' + escapeHtml(flock.name) + '</strong>.</div>'+
-      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:16px">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">'+
-          '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Admin exports</div>'+
-          '<div style="font-size:10px;color:var(--text3);font-weight:700">Last synced: ' + escapeHtml(lastSyncedLabel) + '</div>'+
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:16px;max-height:58vh;overflow-y:auto;-webkit-overflow-scrolling:touch">'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">'+
+          '<div><div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Data exports</div><div style="font-size:11px;color:var(--text2);line-height:1.4;margin-top:3px">Scroll vertically to see every export table. No options are hidden sideways.</div></div>'+
+          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-align:right;flex-shrink:0">Last synced:<br>' + escapeHtml(lastSyncedLabel) + '</div>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
-          '<button class="admin-export-csv" data-scope="all" style="padding:10px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save all CSV</button>'+
-          '<button class="admin-export-json" data-scope="all" style="padding:10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save all JSON</button>'+ 
-          (currentDetailId ? '<button class="admin-export-csv" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save gathering CSV</button>' : '')+
-          (currentDetailId ? '<button class="admin-export-json" data-scope="one" data-gid="' + currentDetailId + '" style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text1);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Save gathering JSON</button>' : '')+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-          '<button class="admin-export-members" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Members table</button>'+
-          '<button class="admin-export-activity" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Activity table</button>'+ 
-          '<button class="admin-export-tables" style="padding:9px;border-radius:10px;border:none;background:#2A1B52;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Download all tables</button>'+ 
-          '<button class="admin-export-tables-json" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">All tables JSON</button>'+ 
+        '<button class="admin-export-tables" style="width:100%;padding:12px;border-radius:12px;border:none;background:#2A1B52;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:8px">Export All Data CSVs</button>'+ 
+        '<button class="admin-export-tables-json" style="width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:12px">Export All Data JSON</button>'+ 
+        '<div style="display:flex;flex-direction:column;gap:8px">'+
+          exportCardHtml('members', 'Members', 'People in this flock, including removed members for history.', '')+
+          exportCardHtml('gatherings', 'Gatherings', 'One row per gathering with lifecycle, location, and recommendation fields.', '')+
+          exportCardHtml('gathering_members', 'Gathering Members', 'Attendance, RSVP, guest counts, and assigned tasks by member.', '')+
+          exportCardHtml('gathering_windows', 'Gathering Windows', 'Proposed date windows used by the scheduler.', '')+
+          exportCardHtml('availability_responses', 'Availability Responses', 'RSVP availability answers and blocked dates by gathering.', '')+
+          exportCardHtml('user_schedule_blocks', 'User Schedule Blocks', 'Add To Your Schedule rows: user_id, flock_id, schedule_name, start/end date and time.', '')+
+          exportCardHtml('activity_events', 'Activity Events', 'Normalized Recent Activity source of truth for the Home page.', '')+
+          exportCardHtml('tasks', 'Tasks', 'Planning task rows and completion status.', '')+
+          exportCardHtml('chat_messages', 'Chat Messages', 'Gathering chat messages for history.', '')+
+          exportCardHtml('photos', 'Photos', 'Photo metadata and uploader information.', '')+
+          exportCardHtml('ideas', 'Ideas', 'Idea bank items and vote counts.', '')+
+          exportCardHtml('activity_log', 'Legacy Activity Log', 'Older activity rows kept for backfill/export history.', '')+
+          exportCardHtml('event_log', 'Legacy Event Log', 'Low-level event/audit rows kept for troubleshooting.', '')+
         '</div>'+ 
-        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">Clean tables export uses normalized rows: flocks, members, gatherings, gathering_members, windows, availability, tasks, chat, photos, ideas, user_schedule_blocks, activity, and event_log. Every table starts with id, created_at, updated_at, deleted_at.</div>'+ 
+        '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:10px">Every table starts with id, created_at, updated_at, and deleted_at where available. Use Export All Data for a full pull, or export one table at a time below.</div>'+ 
       '</div>'+ 
       '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Members (' + allMembers.length + ')</div>'+
       '<div>' + memberRows + '</div>'+
@@ -9441,6 +9472,12 @@ function openAdminPanel() {
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         exportGatheringsJson(btn.dataset.scope || 'all', btn.dataset.gid || null);
+      });
+    });
+    body.querySelectorAll('.admin-export-single-table').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        downloadSingleExportTableCsv(btn.dataset.table || 'members');
       });
     });
     var membersBtn = body.querySelector('.admin-export-members');
@@ -12057,127 +12094,235 @@ function renderBringList(g) {
   if (!g.bringList) g.bringList = [];
   var wrap = document.createElement('div');
 
-  var ITEM_EMOJIS = ['🍕','🥗','🎮','🏖️','🧊','🪑','🎵','🍺','🧸','🎒','🔌','🎂','🧴','🏕️','🛏️'];
+  function normalizeBringItem(item) {
+    if (!item) return item;
+    // Older rows did not know whether an item was a shared reminder or a claimable item.
+    // Preserve old behavior for existing rows, but new rows must choose intentionally.
+    if (!item.bring_type) item.bring_type = item.claim_required === false ? 'everyone_reminder' : 'claimable_item';
+    if (typeof item.claim_required === 'undefined') item.claim_required = item.bring_type !== 'everyone_reminder';
+    if (!item.emoji) item.emoji = chooseBringIcon(item.name || '', item.bring_type);
+    return item;
+  }
+
+  function chooseBringIcon(text, type) {
+    var t = String(text || '').toLowerCase();
+    if (type === 'everyone_reminder') return '📌';
+    if (/beach|swim|bathing|suit|sunscreen|towel|wear|clothes|jacket|coat|shoes|boots|hat/.test(t)) return '🏖️';
+    if (/food|snack|chips|pizza|drink|beer|water|ice|cooler|dessert|cake/.test(t)) return '🥤';
+    if (/game|cards|toy|speaker|music/.test(t)) return '🎲';
+    if (/chair|table|tent|blanket|bed|crib|high chair/.test(t)) return '🪑';
+    return '🎒';
+  }
+
+  function bringTypeLabel(type) {
+    return type === 'everyone_reminder' ? 'Everyone' : 'Claimable';
+  }
+
+  function bringActivityType(type) {
+    return type === 'everyone_reminder' ? 'bring_reminder.created' : 'bring_item.created';
+  }
 
   function rebuild() {
     wrap.innerHTML = '';
 
     // Add form
+    var addPanel = document.createElement('div');
+    addPanel.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:14px';
+
+    var modeLabel = document.createElement('div');
+    modeLabel.style.cssText = 'font-size:11px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px';
+    modeLabel.textContent = 'What kind of bring list item is this?';
+    addPanel.appendChild(modeLabel);
+
+    var modeRow = document.createElement('div');
+    modeRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px';
+    var selectedType = 'everyone_reminder';
+
+    function makeModeBtn(type, title, sub) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.style.cssText = 'border:1.5px solid var(--border);background:var(--surface2);border-radius:13px;padding:10px 8px;text-align:left;font-family:inherit;cursor:pointer';
+      b.innerHTML = '<div style="font-size:12px;font-weight:900;color:var(--text1)">' + title + '</div><div style="font-size:10.5px;color:var(--text2);line-height:1.25;margin-top:2px">' + sub + '</div>';
+      function paint(){
+        if (selectedType === type) b.style.cssText = 'border:2px solid var(--brand);background:#ede8ff;border-radius:13px;padding:9px 7px;text-align:left;font-family:inherit;cursor:pointer';
+        else b.style.cssText = 'border:1.5px solid var(--border);background:var(--surface2);border-radius:13px;padding:10px 8px;text-align:left;font-family:inherit;cursor:pointer';
+      }
+      b._paint = paint;
+      b.addEventListener('click', function(){
+        selectedType = type;
+        Array.prototype.forEach.call(modeRow.children, function(child){ if (child._paint) child._paint(); });
+      });
+      return b;
+    }
+
+    var everyoneBtn = makeModeBtn('everyone_reminder', 'Everyone should know', 'Example: bring beach wear');
+    var claimBtn = makeModeBtn('claimable_item', 'Someone should claim it', 'Example: cooler or dessert');
+    modeRow.appendChild(everyoneBtn);
+    modeRow.appendChild(claimBtn);
+    addPanel.appendChild(modeRow);
+    everyoneBtn._paint(); claimBtn._paint();
+
     var addRow = document.createElement('div');
-    addRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px';
+    addRow.style.cssText = 'display:flex;gap:8px';
     var addInp = document.createElement('input');
     addInp.className = 'pin-add-input';
-    addInp.placeholder = 'Add something to bring\u2026';
-    addInp.maxLength = 60;
+    addInp.placeholder = 'Add beach wear, snacks, cooler…';
+    addInp.maxLength = 80;
     var addBtn = document.createElement('button');
+    addBtn.type = 'button';
     addBtn.className = 'pin-add-btn';
     addBtn.textContent = 'Add';
-    addBtn.setAttribute('data-kin-action','bring-add');
-    addBtn.setAttribute('data-gathering-id', g.id || '');
-    addBtn.addEventListener('click', function(){
+
+    function addBringItem(){
       var text = addInp.value.trim();
       if (!text) return;
+      addBtn.disabled = true;
+      addBtn.textContent = 'Added';
+
       var liveG = getLiveGathering(g.id) || g;
       if (!Array.isArray(liveG.bringList)) liveG.bringList = [];
-      liveG.bringList.push({
+      var now = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+      var item = {
         id:'bring_'+Date.now().toString(36),
         name:text,
-        emoji: ITEM_EMOJIS[Math.floor(Math.random()*ITEM_EMOJIS.length)],
+        bring_type:selectedType,
+        claim_required:selectedType === 'claimable_item',
+        emoji:chooseBringIcon(text, selectedType),
         claimedBy:null,
         claimed_user_id:null,
         claimedName:null,
         addedBy:currentActorKey(),
         added_by_user_id:DATA.me && DATA.me.user_id || null,
-        created_at:(typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()),
-        updated_at:(typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()),
+        created_at:now,
+        updated_at:now,
         deleted_at:null
-      });
+      };
+      liveG.bringList.push(item);
       g.bringList = liveG.bringList;
       touchGathering(liveG);
-      try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.created', action_status:'success', entity_type:'bring_item', entity_id: liveG.bringList[liveG.bringList.length-1] && liveG.bringList[liveG.bringList.length-1].id || '', gathering_id: liveG.id || g.id, gathering_title: liveG.name || g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' added ' + text + ' to the bring list', metadata:{ item:text } }); } catch(e) {}
-      saveFlockState();
+
+      // Render immediately so the tap feels instant, then persist/log.
       addInp.value = '';
       rebuild();
-    });
-    addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBtn.click(); });
+      toast(selectedType === 'everyone_reminder' ? 'Added as a reminder for everyone' : 'Added as something to claim');
+
+      try {
+        if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({
+          action_type:bringActivityType(selectedType),
+          action_status:'success',
+          entity_type:'bring_item',
+          entity_id:item.id || '',
+          gathering_id:liveG.id || g.id,
+          gathering_title:liveG.name || g.name || '',
+          visible_to_users:true,
+          summary: selectedType === 'everyone_reminder'
+            ? (((DATA.me && DATA.me.name) || 'Someone') + ' added a group reminder: ' + text)
+            : (((DATA.me && DATA.me.name) || 'Someone') + ' added ' + text + ' to claim'),
+          metadata:{ item:text, bring_type:selectedType, claim_required:item.claim_required }
+        });
+      } catch(e) {}
+      saveFlockState();
+    }
+
+    addBtn.addEventListener('click', addBringItem);
+    addInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addBringItem(); });
     addRow.appendChild(addInp);
     addRow.appendChild(addBtn);
-    wrap.appendChild(addRow);
+    addPanel.appendChild(addRow);
+    wrap.appendChild(addPanel);
 
-    if ((g.bringList||[]).filter(function(b){ return !b.deleted_at; }).length === 0) {
-      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🎒</div><div style="font-size:14px;font-weight:700;color:var(--text2)">Nothing on the list yet</div><div style="font-size:12px;margin-top:4px">Add items the group needs — grill, games, high chair, snacks — and claim what you\'ll bring.</div></div>';
+    var activeBringList = (g.bringList||[]).filter(function(b){ return b && !b.deleted_at; }).map(normalizeBringItem);
+    if (activeBringList.length === 0) {
+      wrap.innerHTML += '<div style="text-align:center;padding:30px 16px;color:var(--text3)"><div style="font-size:36px;margin-bottom:8px">🎒</div><div style="font-size:14px;font-weight:700;color:var(--text2)">Nothing on the list yet</div><div style="font-size:12px;margin-top:4px">Add group reminders like beach wear, or claimable items like cooler, snacks, and chairs.</div></div>';
       return;
     }
 
     // Stats
-    var activeBringList = (g.bringList||[]).filter(function(b){ return !b.deleted_at; });
-    var claimed = activeBringList.filter(function(b){ return b.claimedBy; }).length;
+    var claimable = activeBringList.filter(function(b){ return b.claim_required !== false; });
+    var reminders = activeBringList.filter(function(b){ return b.claim_required === false; });
+    var claimed = claimable.filter(function(b){ return b.claimedBy; }).length;
     var statsEl = document.createElement('div');
-    statsEl.style.cssText = 'font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px';
-    statsEl.textContent = claimed + ' of ' + activeBringList.length + ' items claimed';
+    statsEl.style.cssText = 'font-size:12px;font-weight:800;color:var(--text2);margin-bottom:10px';
+    statsEl.textContent = reminders.length + ' group reminder' + (reminders.length === 1 ? '' : 's') + ' · ' + claimed + ' of ' + claimable.length + ' claimable item' + (claimable.length === 1 ? '' : 's') + ' claimed';
     wrap.appendChild(statsEl);
 
     activeBringList.forEach(function(item){
       var row = document.createElement('div');
       row.className = 'bring-item' + (item.claimedBy ? ' claimed' : '');
+      var isClaimable = item.claim_required !== false;
       var isMyClaim = item.claimedBy === currentActorKey() || (item.claimed_user_id && DATA.me && item.claimed_user_id === DATA.me.user_id);
 
       row.innerHTML =
-        '<div class="bring-icon">' + (item.emoji||'📦') + '</div>' +
+        '<div class="bring-icon">' + (item.emoji||chooseBringIcon(item.name, item.bring_type)) + '</div>' +
         '<div class="bring-info">' +
           '<div class="bring-name">' + escapeHtml(item.name) + '</div>' +
-          (item.claimedBy
-            ? '<div class="bring-owner">' + (isMyClaim ? 'You\'re bringing this' : escapeHtml(item.claimedName||'Someone') + ' is bringing this') + '</div>'
-            : '<div class="bring-owner" style="color:var(--text3);font-style:italic">Unclaimed</div>') +
+          (isClaimable
+            ? (item.claimedBy
+              ? '<div class="bring-owner">' + (isMyClaim ? 'You\'re bringing this' : escapeHtml(item.claimedName||'Someone') + ' is bringing this') + '</div>'
+              : '<div class="bring-owner" style="color:var(--text3);font-style:italic">Needs someone to claim</div>')
+            : '<div class="bring-owner" style="color:var(--brand);font-weight:800">Reminder for everyone</div>') +
         '</div>';
 
-      var btn = document.createElement('button');
-      btn.className = 'bring-claim-btn' + (isMyClaim ? ' mine' : '');
-      if (!item.claimedBy) {
-        btn.textContent = 'I\'ll bring it';
-        btn.addEventListener('click', function(){
-          item.claimedBy = currentActorKey();
-          item.claimed_user_id = DATA.me && DATA.me.user_id || null;
-          item.claimedName = currentActorName();
-          item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
-          touchGathering(getLiveGathering(g.id) || g);
-          try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.claimed', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' is bringing ' + (item.name || 'an item'), metadata:{ item:item.name || '' } }); } catch(e) {}
-          saveFlockState();
-          logActivity(currentActorKey(), 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
-          rebuild();
-        });
-      } else if (isMyClaim) {
-        btn.textContent = 'Unclaim';
-        btn.style.cssText += ';font-size:10px';
-        btn.addEventListener('click', function(){
-          item.claimedBy = null;
-          item.claimed_user_id = null;
-          item.claimedName = null;
-          item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
-          touchGathering(getLiveGathering(g.id) || g);
-          saveFlockState();
-          rebuild();
-        });
+      if (isClaimable) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bring-claim-btn' + (isMyClaim ? ' mine' : '');
+        if (!item.claimedBy) {
+          btn.textContent = 'I\'ll bring it';
+          btn.addEventListener('click', function(){
+            item.claimedBy = currentActorKey();
+            item.claimed_user_id = DATA.me && DATA.me.user_id || null;
+            item.claimedName = currentActorName();
+            item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+            touchGathering(getLiveGathering(g.id) || g);
+            try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.claimed', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' is bringing ' + (item.name || 'an item'), metadata:{ item:item.name || '', bring_type:item.bring_type || 'claimable_item' } }); } catch(e) {}
+            saveFlockState();
+            logActivity(currentActorKey(), 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
+            rebuild();
+          });
+        } else if (isMyClaim) {
+          btn.textContent = 'Unclaim';
+          btn.style.cssText += ';font-size:10px';
+          btn.addEventListener('click', function(){
+            item.claimedBy = null;
+            item.claimed_user_id = null;
+            item.claimedName = null;
+            item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+            touchGathering(getLiveGathering(g.id) || g);
+            saveFlockState();
+            rebuild();
+          });
+        } else {
+          btn.textContent = '✓ Taken';
+          btn.disabled = true;
+          btn.style.opacity = '.5';
+        }
+        row.appendChild(btn);
       } else {
-        btn.textContent = '✓ Taken';
-        btn.disabled = true;
-        btn.style.opacity = '.5';
+        var pill = document.createElement('div');
+        pill.className = 'pill pill-brand';
+        pill.textContent = bringTypeLabel(item.bring_type);
+        pill.style.flexShrink = '0';
+        row.appendChild(pill);
       }
-      row.appendChild(btn);
 
       // Delete button for item adder
       if (item.addedBy === currentActorKey() || (item.added_by_user_id && DATA.me && item.added_by_user_id === DATA.me.user_id)) {
         var del = document.createElement('button');
+        del.type = 'button';
         del.style.cssText = 'width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
         del.innerHTML = '&times;';
         del.addEventListener('click', function(){
-          var idx = g.bringList.findIndex(function(b){ return b.id === item.id; });
+          var liveG = getLiveGathering(g.id) || g;
+          var list = liveG.bringList || g.bringList || [];
+          var idx = list.findIndex(function(b){ return b.id === item.id; });
           if (idx >= 0) {
-            g.bringList[idx].deleted_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
-            g.bringList[idx].updated_at = g.bringList[idx].deleted_at;
+            list[idx].deleted_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+            list[idx].updated_at = list[idx].deleted_at;
           }
-          touchGathering(getLiveGathering(g.id) || g);
-          try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.deleted', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' removed ' + (item.name || 'an item') + ' from the bring list', metadata:{ item:item.name || '' } }); } catch(e) {}
+          g.bringList = list;
+          touchGathering(liveG);
+          try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.deleted', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' removed ' + (item.name || 'an item') + ' from the bring list', metadata:{ item:item.name || '', bring_type:item.bring_type || '' } }); } catch(e) {}
           saveFlockState();
           rebuild();
         });
@@ -12190,7 +12335,6 @@ function renderBringList(g) {
   rebuild();
   return wrap;
 }
-
 
 // ════════════════════════════════════════════════
 //  FEATURE 11: BUDGET / EXPENSE TRACKER
@@ -17071,6 +17215,711 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       if (typeof showToast === 'function') showToast('Could not save plans.');
     }
   });
+})();
+
+/* ═══════════════════════════════════════════════
+   SPRINT 41 FIX — NORMALIZED ACTIVITY_EVENTS
+   Home Recent Activity now reads one real activity table instead of relying on
+   whichever actions remembered to call the legacy logger.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinActivityEventsNormalizedInstalled) return;
+  window.__kinActivityEventsNormalizedInstalled = true;
+
+  function aeNow(){ return new Date().toISOString(); }
+  function aeFlock(){
+    try { if (typeof kinCurrentFlock === 'function') return kinCurrentFlock(); } catch(e){}
+    try { return (typeof currentFlockId !== 'undefined' && window.FLOCKS && FLOCKS[currentFlockId]) ? FLOCKS[currentFlockId] : null; } catch(e){ return null; }
+  }
+  function aeMe(){ try { return window.DATA && DATA.me ? DATA.me : {}; } catch(e){ return {}; } }
+  function aeUserId(v){
+    if (!v) v = aeMe();
+    if (typeof v === 'string') return v;
+    return v.user_id || v.uid || v.id || v.member_key || '';
+  }
+  function aeMemberId(v){
+    try { if (typeof kinNumericMemberId === 'function') return kinNumericMemberId(v || aeMe()); } catch(e){}
+    try { if (typeof getNumericMemberIdForExport === 'function') return getNumericMemberIdForExport(aeUserId(v)); } catch(e){}
+    return '';
+  }
+  function aeFlockId(){
+    try { if (typeof kinNumericFlockId === 'function') return kinNumericFlockId(); } catch(e){}
+    try { if (typeof getNumericFlockIdForExport === 'function') return getNumericFlockIdForExport(); } catch(e){}
+    var f = aeFlock(); return f && (f.flock_id || f.id) || '';
+  }
+  function aeSafeText(v){
+    v = (v == null ? '' : String(v));
+    return v.replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();
+  }
+  function aeSafeJson(v){ try { return JSON.stringify(v || {}); } catch(e){ return '{}'; } }
+  function aeNextId(f){
+    if (!f.meta) f.meta = {};
+    if (!f.meta.next_activity_event_id) f.meta.next_activity_event_id = 1;
+    return f.meta.next_activity_event_id++;
+  }
+  function ensureActivityEventsStore(f){
+    f = f || aeFlock();
+    if (!f) return [];
+    if (!Array.isArray(f.activity_events)) f.activity_events = [];
+    if (window.DATA) DATA.activity_events = f.activity_events;
+    return f.activity_events;
+  }
+  window.ensureActivityEventsStore = ensureActivityEventsStore;
+
+  function activityEventTypeFor(actionType){
+    var t = String(actionType || '').toLowerCase();
+    if (t.indexOf('user_schedule_block') >= 0 || t.indexOf('schedule') >= 0) return t.indexOf('delete') >= 0 ? 'schedule_block.deleted' : (t.indexOf('update') >= 0 ? 'schedule_block.updated' : 'schedule_block.created');
+    if (t.indexOf('rsvp') >= 0) return 'rsvp.updated';
+    if (t.indexOf('note') >= 0) return 'note.created';
+    if (t.indexOf('message') >= 0 || t.indexOf('chat') >= 0) return 'message.created';
+    if (t.indexOf('photo') >= 0) return 'photo.added';
+    if (t.indexOf('task') >= 0 && t.indexOf('complete') >= 0) return 'task.completed';
+    if (t.indexOf('task') >= 0) return 'task.updated';
+    if (t.indexOf('gathering.arch') >= 0 || t.indexOf('memories') >= 0) return 'gathering.moved_to_memories';
+    if (t.indexOf('gathering.created') >= 0) return 'gathering.created';
+    if (t.indexOf('gathering') >= 0) return 'gathering.updated';
+    if (t.indexOf('reminder') >= 0) return 'reminder.sent';
+    return actionType || 'activity.updated';
+  }
+  function activityTitleFor(type, summary, meta){
+    type = String(type || '').toLowerCase();
+    if (type.indexOf('schedule_block.created') >= 0) return 'Added to schedule';
+    if (type.indexOf('schedule_block.updated') >= 0) return 'Schedule updated';
+    if (type.indexOf('schedule_block.deleted') >= 0) return 'Schedule item removed';
+    if (type.indexOf('rsvp') >= 0) return 'RSVP updated';
+    if (type.indexOf('note') >= 0) return 'Important info updated';
+    if (type.indexOf('message') >= 0) return 'New message';
+    if (type.indexOf('photo') >= 0) return 'Photo added';
+    if (type.indexOf('task.completed') >= 0) return 'Task completed';
+    if (type.indexOf('task') >= 0) return 'Task updated';
+    if (type.indexOf('gathering.created') >= 0) return 'Gathering created';
+    if (type.indexOf('gathering.moved_to_memories') >= 0) return 'Moved to Memories';
+    if (type.indexOf('reminder') >= 0) return 'Reminder sent';
+    return aeSafeText(summary || 'Flock updated');
+  }
+  function activityIconFor(type, icon){
+    if (icon) return icon;
+    type = String(type || '').toLowerCase();
+    if (type.indexOf('schedule') >= 0) return '📅';
+    if (type.indexOf('rsvp') >= 0) return '🎉';
+    if (type.indexOf('note') >= 0) return '📌';
+    if (type.indexOf('message') >= 0) return '💬';
+    if (type.indexOf('photo') >= 0) return '📷';
+    if (type.indexOf('task') >= 0) return '✅';
+    if (type.indexOf('gathering') >= 0) return '🏡';
+    if (type.indexOf('reminder') >= 0) return '👋';
+    return '✨';
+  }
+  function appendActivityEvent(input){
+    var f = aeFlock();
+    if (!f) return null;
+    var list = ensureActivityEventsStore(f);
+    var stamp = input && input.created_at || aeNow();
+    var type = activityEventTypeFor(input && (input.activity_type || input.action_type || input.event_type));
+    var me = aeMe();
+    var meta = (input && input.metadata) || {};
+    var row = {
+      id: (input && input.id) || aeNextId(f),
+      activity_event_id: (input && input.activity_event_id) || '',
+      created_at: stamp,
+      updated_at: input && input.updated_at || stamp,
+      deleted_at: input && input.deleted_at || null,
+      user_id: input && (input.user_id || input.actor_user_id) || aeUserId(me),
+      member_id: input && (input.member_id || input.actor_member_id) || aeMemberId(me),
+      actor_name: input && (input.actor_name || input.actor_member_name) || me.name || 'Someone',
+      flock_id: input && input.flock_id || aeFlockId(),
+      flock_firestore_id: input && input.flock_firestore_id || f.firestore_id || f.uid || '',
+      gathering_id: input && input.gathering_id || meta.gathering_id || '',
+      gathering_title: input && input.gathering_title || meta.gathering_title || '',
+      entity_type: input && input.entity_type || '',
+      entity_id: input && input.entity_id || '',
+      activity_type: type,
+      title: input && input.title || activityTitleFor(type, input && input.summary, meta),
+      summary: aeSafeText(input && input.summary || input && input.title || activityTitleFor(type, '', meta)),
+      action_label: input && input.action_label || (input && input.gathering_id ? 'Open' : ''),
+      action_target: input && input.action_target || '',
+      icon: activityIconFor(type, input && input.icon),
+      metadata_json: input && input.metadata_json || aeSafeJson(meta),
+      visible_on_home: input && input.visible_on_home === false ? false : true
+    };
+    row.activity_event_id = row.activity_event_id || row.id;
+
+    // Prevent mirror duplicates from spam-click/render loops.
+    var key = [row.activity_type,row.entity_type,row.entity_id,row.gathering_id,row.summary,row.created_at].join('|');
+    if (list.some(function(x){ return [x.activity_type,x.entity_type,x.entity_id,x.gathering_id,x.summary,x.created_at].join('|') === key; })) return null;
+    list.unshift(row);
+    if (list.length > 1000) list.length = 1000;
+    if (window.DATA) DATA.activity_events = list;
+    return row;
+  }
+  window.appendActivityEvent = appendActivityEvent;
+
+  function backfillActivityEvents(){
+    var f = aeFlock(); if (!f) return;
+    var list = ensureActivityEventsStore(f);
+    if (list.length) return;
+    (f.action_log || []).slice(0,100).forEach(function(a){
+      appendActivityEvent({
+        id: 'al_' + (a.id || Math.random()), created_at:a.created_at, updated_at:a.updated_at,
+        user_id:a.actor_user_id, member_id:a.actor_member_id, actor_name:a.actor_name,
+        flock_id:a.flock_id, flock_firestore_id:a.flock_firestore_id,
+        gathering_id:a.gathering_id, gathering_title:a.gathering_title,
+        entity_type:a.entity_type, entity_id:a.entity_id,
+        activity_type:a.action_type, summary:a.summary, metadata_json:a.metadata_json
+      });
+    });
+    (f.events || []).slice(0,100).forEach(function(e){
+      appendActivityEvent({
+        id:'ev_' + (e.id || e.event_id || Math.random()), created_at:e.created_at, updated_at:e.updated_at,
+        user_id:e.actor_user_id, member_id:e.actor_member_id, actor_name:e.actor_member_name,
+        flock_id:e.flock_id, entity_type:e.entity_type, entity_id:e.entity_id,
+        activity_type:e.event_type, summary:e.summary, icon:e.icon,
+        metadata:{ before:e.before, after:e.after }
+      });
+    });
+  }
+
+  if (typeof window.appendKinverlyActionLog === 'function' && !window.__kinActivityEventsActionMirrorInstalled) {
+    window.__kinActivityEventsActionMirrorInstalled = true;
+    var oldAppendAction = window.appendKinverlyActionLog;
+    window.appendKinverlyActionLog = function(action){
+      var row = oldAppendAction.apply(this, arguments);
+      try {
+        action = action || row || {};
+        appendActivityEvent({
+          created_at: row && row.created_at || action.created_at,
+          updated_at: row && row.updated_at || action.updated_at,
+          user_id: row && row.actor_user_id || action.actor_user_id,
+          member_id: row && row.actor_member_id || action.actor_member_id,
+          actor_name: row && row.actor_name || action.actor_name,
+          flock_id: row && row.flock_id || action.flock_id,
+          flock_firestore_id: row && row.flock_firestore_id || action.flock_firestore_id,
+          gathering_id: row && row.gathering_id || action.gathering_id,
+          gathering_title: row && row.gathering_title || action.gathering_title,
+          entity_type: row && row.entity_type || action.entity_type,
+          entity_id: row && row.entity_id || action.entity_id,
+          activity_type: row && row.action_type || action.action_type,
+          summary: row && row.summary || action.summary,
+          metadata_json: row && row.metadata_json || action.metadata_json
+        });
+      } catch(e){}
+      return row;
+    };
+  }
+
+  if (typeof window.recordEvent === 'function' && !window.__kinActivityEventsRecordMirrorInstalled) {
+    window.__kinActivityEventsRecordMirrorInstalled = true;
+    var oldRecordEvent = window.recordEvent;
+    window.recordEvent = function(eventType, entityType, entityId, beforeValue, afterValue, summary, icon){
+      var result = oldRecordEvent.apply(this, arguments);
+      try {
+        var meta = afterValue || {};
+        appendActivityEvent({ activity_type:eventType, entity_type:entityType, entity_id:entityId, gathering_id:meta.gathering_id || (entityType === 'gathering' ? entityId : ''), gathering_title:meta.gathering_title || meta.name || meta.title || '', summary:summary || eventType, icon:icon, metadata:{ before:beforeValue || null, after:afterValue || null }});
+      } catch(e){}
+      return result;
+    };
+  }
+
+  // Home source of truth: normalized activity_events first, then legacy rows as backup.
+  window.kinverlyUserVisibleActions = function(flock, limit){
+    flock = flock || aeFlock();
+    backfillActivityEvents();
+    var rows = [];
+    if (flock && Array.isArray(flock.activity_events)) rows = rows.concat(flock.activity_events);
+    if (!rows.length && flock && Array.isArray(flock.action_log)) rows = rows.concat(flock.action_log.map(function(a){ return Object.assign({}, a, { activity_type:a.action_type, title:a.summary }); }));
+    rows = rows.filter(function(a){
+      if (!a || a.deleted_at || a.visible_on_home === false) return false;
+      var t = String(a.activity_type || a.action_type || '').toLowerCase();
+      if (!t) return false;
+      if (/export|admin|table|error|failed/.test(t)) return false;
+      return /schedule|rsvp|note|message|chat|photo|task|gathering|reminder|poll|idea|bring/.test(t);
+    });
+    var seen = {};
+    rows = rows.filter(function(a){
+      var key = [a.activity_type || a.action_type, a.entity_type, a.entity_id, a.gathering_id, a.summary, a.created_at].join('|');
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+    rows.sort(function(a,b){ return (Date.parse(b.created_at || b.updated_at || '') || 0) - (Date.parse(a.created_at || a.updated_at || '') || 0); });
+    return rows.slice(0, limit || 20).map(function(a){
+      if (!a.action_type) a.action_type = a.activity_type;
+      if (!a.actor_name) a.actor_name = a.actor_display || 'Someone';
+      if (!a.entity_name) a.entity_name = a.title || a.summary || '';
+      return a;
+    });
+  };
+
+  window.buildFlockActivity = function(){
+    var flock = aeFlock();
+    var actions = window.kinverlyUserVisibleActions(flock, 40);
+    var grouped = [];
+    var byKey = {};
+    actions.forEach(function(a){
+      var t = String(a.activity_type || a.action_type || '').toLowerCase();
+      var day = new Date(Date.parse(a.created_at || a.updated_at || '') || Date.now()).toISOString().slice(0,10);
+      var gId = a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : '') || '';
+      var key = (/note|message|chat|task|photo/.test(t) ? [t.replace(/\..*/,''),gId,day].join('|') : [t,a.entity_type,a.entity_id,gId,a.created_at].join('|'));
+      if (!byKey[key]) { byKey[key] = { action:a, count:0, sort:0 }; grouped.push(byKey[key]); }
+      byKey[key].count += 1;
+      byKey[key].sort = Math.max(byKey[key].sort, Date.parse(a.created_at || a.updated_at || '') || 0);
+    });
+    grouped.sort(function(a,b){ return b.sort - a.sort; });
+    return grouped.slice(0,6).map(function(row){
+      var a = row.action;
+      var t = a.activity_type || a.action_type;
+      var gId = a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : '');
+      var gName = a.gathering_title || '';
+      if (!gName && gId && typeof getFlockGatheringById === 'function') { var g = getFlockGatheringById(flock, gId); if (g) gName = g.name || g.title || ''; }
+      var actor = a.actor_name || 'Someone';
+      var meta = [];
+      if (gName) meta.push(gName);
+      if (actor && !/administrator/i.test(actor) && actor !== 'Someone') meta.push(actor);
+      meta.push((typeof kinverlyRelativeTime === 'function') ? kinverlyRelativeTime(row.sort) : 'Just now');
+      return {
+        title: row.count > 1 && /message|note|photo/.test(String(t).toLowerCase()) ? row.count + ' ' + activityTitleFor(t,'',{}).toLowerCase() + 's' : activityTitleFor(t, a.summary, {}),
+        text: a.summary || '',
+        meta: meta.filter(Boolean).join(' • '),
+        time: meta[meta.length-1],
+        sort: row.sort,
+        icon: activityIconFor(t, a.icon),
+        gId: gId,
+        tab: (typeof kinverlyActionTab === 'function') ? kinverlyActionTab({ action_type:t }) : 'overview',
+        count: row.count
+      };
+    });
+  };
+
+  // Export support: expose activity_events alongside user_schedule_blocks.
+  if (typeof window.buildExportTables === 'function' && !window.__kinActivityEventsExportInstalled) {
+    window.__kinActivityEventsExportInstalled = true;
+    var oldBuildExportTables = window.buildExportTables;
+    window.buildExportTables = function(payload){
+      var tables = oldBuildExportTables.apply(this, arguments) || {};
+      var f = aeFlock() || {};
+      backfillActivityEvents();
+      tables.activity_events = (f.activity_events || []).map(function(a){
+        return {
+          id:a.id || '', created_at:a.created_at || '', updated_at:a.updated_at || '', deleted_at:a.deleted_at || '',
+          user_id:a.user_id || '', member_id:a.member_id || '', actor_name:a.actor_name || '',
+          flock_id:a.flock_id || '', flock_firestore_id:a.flock_firestore_id || '', gathering_id:a.gathering_id || '', gathering_title:a.gathering_title || '',
+          entity_type:a.entity_type || '', entity_id:a.entity_id || '', activity_type:a.activity_type || '',
+          title:a.title || '', summary:a.summary || '', action_label:a.action_label || '', action_target:a.action_target || '', icon:a.icon || '', metadata_json:a.metadata_json || ''
+        };
+      });
+      return tables;
+    };
+  }
+
+  backfillActivityEvents();
+})();
+
+</script>
+
+
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 41 — BRING LIST v2 WITH ASSIGNMENTS
+   Adds three item modes:
+   1) Reminder for everyone
+   2) Someone needs to claim it
+   3) Assign to specific people
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinBringListAssignmentsV2Installed) return;
+  window.__kinBringListAssignmentsV2Installed = true;
+
+  function esc(v){
+    if (typeof escapeHtml === 'function') return escapeHtml(v == null ? '' : String(v));
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});
+  }
+  function now(){ return (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString()); }
+  function me(){ return (window.DATA && DATA.me) ? DATA.me : {}; }
+  function actorKey(){ try { return typeof currentActorKey === 'function' ? currentActorKey() : (me().id || me().user_id || 'me'); } catch(e){ return me().id || me().user_id || 'me'; } }
+  function actorName(){ try { return typeof currentActorName === 'function' ? currentActorName() : (me().name || 'Someone'); } catch(e){ return me().name || 'Someone'; } }
+  function actorUserId(){ return me().user_id || me().uid || me().id || actorKey(); }
+  function isAdmin(){ return !!(me().isAdmin || me().role === 'admin' || me().admin || me().is_administrator); }
+  function liveGathering(g){ try { return (typeof getLiveGathering === 'function' && g && g.id) ? (getLiveGathering(g.id) || g) : g; } catch(e){ return g; } }
+  function persist(g){
+    try { if (typeof touchGathering === 'function') touchGathering(g); } catch(e){}
+    try { if (typeof saveFlockState === 'function') return saveFlockState(); } catch(e){}
+    try { if (typeof saveCurrentFlock === 'function') return saveCurrentFlock(); } catch(e){}
+  }
+  function toastMsg(msg){ try { if (typeof toast === 'function') return toast(msg); if (typeof showToast === 'function') return showToast(msg); } catch(e){} }
+
+  function allMembers(){
+    var rows = [];
+    if (window.DATA && DATA.me) rows.push(DATA.me);
+    if (window.DATA && Array.isArray(DATA.members)) rows = rows.concat(DATA.members);
+    var seen = {};
+    return rows.filter(function(m){
+      if (!m) return false;
+      var id = String(m.user_id || m.uid || m.id || m.member_id || m.name || '');
+      if (!id || seen[id]) return false;
+      seen[id] = true;
+      return true;
+    });
+  }
+  function memberKey(m){ return String(m && (m.id || m.user_id || m.uid || m.member_id || m.name) || ''); }
+  function memberUserId(m){ return String(m && (m.user_id || m.uid || m.id || m.member_id) || ''); }
+  function memberName(m){ return String(m && (m.name || m.display_name || m.first_name || m.user_id || m.id) || 'Someone'); }
+  function findMemberByAny(id){
+    id = String(id || '');
+    return allMembers().find(function(m){ return [m.id,m.user_id,m.uid,m.member_id,m.name].map(String).indexOf(id) >= 0; });
+  }
+
+  function chooseBringIcon(text, type) {
+    var t = String(text || '').toLowerCase();
+    if (type === 'everyone_reminder') return '📌';
+    if (type === 'assigned_item') return '👥';
+    if (/beach|swim|bathing|suit|sunscreen|towel|wear|clothes|jacket|coat|shoes|boots|hat/.test(t)) return '🏖️';
+    if (/food|snack|chips|drink|water|ice|cooler|dessert|cake/.test(t)) return '🥤';
+    if (/game|cards|toy|speaker|music/.test(t)) return '🎲';
+    if (/chair|table|tent|blanket|bed|crib|high chair/.test(t)) return '🪑';
+    return '🎒';
+  }
+  function normalizeBringItem(item){
+    if (!item) return item;
+    if (!item.bring_type) item.bring_type = item.item_type || (item.assignments && item.assignments.length ? 'assigned_item' : (item.claim_required === false ? 'everyone_reminder' : 'claimable_item'));
+    if (item.bring_type === 'assigned') item.bring_type = 'assigned_item';
+    item.item_type = item.bring_type;
+    if (!Array.isArray(item.assignments)) item.assignments = [];
+    if (item.bring_type === 'everyone_reminder') item.claim_required = false;
+    if (item.bring_type === 'claimable_item') item.claim_required = true;
+    if (item.bring_type === 'assigned_item') item.claim_required = false;
+    if (!item.emoji) item.emoji = chooseBringIcon(item.name || item.title || '', item.bring_type);
+    if (!item.name && item.title) item.name = item.title;
+    return item;
+  }
+  function assignmentForMe(item){
+    var ids = [actorKey(), actorUserId()].map(String);
+    return (item.assignments || []).find(function(a){ return ids.indexOf(String(a.user_id || a.member_id || a.assignee_key || '')) >= 0; });
+  }
+  function completedAssignments(item){ return (item.assignments || []).filter(function(a){ return !!a.completed_at && !a.deleted_at; }).length; }
+  function activeAssignments(item){ return (item.assignments || []).filter(function(a){ return !a.deleted_at; }); }
+
+  function logBring(actionType, item, g, summary, metadata){
+    try {
+      if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({
+        action_type: actionType,
+        action_status:'success',
+        entity_type:'bring_item',
+        entity_id:item && item.id || '',
+        gathering_id:g && g.id || '',
+        gathering_title:g && (g.name || g.title) || '',
+        visible_to_users:true,
+        summary:summary,
+        metadata:Object.assign({ item:item && (item.name || item.title) || '', bring_type:item && item.bring_type || '' }, metadata || {})
+      });
+      else if (window.appendActivityEvent) window.appendActivityEvent({
+        activity_type:actionType, entity_type:'bring_item', entity_id:item && item.id || '', gathering_id:g && g.id || '', gathering_title:g && (g.name || g.title) || '', summary:summary, metadata:metadata || {}
+      });
+    } catch(e){}
+  }
+
+  function makeMemberPicker(selected){
+    selected = selected || {};
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px';
+    allMembers().forEach(function(m){
+      var key = memberUserId(m) || memberKey(m);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.memberKey = key;
+      btn.style.cssText = 'border:1.5px solid var(--border);background:var(--surface2);border-radius:12px;padding:9px;text-align:left;font-family:inherit;cursor:pointer;font-weight:800;color:var(--text1)';
+      btn.innerHTML = '<div style="font-size:12px">' + esc(memberName(m)) + '</div><div style="font-size:10px;color:var(--text2);font-weight:700">Tap to assign</div>';
+      function paint(){
+        var on = !!selected[key];
+        btn.style.border = on ? '2px solid var(--brand)' : '1.5px solid var(--border)';
+        btn.style.background = on ? '#ede8ff' : 'var(--surface2)';
+        btn.querySelector('div:last-child').textContent = on ? 'Assigned' : 'Tap to assign';
+      }
+      btn.addEventListener('click', function(){ selected[key] = !selected[key]; paint(); });
+      btn._paint = paint;
+      paint();
+      wrap.appendChild(btn);
+    });
+    wrap.getSelectedAssignments = function(){
+      return Object.keys(selected).filter(function(k){ return selected[k]; }).map(function(k){
+        var m = findMemberByAny(k) || {};
+        return {
+          id:'bia_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,5),
+          created_at:now(), updated_at:now(), deleted_at:null,
+          user_id:memberUserId(m) || k,
+          member_id:memberKey(m) || k,
+          assignee_name:memberName(m),
+          completed_at:null,
+          completed_by_user_id:null
+        };
+      });
+    };
+    return wrap;
+  }
+
+  function openAssignSheet(item, g, afterSave){
+    var old = document.getElementById('bring-assign-overlay');
+    if (old) old.remove();
+    var selected = {};
+    activeAssignments(item).forEach(function(a){ selected[String(a.user_id || a.member_id || a.assignee_key)] = true; });
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'bring-assign-overlay';
+    overlay.innerHTML = '<div class="sheet"><div class="sheet-header"><div class="sheet-title">Assign people</div><button class="sheet-close" data-close>×</button></div><div class="sheet-body"><div style="font-size:14px;font-weight:900;color:var(--text1);margin-bottom:4px">' + esc(item.name || item.title || 'Bring item') + '</div><div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:10px">Choose the people responsible for this item.</div><div id="bring-assign-picker"></div><button class="btn-primary" data-save style="margin-top:14px">Save assignments</button></div></div>';
+    document.body.appendChild(overlay);
+    var picker = makeMemberPicker(selected);
+    overlay.querySelector('#bring-assign-picker').appendChild(picker);
+    overlay.querySelector('[data-close]').addEventListener('click', function(){ overlay.remove(); });
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('[data-save]').addEventListener('click', function(){
+      var newRows = picker.getSelectedAssignments();
+      var existingByUser = {};
+      activeAssignments(item).forEach(function(a){ existingByUser[String(a.user_id || a.member_id)] = a; });
+      item.assignments = newRows.map(function(n){
+        var old = existingByUser[String(n.user_id || n.member_id)];
+        return old ? Object.assign({}, old, {deleted_at:null, updated_at:now(), assignee_name:n.assignee_name || old.assignee_name}) : n;
+      });
+      item.bring_type = 'assigned_item';
+      item.item_type = 'assigned_item';
+      item.claim_required = false;
+      item.updated_at = now();
+      if (!item.emoji || item.emoji === '🎒') item.emoji = '👥';
+      persist(g);
+      logBring('bring_item.assigned', item, g, actorName() + ' assigned ' + (item.name || 'an item') + ' to ' + (item.assignments.map(function(a){return a.assignee_name || a.user_id;}).join(', ') || 'specific people'), {assignee_count:item.assignments.length});
+      overlay.remove();
+      toastMsg('Assignments updated');
+      if (afterSave) afterSave();
+    });
+  }
+
+  window.renderBringList = function(g) {
+    if (!g.bringList) g.bringList = [];
+    var wrap = document.createElement('div');
+
+    function rebuild(){
+      var liveG = liveGathering(g) || g;
+      if (!Array.isArray(liveG.bringList)) liveG.bringList = [];
+      g.bringList = liveG.bringList;
+      wrap.innerHTML = '';
+
+      var addPanel = document.createElement('div');
+      addPanel.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:14px';
+      addPanel.innerHTML = '<div style="font-size:11px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">What kind of bring list item is this?</div>';
+
+      var selectedType = 'everyone_reminder';
+      var selectedMembers = {};
+      var modeRow = document.createElement('div');
+      modeRow.style.cssText = 'display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px';
+      function modeBtn(type,title,sub){
+        var b = document.createElement('button');
+        b.type='button';
+        b.innerHTML = '<div style="font-size:12px;font-weight:900;color:var(--text1)">' + title + '</div><div style="font-size:10.5px;color:var(--text2);line-height:1.25;margin-top:2px">' + sub + '</div>';
+        function paint(){ b.style.cssText = (selectedType===type ? 'border:2px solid var(--brand);background:#ede8ff;' : 'border:1.5px solid var(--border);background:var(--surface2);') + 'border-radius:13px;padding:10px 9px;text-align:left;font-family:inherit;cursor:pointer'; }
+        b._paint=paint;
+        b.addEventListener('click',function(){ selectedType=type; Array.prototype.forEach.call(modeRow.children,function(c){ if(c._paint)c._paint(); }); assignmentBox.style.display = selectedType === 'assigned_item' ? 'block' : 'none'; });
+        paint(); return b;
+      }
+      modeRow.appendChild(modeBtn('everyone_reminder','Reminder for everyone','Example: beach wear, sunscreen, arrival instructions'));
+      modeRow.appendChild(modeBtn('claimable_item','Someone needs to bring this','Example: cooler, dessert, chairs'));
+      modeRow.appendChild(modeBtn('assigned_item','Assign to specific people','Example: Sarah brings towels, Jake brings speaker'));
+      addPanel.appendChild(modeRow);
+
+      var assignmentBox = document.createElement('div');
+      assignmentBox.style.display = 'none';
+      assignmentBox.innerHTML = '<div style="font-size:11px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin:8px 0 4px">Assign to</div>';
+      var picker = makeMemberPicker(selectedMembers);
+      assignmentBox.appendChild(picker);
+      addPanel.appendChild(assignmentBox);
+
+      var addRow = document.createElement('div');
+      addRow.style.cssText = 'display:flex;gap:8px;margin-top:10px';
+      var addInp = document.createElement('input');
+      addInp.className = 'pin-add-input';
+      addInp.placeholder = 'Add beach wear, cooler, towels…';
+      addInp.maxLength = 80;
+      var addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'pin-add-btn';
+      addBtn.textContent = 'Add';
+      function addItem(){
+        var text = (addInp.value || '').trim();
+        if (!text) return;
+        var assignments = selectedType === 'assigned_item' ? picker.getSelectedAssignments() : [];
+        if (selectedType === 'assigned_item' && !assignments.length) { toastMsg('Choose at least one person to assign.'); return; }
+        var item = normalizeBringItem({
+          id:'bring_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,5),
+          created_at:now(), updated_at:now(), deleted_at:null,
+          name:text, title:text,
+          bring_type:selectedType, item_type:selectedType,
+          claim_required:selectedType === 'claimable_item',
+          emoji:chooseBringIcon(text, selectedType),
+          claimedBy:null, claimed_user_id:null, claimedName:null,
+          assignments:assignments,
+          addedBy:actorKey(), added_by_user_id:actorUserId(), created_by_user_id:actorUserId()
+        });
+        liveG.bringList.push(item);
+        g.bringList = liveG.bringList;
+        try { if (typeof touchGathering === 'function') touchGathering(liveG); } catch(e){}
+        addInp.value = '';
+        rebuild();
+        var label = selectedType === 'everyone_reminder' ? 'Added reminder for everyone' : selectedType === 'assigned_item' ? 'Assigned item added' : 'Added claimable item';
+        toastMsg(label);
+        logBring(selectedType === 'everyone_reminder' ? 'bring_reminder.created' : selectedType === 'assigned_item' ? 'bring_item.assigned' : 'bring_item.created', item, liveG,
+          selectedType === 'assigned_item' ? actorName() + ' assigned ' + text + ' to ' + assignments.map(function(a){return a.assignee_name;}).join(', ') :
+          selectedType === 'everyone_reminder' ? actorName() + ' added a group reminder: ' + text : actorName() + ' added ' + text + ' to claim',
+          {assignee_count:assignments.length});
+        persist(liveG);
+      }
+      addBtn.addEventListener('click', addItem);
+      addInp.addEventListener('keydown', function(e){ if (e.key === 'Enter') addItem(); });
+      addRow.appendChild(addInp); addRow.appendChild(addBtn); addPanel.appendChild(addRow); wrap.appendChild(addPanel);
+
+      var active = (liveG.bringList || []).filter(function(b){ return b && !b.deleted_at; }).map(normalizeBringItem);
+      if (!active.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'text-align:center;padding:30px 16px;color:var(--text3)';
+        empty.innerHTML = '<div style="font-size:36px;margin-bottom:8px">🎒</div><div style="font-size:14px;font-weight:700;color:var(--text2)">Nothing on the list yet</div><div style="font-size:12px;margin-top:4px">Add reminders for everyone, claimable items, or assign items to specific people.</div>';
+        wrap.appendChild(empty);
+        return;
+      }
+
+      var reminders = active.filter(function(b){ return b.bring_type === 'everyone_reminder'; }).length;
+      var claimable = active.filter(function(b){ return b.bring_type === 'claimable_item'; });
+      var assigned = active.filter(function(b){ return b.bring_type === 'assigned_item'; });
+      var claimed = claimable.filter(function(b){ return b.claimedBy; }).length;
+      var assignmentTotal = assigned.reduce(function(sum,b){ return sum + activeAssignments(b).length; },0);
+      var assignmentDone = assigned.reduce(function(sum,b){ return sum + completedAssignments(b); },0);
+      var stats = document.createElement('div');
+      stats.style.cssText = 'font-size:12px;font-weight:800;color:var(--text2);margin-bottom:10px';
+      stats.textContent = reminders + ' reminders · ' + claimed + '/' + claimable.length + ' claimed · ' + assignmentDone + '/' + assignmentTotal + ' assigned done';
+      wrap.appendChild(stats);
+
+      active.forEach(function(item){
+        var type = item.bring_type;
+        var row = document.createElement('div');
+        row.className = 'bring-item' + (item.claimedBy || (type==='assigned_item' && activeAssignments(item).length && completedAssignments(item) === activeAssignments(item).length) ? ' claimed' : '');
+        row.style.alignItems = 'center';
+        var subtitle = '';
+        if (type === 'everyone_reminder') subtitle = '<div class="bring-owner" style="color:var(--brand);font-weight:800">Reminder for everyone</div>';
+        if (type === 'claimable_item') {
+          var isMine = item.claimedBy === actorKey() || String(item.claimed_user_id || '') === String(actorUserId());
+          subtitle = item.claimedBy ? '<div class="bring-owner">' + (isMine ? 'You\'re bringing this' : esc(item.claimedName || 'Someone') + ' is bringing this') + '</div>' : '<div class="bring-owner" style="color:var(--text3);font-style:italic">Needs someone to claim</div>';
+        }
+        if (type === 'assigned_item') {
+          var assignees = activeAssignments(item);
+          subtitle = '<div class="bring-owner"><strong>Assigned:</strong> ' + (assignees.map(function(a){ return esc(a.assignee_name || memberName(findMemberByAny(a.user_id || a.member_id)) || a.user_id); }).join(', ') || 'No one yet') + '</div><div class="bring-owner" style="color:var(--brand);font-weight:800">' + completedAssignments(item) + ' / ' + assignees.length + ' complete</div>';
+        }
+        row.innerHTML = '<div class="bring-icon">' + esc(item.emoji || chooseBringIcon(item.name, type)) + '</div><div class="bring-info"><div class="bring-name">' + esc(item.name || item.title || 'Bring item') + '</div>' + subtitle + '</div>';
+
+        if (type === 'claimable_item') {
+          var isMyClaim = item.claimedBy === actorKey() || String(item.claimed_user_id || '') === String(actorUserId());
+          var btn = document.createElement('button'); btn.type='button'; btn.className='bring-claim-btn' + (isMyClaim ? ' mine' : '');
+          if (!item.claimedBy) {
+            btn.textContent = "I'll bring it";
+            btn.addEventListener('click', function(){
+              item.claimedBy = actorKey(); item.claimed_user_id = actorUserId(); item.claimedName = actorName(); item.updated_at = now();
+              logBring('bring_item.claimed', item, liveG, actorName() + ' is bringing ' + (item.name || 'an item'), {});
+              persist(liveG); rebuild();
+            });
+          } else if (isMyClaim) {
+            btn.textContent = 'Unclaim'; btn.style.cssText += ';font-size:10px';
+            btn.addEventListener('click', function(){ item.claimedBy=null; item.claimed_user_id=null; item.claimedName=null; item.updated_at=now(); persist(liveG); rebuild(); });
+          } else { btn.textContent='✓ Taken'; btn.disabled=true; btn.style.opacity='.5'; }
+          row.appendChild(btn);
+        }
+        if (type === 'assigned_item') {
+          var mine = assignmentForMe(item);
+          if (mine) {
+            var got = document.createElement('button'); got.type='button'; got.className='bring-claim-btn' + (mine.completed_at ? ' mine' : '');
+            got.textContent = mine.completed_at ? '✓ Got it' : "I've got it";
+            got.addEventListener('click', function(){
+              mine.completed_at = mine.completed_at ? null : now();
+              mine.completed_by_user_id = mine.completed_at ? actorUserId() : null;
+              mine.updated_at = now(); item.updated_at = now();
+              if (mine.completed_at) logBring('bring_assignment.completed', item, liveG, actorName() + ' completed assigned item ' + (item.name || 'an item'), {assignee_user_id:actorUserId()});
+              persist(liveG); rebuild();
+            });
+            row.appendChild(got);
+          }
+          if (isAdmin() || item.addedBy === actorKey() || String(item.added_by_user_id || '') === String(actorUserId())) {
+            var assign = document.createElement('button'); assign.type='button'; assign.className='bring-claim-btn'; assign.textContent='Assign'; assign.style.cssText += ';font-size:10px;background:#fff;color:var(--brand);border-color:var(--brand)';
+            assign.addEventListener('click', function(){ openAssignSheet(item, liveG, rebuild); });
+            row.appendChild(assign);
+          }
+        }
+        if (type === 'everyone_reminder') {
+          var pill = document.createElement('div'); pill.className='pill pill-brand'; pill.textContent='Everyone'; pill.style.flexShrink='0'; row.appendChild(pill);
+        }
+
+        if (isAdmin() || item.addedBy === actorKey() || String(item.added_by_user_id || '') === String(actorUserId())) {
+          var del = document.createElement('button'); del.type='button';
+          del.style.cssText='width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center';
+          del.innerHTML='&times;';
+          del.addEventListener('click', function(){ item.deleted_at = now(); item.updated_at = item.deleted_at; logBring('bring_item.deleted', item, liveG, actorName() + ' removed ' + (item.name || 'an item') + ' from the bring list', {}); persist(liveG); rebuild(); });
+          row.appendChild(del);
+        }
+        wrap.appendChild(row);
+      });
+    }
+    rebuild();
+    return wrap;
+  };
+
+  // Update the Bring List summary card/counts to understand assigned items.
+  window.kinBuildBringListTab = function(g){
+    var active = (g.bringList || []).filter(function(b){ return b && !b.deleted_at; }).map(normalizeBringItem);
+    var reminders = active.filter(function(b){ return b.bring_type === 'everyone_reminder'; }).length;
+    var claimable = active.filter(function(b){ return b.bring_type === 'claimable_item'; });
+    var assigned = active.filter(function(b){ return b.bring_type === 'assigned_item'; });
+    var claimed = claimable.filter(function(b){ return b.claimedBy; }).length;
+    var totalAssignments = assigned.reduce(function(sum,b){ return sum + activeAssignments(b).length; },0);
+    var doneAssignments = assigned.reduce(function(sum,b){ return sum + completedAssignments(b); },0);
+    return '<div class="card" style="margin-bottom:14px">' +
+      '<div style="font-size:17px;font-weight:900;color:var(--text1);margin-bottom:4px">Bring List</div>' +
+      '<div style="font-size:13px;color:var(--text2);line-height:1.45">Use reminders for everyone, claimable items for volunteers, and assignments when specific people are responsible.</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">' +
+        '<span class="pill pill-brand">' + reminders + ' reminders</span>' +
+        '<span class="pill pill-brand">' + claimed + '/' + claimable.length + ' claimed</span>' +
+        '<span class="pill pill-brand">' + doneAssignments + '/' + totalAssignments + ' assigned done</span>' +
+      '</div>' +
+    '</div>';
+  };
+
+  // Add exportable assignment tables alongside existing exports.
+  if (typeof window.buildExportTables === 'function' && !window.__kinBringAssignmentsExportInstalled) {
+    window.__kinBringAssignmentsExportInstalled = true;
+    var oldBuildExportTables = window.buildExportTables;
+    window.buildExportTables = function(payload){
+      var tables = oldBuildExportTables.apply(this, arguments) || {};
+      var flock = null;
+      try { flock = typeof kinCurrentFlock === 'function' ? kinCurrentFlock() : null; } catch(e){}
+      try { if (!flock && typeof getCurrentFlockRecord === 'function') flock = getCurrentFlockRecord(); } catch(e){}
+      try { if (!flock && window.FLOCKS && typeof currentFlockId !== 'undefined') flock = FLOCKS[currentFlockId]; } catch(e){}
+      var items = [], assignments = [];
+      ((flock && flock.gatherings) || []).forEach(function(g){
+        (g.bringList || []).forEach(function(raw){
+          var b = normalizeBringItem(raw);
+          items.push({
+            id:b.id || '', created_at:b.created_at || '', updated_at:b.updated_at || '', deleted_at:b.deleted_at || '',
+            flock_id:flock.id || flock.flock_id || '', gathering_id:g.id || '', created_by_user_id:b.created_by_user_id || b.added_by_user_id || '',
+            title:b.name || b.title || '', item_type:b.bring_type || '', claim_required:!!b.claim_required,
+            claimed_by_user_id:b.claimed_user_id || '', claimed_by_name:b.claimedName || '', status:b.deleted_at ? 'deleted' : (b.bring_type === 'assigned_item' ? 'assigned' : b.claimedBy ? 'claimed' : 'open')
+          });
+          activeAssignments(b).forEach(function(a){
+            assignments.push({
+              id:a.id || '', created_at:a.created_at || b.created_at || '', updated_at:a.updated_at || b.updated_at || '', deleted_at:a.deleted_at || '',
+              bring_list_item_id:b.id || '', flock_id:flock.id || flock.flock_id || '', gathering_id:g.id || '',
+              user_id:a.user_id || '', member_id:a.member_id || '', assignee_name:a.assignee_name || '',
+              completed_at:a.completed_at || '', completed_by_user_id:a.completed_by_user_id || ''
+            });
+          });
+        });
+      });
+      tables.bring_list_items = items;
+      tables.bring_item_assignments = assignments;
+      return tables;
+    };
+  }
 })();
 </script>
 
