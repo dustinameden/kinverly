@@ -1941,6 +1941,223 @@ img,svg{display:block}
   margin-bottom:6px;
 }
 
+
+/* ── SPRINT 38: ALERT / NOTIFICATION SYSTEM ───────────────── */
+.notification-drawer-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:12px;
+  margin-bottom:10px;
+  cursor:pointer;
+}
+.notification-drawer-card.unread{
+  border-color:rgba(240,192,48,.55);
+  background:#fffaf0;
+}
+.notification-title{
+  font-size:14px;
+  font-weight:900;
+  color:var(--text1);
+  margin-bottom:3px;
+}
+.notification-message{
+  font-size:12px;
+  color:var(--text2);
+  line-height:1.4;
+}
+.notification-meta{
+  font-size:10px;
+  color:var(--text3);
+  font-weight:800;
+  margin-top:6px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.notification-empty{
+  padding:24px 12px;
+  text-align:center;
+  color:var(--text2);
+  font-size:13px;
+  line-height:1.45;
+}
+.k-alert-banner{
+  background:#fff8e6;
+  border:1.5px solid var(--gold);
+  border-radius:var(--radius);
+  padding:12px 14px;
+  margin-bottom:12px;
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+}
+.k-alert-icon{
+  width:30px;
+  height:30px;
+  border-radius:10px;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+}
+.k-alert-body{flex:1}
+.k-alert-title{
+  font-size:13px;
+  font-weight:900;
+  color:var(--text1);
+}
+.k-alert-sub{
+  font-size:12px;
+  color:var(--text2);
+  margin-top:2px;
+  line-height:1.35;
+}
+.k-alert-action{
+  border:none;
+  background:var(--brand);
+  color:#fff;
+  border-radius:999px;
+  padding:7px 10px;
+  font-size:11px;
+  font-weight:900;
+  margin-top:8px;
+}
+
+
+/* ── SPRINT 38: AVAILABILITY SINGLE-SOURCE LAYOUT FIX ───────────────── */
+#availability-page,
+#myworld-page,
+[data-page="availability"],
+[data-page="myworld"]{
+  width:100%;
+}
+.availability-single{
+  width:100%;
+  max-width:100%;
+  padding:0;
+  margin:0;
+}
+.availability-single .availability-page-title{
+  font-family:'Fredoka One',cursive;
+  font-size:30px;
+  color:var(--text1);
+  margin:4px 0 6px;
+}
+.availability-single .availability-page-sub{
+  font-size:13px;
+  color:var(--text2);
+  line-height:1.45;
+  margin-bottom:16px;
+}
+.availability-panel{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:15px;
+  margin-bottom:14px;
+  box-shadow:0 1px 8px rgba(61,43,110,.04);
+}
+.availability-panel-title{
+  font-size:17px;
+  font-weight:900;
+  color:var(--text1);
+  margin-bottom:3px;
+}
+.availability-panel-sub{
+  font-size:12px;
+  color:var(--text2);
+  line-height:1.4;
+  margin-bottom:10px;
+}
+.availability-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.availability-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  background:var(--surface2);
+  border:1px solid rgba(61,43,110,.07);
+  border-radius:14px;
+  padding:11px 12px;
+}
+.availability-row.clickable{
+  cursor:pointer;
+  background:#fff;
+}
+.availability-row.clickable:hover{
+  border-color:var(--brand2);
+  background:#fbfaff;
+}
+.availability-row-icon{
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  flex-shrink:0;
+}
+.availability-row.clickable .availability-row-icon{
+  background:#ede8ff;
+}
+.availability-row-body{
+  flex:1;
+  min-width:0;
+}
+.availability-row-title{
+  font-size:14px;
+  font-weight:900;
+  color:var(--text1);
+}
+.availability-row-sub{
+  font-size:12px;
+  color:var(--text2);
+  font-weight:700;
+  margin-top:1px;
+  line-height:1.35;
+}
+.availability-empty{
+  border-radius:14px;
+  background:var(--surface2);
+  color:var(--text2);
+  padding:16px;
+  text-align:center;
+  font-size:13px;
+  font-weight:700;
+  line-height:1.4;
+}
+.availability-add-btn{
+  margin-top:10px;
+}
+.availability-review-pill{
+  flex-shrink:0;
+  background:#ede8ff;
+  color:var(--brand);
+  font-size:12px;
+  font-weight:900;
+  padding:7px 10px;
+  border-radius:999px;
+}
+.availability-admin-context{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:11px;
+  font-weight:900;
+  color:var(--text2);
+  background:#ede8ff;
+  border-radius:999px;
+  padding:5px 9px;
+  margin-bottom:12px;
+}
+
 </style>
 </head>
 <body>
@@ -16233,136 +16450,136 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 </script>
 
 
+
 <script>
-/* ── SPRINT 38: AVAILABILITY PAGE REBUILD ─────────────────
-   Product intent:
-   Home = what is happening in the flock.
-   Availability = my plans, things needing my response, and my participation.
-   No browser prompts. No Availability language.
+/* ── SPRINT 38: AVAILABILITY SINGLE-SOURCE PAGE ─────────────────
+   This replaces the old Availability / Availability page instead of appending to it.
 */
 (function(){
-  function kNow(){
-    return new Date().toISOString();
+  function isoNow(){ return new Date().toISOString(); }
+  function esc(value){
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
-  function escapeK(value){
-    return String(value ?? '').replace(/[&<>"']/g, function(ch){
-      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
-    });
+  function currentUser(){
+    try { return window.currentUser || window.state?.currentUser || window.appState?.currentUser || {}; }
+    catch(e){ return {}; }
   }
 
-  function getCurrentUserIdSafe(){
+  function currentUserId(){
     try{
       if (typeof getCurrentUserId === 'function') return getCurrentUserId();
-      if (window.currentUser?.user_id) return window.currentUser.user_id;
-      if (window.currentUser?.id) return window.currentUser.id;
-      if (window.state?.currentUser?.user_id) return window.state.currentUser.user_id;
-      if (window.appState?.currentUser?.user_id) return window.appState.currentUser.user_id;
-    }catch(e){}
-    return null;
+      const u = currentUser();
+      return u.user_id || u.id || u.uid || null;
+    }catch(e){ return null; }
   }
 
-  function getFlocksSafe(){
+  function allFlocks(){
     try{
       if (Array.isArray(window.flocks)) return window.flocks;
       if (Array.isArray(window.state?.flocks)) return window.state.flocks;
       if (Array.isArray(window.appState?.flocks)) return window.appState.flocks;
       if (window.state?.flocks && typeof window.state.flocks === 'object') return Object.values(window.state.flocks);
       if (window.appState?.flocks && typeof window.appState.flocks === 'object') return Object.values(window.appState.flocks);
-    }catch(e){}
-    return [];
+      const f = currentFlock();
+      return f ? [f] : [];
+    }catch(e){ return []; }
   }
 
-  function getCurrentFlockSafe(){
+  function currentFlock(){
     try{
       if (typeof getCurrentFlock === 'function') return getCurrentFlock();
-      if (window.currentFlock) return window.currentFlock;
-      if (window.state?.currentFlock) return window.state.currentFlock;
-      if (window.appState?.currentFlock) return window.appState.currentFlock;
-      const flocks = getFlocksSafe();
-      return flocks[0] || null;
-    }catch(e){}
-    return null;
+      return window.currentFlock || window.state?.currentFlock || window.appState?.currentFlock || null;
+    }catch(e){ return null; }
   }
 
-  function allGatheringsSafe(){
-    const flocks = getFlocksSafe();
+  function activeFlocksForUser(){
+    const uid = String(currentUserId() || '');
+    const flocks = allFlocks();
+    if (!uid) return flocks;
+    return flocks.filter(f => {
+      const members = []
+        .concat(Array.isArray(f.members) ? f.members : Object.values(f.members || {}))
+        .concat(Array.isArray(f.flock_members) ? f.flock_members : Object.values(f.flock_members || {}));
+      if (!members.length) return true;
+      return members.some(m => {
+        const mid = String(m.user_id || m.id || m.uid || '');
+        return mid === uid && !m.deleted_at && !m.removed_at && m.membership_status !== 'removed' && m.status !== 'removed';
+      });
+    });
+  }
+
+  function gatherAllEvents(){
+    const uid = String(currentUserId() || '');
+    const plans = [];
+    activeFlocksForUser().forEach(f => {
+      const rows = []
+        .concat(Array.isArray(f.calendar_events) ? f.calendar_events : [])
+        .concat(Array.isArray(f.user_calendar_events) ? f.user_calendar_events : [])
+        .concat(Array.isArray(f.personal_events) ? f.personal_events : []);
+      rows.forEach(e => {
+        if (!e || e.deleted_at) return;
+        const eventUser = String(e.user_id || e.created_by_user_id || e.member_user_id || '');
+        if (uid && eventUser && eventUser !== uid) return;
+        const type = String(e.event_type || e.type || '').toLowerCase();
+        const unavailable = e.is_unavailable || ['unavailable','blackout','busy','travel','personal'].includes(type);
+        if (!unavailable) return;
+        plans.push({
+          id:e.id || e.uid,
+          title:e.title || e.name || (type === 'travel' ? 'Travel' : 'Unavailable'),
+          start:e.start_at || e.start_date || e.date || '',
+          end:e.end_at || e.end_date || e.start_at || e.start_date || '',
+          flock:f.name || f.flock_name || 'Flock'
+        });
+      });
+    });
+    return plans.sort((a,b)=>String(a.start).localeCompare(String(b.start))).slice(0,8);
+  }
+
+  function allGatherings(){
     const rows = [];
-    flocks.forEach(f => {
+    activeFlocksForUser().forEach(f => {
       const gs = Array.isArray(f.gatherings) ? f.gatherings : Object.values(f.gatherings || {});
       gs.forEach(g => {
         if (!g || g.deleted_at || g.archived_at || g.status === 'deleted' || g.status === 'archived') return;
-        rows.push({...g, flock_id: g.flock_id || f.id || f.uid || f.firestore_id, flock_name: f.name || f.flock_name || 'Flock'});
+        rows.push({...g, flock_id:g.flock_id || f.id || f.uid || f.firestore_id, flock_name:f.name || f.flock_name || 'Flock'});
       });
     });
     return rows;
   }
 
-  function personalPlansSafe(){
-    const userId = getCurrentUserIdSafe();
-    const flocks = getFlocksSafe();
-    const plans = [];
-
-    flocks.forEach(f => {
-      const events = []
-        .concat(Array.isArray(f.calendar_events) ? f.calendar_events : [])
-        .concat(Array.isArray(f.user_calendar_events) ? f.user_calendar_events : [])
-        .concat(Array.isArray(f.personal_events) ? f.personal_events : []);
-      events.forEach(e => {
-        const eUser = e.user_id || e.created_by_user_id || e.member_user_id;
-        const type = String(e.event_type || e.type || '').toLowerCase();
-        if (userId && eUser && String(eUser) !== String(userId)) return;
-        if (e.deleted_at) return;
-        if (!['unavailable','blackout','travel','personal','busy'].includes(type) && !e.is_unavailable) return;
-        plans.push({
-          id: e.id || e.uid || ('plan_' + Math.random().toString(36).slice(2)),
-          title: e.title || e.name || (type === 'travel' ? 'Travel' : 'Unavailable'),
-          start_at: e.start_at || e.start_date || e.date || '',
-          end_at: e.end_at || e.end_date || e.start_at || e.start_date || '',
-          flock_name: f.name || f.flock_name || 'Flock'
-        });
-      });
-    });
-
-    return plans
-      .sort((a,b)=>String(a.start_at).localeCompare(String(b.start_at)))
-      .slice(0,6);
-  }
-
-  function userNeedsAction(g){
-    const userId = getCurrentUserIdSafe();
-    if (!userId || !g) return false;
-
+  function needsUserAction(g){
+    const uid = String(currentUserId() || '');
+    if (!uid || !g) return false;
     const rsvps = Array.isArray(g.rsvps) ? g.rsvps : Object.values(g.rsvps || {});
-    const myRsvp = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id) === String(userId) && !r.deleted_at);
-
-    const availability = Array.isArray(g.availability_responses) ? g.availability_responses : Object.values(g.availability_responses || g.availability || {});
-    const myAvail = availability.find(a => String(a.user_id || a.member_user_id || a.created_by_user_id) === String(userId) && !a.deleted_at);
-
+    const myRsvp = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id || '') === uid && !r.deleted_at);
+    const avail = []
+      .concat(Array.isArray(g.availability_responses) ? g.availability_responses : [])
+      .concat(Array.isArray(g.availability) ? g.availability : Object.values(g.availability || {}));
+    const myAvail = avail.find(a => String(a.user_id || a.member_user_id || a.created_by_user_id || '') === uid && !a.deleted_at);
     const state = String(g.gathering_state || g.state || g.status || '').toLowerCase();
-
     if (state.includes('availability') && !myAvail) return true;
     if ((state.includes('rsvp') || g.confirmed_start_at || g.confirmed_date || g.date) && !myRsvp) return true;
     return false;
   }
 
-  function pendingRequestsSafe(){
-    return allGatheringsSafe().filter(userNeedsAction).slice(0,5);
+  function pendingRequests(){
+    return allGatherings().filter(needsUserAction).slice(0,6);
   }
 
-  function upcomingGatheringsSafe(){
-    const userId = getCurrentUserIdSafe();
-    return allGatheringsSafe()
+  function upcomingGatherings(){
+    const uid = String(currentUserId() || '');
+    return allGatherings()
       .filter(g => g.confirmed_start_at || g.confirmed_date || g.date || g.start_at)
-      .slice(0,5)
+      .slice(0,6)
       .map(g => {
         const rsvps = Array.isArray(g.rsvps) ? g.rsvps : Object.values(g.rsvps || {});
-        const my = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id) === String(userId) && !r.deleted_at);
-        return {...g, my_status: my?.rsvp_status || my?.status || 'upcoming'};
+        const mine = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id || '') === uid && !r.deleted_at);
+        return {...g, my_status: mine?.rsvp_status || mine?.status || 'upcoming'};
       });
   }
 
-  function formatRange(start, end){
+  function fmtRange(start,end){
     const s = String(start || '').slice(0,10);
     const e = String(end || '').slice(0,10);
     if (!s && !e) return 'Date not set';
@@ -16370,189 +16587,164 @@ if (!window.__kinverlyInfoDelegatedButtons) {
     return s || e;
   }
 
-  function availabilityPageHTML(){
-    const plans = personalPlansSafe();
-    const pending = pendingRequestsSafe();
-    const upcoming = upcomingGatheringsSafe();
+  function pageHtml(){
+    const plans = gatherAllEvents();
+    const pending = pendingRequests();
+    const upcoming = upcomingGatherings();
+    const user = currentUser();
+    const isAdmin = String(user.role || user.member_role || '').toLowerCase().includes('admin') || user.is_admin;
 
     return `
-      <div class="availability-hero-clean">
-        <h1>Availability</h1>
-        <p>Keep track of your plans and quickly answer gathering requests.</p>
-      </div>
+      <div class="availability-single">
+        ${isAdmin ? `<div class="availability-admin-context">Viewing as Administrator · all flocks</div>` : ``}
+        <div class="availability-page-title">Availability</div>
+        <div class="availability-page-sub">Your plans, pending responses, and upcoming gatherings.</div>
 
-      <div class="availability-card">
-        <div class="availability-card-head">
-          <div>
-            <div class="availability-card-title">Your upcoming plans</div>
-            <div class="availability-card-sub">Trips, busy weekends, and unavailable time that Kinverly uses when gatherings are planned.</div>
-          </div>
-        </div>
-
-        <div class="plan-list">
-          ${plans.length ? plans.map(p => `
-            <div class="plan-row">
-              <div class="plan-icon">🚫</div>
-              <div class="plan-body">
-                <div class="plan-title">${escapeK(p.title)}</div>
-                <div class="plan-date">${escapeK(formatRange(p.start_at,p.end_at))} · saved in ${escapeK(p.flock_name)}</div>
+        <div class="availability-panel">
+          <div class="availability-panel-title">Your plans</div>
+          <div class="availability-panel-sub">Add trips, busy weekends, and unavailable time here. Gatherings use this automatically.</div>
+          <div class="availability-list">
+            ${plans.length ? plans.map(p => `
+              <div class="availability-row">
+                <div class="availability-row-icon">🚫</div>
+                <div class="availability-row-body">
+                  <div class="availability-row-title">${esc(p.title)}</div>
+                  <div class="availability-row-sub">${esc(fmtRange(p.start,p.end))} · ${esc(p.flock)}</div>
+                </div>
               </div>
-            </div>
-          `).join('') : `
-            <div class="planning-empty">No plans added yet.</div>
-          `}
+            `).join('') : `<div class="availability-empty">No plans added yet.</div>`}
+          </div>
+          <button class="btn-primary availability-add-btn" data-action="open-add-plans-sheet">+ Add plans</button>
         </div>
 
-        <button class="btn-primary" data-action="open-add-unavailable-sheet" style="margin-top:12px;">+ Add plans</button>
-      </div>
-
-      <div class="availability-card">
-        <div class="availability-card-head">
-          <div>
-            <div class="availability-card-title">Needs your attention</div>
-            <div class="availability-card-sub">Gatherings waiting on your availability or RSVP.</div>
-          </div>
-        </div>
-
-        ${pending.length ? pending.map(g => `
-          <div class="attention-row" data-action="open-gathering" data-gathering-id="${escapeK(g.id || g.uid)}">
-            <div class="plan-icon">🎉</div>
-            <div class="attention-main">
-              <div class="attention-title">${escapeK(g.title || g.name || 'Gathering')}</div>
-              <div class="attention-sub">${escapeK(g.flock_name)} · Waiting for your response</div>
-            </div>
-            <div class="attention-cta">Review</div>
-          </div>
-        `).join('') : `
-          <div class="planning-empty">✓ You're all caught up.</div>
-        `}
-      </div>
-
-      <div class="availability-card">
-        <div class="availability-card-head">
-          <div>
-            <div class="availability-card-title">Upcoming gatherings</div>
-            <div class="availability-card-sub">Your next flock plans at a glance.</div>
+        <div class="availability-panel">
+          <div class="availability-panel-title">Needs your attention</div>
+          <div class="availability-panel-sub">Gatherings waiting on your availability or RSVP.</div>
+          <div class="availability-list">
+            ${pending.length ? pending.map(g => `
+              <div class="availability-row clickable" data-action="availability-open-gathering" data-gathering-id="${esc(g.id || g.uid)}">
+                <div class="availability-row-icon">🎉</div>
+                <div class="availability-row-body">
+                  <div class="availability-row-title">${esc(g.title || g.name || 'Gathering')}</div>
+                  <div class="availability-row-sub">${esc(g.flock_name)} · Waiting for your response</div>
+                </div>
+                <div class="availability-review-pill">Review</div>
+              </div>
+            `).join('') : `<div class="availability-empty">✓ You're all caught up.</div>`}
           </div>
         </div>
 
-        ${upcoming.length ? upcoming.map(g => `
-          <div class="upcoming-row">
-            <div>
-              <div class="upcoming-title">${escapeK(g.title || g.name || 'Gathering')}</div>
-              <div class="upcoming-sub">${escapeK(formatRange(g.confirmed_start_at || g.confirmed_date || g.date || g.start_at, g.confirmed_end_at || g.end_at))}</div>
-            </div>
-            <span class="pill pill-brand">${escapeK(g.my_status)}</span>
+        <div class="availability-panel">
+          <div class="availability-panel-title">Upcoming gatherings</div>
+          <div class="availability-panel-sub">A simple look at what’s coming next.</div>
+          <div class="availability-list">
+            ${upcoming.length ? upcoming.map(g => `
+              <div class="availability-row">
+                <div class="availability-row-icon">📅</div>
+                <div class="availability-row-body">
+                  <div class="availability-row-title">${esc(g.title || g.name || 'Gathering')}</div>
+                  <div class="availability-row-sub">${esc(fmtRange(g.confirmed_start_at || g.confirmed_date || g.date || g.start_at, g.confirmed_end_at || g.end_at))}</div>
+                </div>
+                <span class="pill pill-brand">${esc(g.my_status)}</span>
+              </div>
+            `).join('') : `<div class="availability-empty">No upcoming gatherings yet.</div>`}
           </div>
-        `).join('') : `
-          <div class="planning-empty">No upcoming gatherings yet.</div>
-        `}
+        </div>
       </div>
     `;
   }
 
-  function findAvailabilityPageEl(){
+  function availabilityPageElement(){
     return document.querySelector('#availability-page, #myworld-page, [data-page="availability"], [data-page="myworld"]');
   }
 
-  function renderAvailabilityPageClean(){
-    const el = findAvailabilityPageEl();
+  function renderAvailabilitySingle(){
+    const el = availabilityPageElement();
     if (!el) return false;
-    el.innerHTML = availabilityPageHTML();
+    el.innerHTML = pageHtml();
+    el.classList.add('availability-rendered');
     return true;
   }
 
-  window.renderAvailabilityPageClean = renderAvailabilityPageClean;
+  window.renderAvailabilitySingle = renderAvailabilitySingle;
+  window.renderAvailabilityPageClean = renderAvailabilitySingle;
 
-  // Wrap common existing render names so any navigation to old Availability renders the new page.
   ['renderMyWorld','renderMyWorldPage','renderAvailability','renderAvailabilityPage'].forEach(name => {
-    const old = window[name];
-    window[name] = function(){
-      const rendered = renderAvailabilityPageClean();
-      if (!rendered && typeof old === 'function') return old.apply(this, arguments);
-    };
+    window[name] = function(){ return renderAvailabilitySingle(); };
   });
 
-  function openAddUnavailableSheet(){
-    const existing = document.getElementById('add-unavailable-overlay');
-    if (existing) existing.remove();
-
+  function openAddPlansSheet(){
+    document.getElementById('add-plans-overlay')?.remove();
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
-    overlay.id = 'add-unavailable-overlay';
+    overlay.id = 'add-plans-overlay';
     overlay.innerHTML = `
-      <div class="sheet add-plan-sheet">
+      <div class="sheet">
         <div class="sheet-header">
           <div class="sheet-title">Add plans</div>
-          <button class="sheet-close" data-action="close-add-unavailable-sheet">×</button>
+          <button class="sheet-close" data-action="close-add-plans-sheet">×</button>
         </div>
         <div class="sheet-body">
           <div class="form-row">
             <label class="form-label">Title</label>
-            <input class="input-field" id="unavailable-title-input" placeholder="e.g. California trip">
+            <input class="input-field" id="plans-title" placeholder="e.g. California trip">
           </div>
           <div class="form-row">
             <label class="form-label">Start date</label>
-            <input class="input-field" id="unavailable-start-input" type="date">
+            <input class="input-field" id="plans-start" type="date">
           </div>
           <div class="form-row">
             <label class="form-label">End date</label>
-            <input class="input-field" id="unavailable-end-input" type="date">
+            <input class="input-field" id="plans-end" type="date">
           </div>
-          <button class="btn-primary" data-action="save-unavailable-plan">Save plans</button>
+          <button class="btn-primary" data-action="save-plans">Save plans</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
   }
 
-  async function saveUnavailablePlan(){
-    const title = document.getElementById('unavailable-title-input')?.value?.trim() || 'Unavailable';
-    const start = document.getElementById('unavailable-start-input')?.value;
-    const end = document.getElementById('unavailable-end-input')?.value || start;
-
+  async function savePlans(){
+    const title = document.getElementById('plans-title')?.value?.trim() || 'Unavailable';
+    const start = document.getElementById('plans-start')?.value;
+    const end = document.getElementById('plans-end')?.value || start;
     if (!start){
       if (typeof showToast === 'function') showToast('Choose a start date.');
       return;
     }
-
-    const flock = getCurrentFlockSafe();
+    const flock = currentFlock() || activeFlocksForUser()[0];
     if (!flock){
       if (typeof showToast === 'function') showToast('No flock found.');
       return;
     }
-
-    const userId = getCurrentUserIdSafe();
+    const uid = currentUserId();
     const event = {
-      id: 'cal_' + Date.now(),
-      created_at: kNow(),
-      updated_at: kNow(),
-      deleted_at: null,
-      created_by_user_id: userId,
-      updated_by_user_id: userId,
-      user_id: userId,
-      flock_id: flock.id || flock.uid || flock.firestore_id,
-      event_type: 'unavailable',
+      id:'cal_' + Date.now(),
+      created_at:isoNow(),
+      updated_at:isoNow(),
+      deleted_at:null,
+      created_by_user_id:uid,
+      updated_by_user_id:uid,
+      user_id:uid,
+      flock_id:flock.id || flock.uid || flock.firestore_id,
+      event_type:'unavailable',
       title,
-      start_at: start,
-      end_at: end,
-      visibility: 'private_to_user',
-      source: 'availability_page'
+      start_at:start,
+      end_at:end,
+      visibility:'private_to_user',
+      source:'availability_page'
     };
-
     flock.calendar_events = Array.isArray(flock.calendar_events) ? flock.calendar_events : [];
     flock.calendar_events.push(event);
 
     try{
-      if (typeof performFlockAction === 'function'){
-        await performFlockAction('CALENDAR_EVENT_CREATED', {flock, entity: event, summary: `${title} added to plans`}, async()=>{});
-      } else if (typeof saveFlockState === 'function'){
-        await saveFlockState();
-      } else if (typeof saveCurrentFlock === 'function'){
-        await saveCurrentFlock();
+      if (typeof appendActionLog === 'function'){
+        await appendActionLog('CALENDAR_EVENT_CREATED', {flock, entity_type:'calendar_event', entity_id:event.id, summary:`${title} added to plans`});
       }
-      document.getElementById('add-unavailable-overlay')?.remove();
-      renderAvailabilityPageClean();
+      if (typeof saveFlockState === 'function') await saveFlockState();
+      else if (typeof saveCurrentFlock === 'function') await saveCurrentFlock();
+      document.getElementById('add-plans-overlay')?.remove();
+      renderAvailabilitySingle();
       if (typeof showToast === 'function') showToast('Plans saved.');
     }catch(err){
       console.error('Could not save plans', err);
@@ -16565,42 +16757,55 @@ if (!window.__kinverlyInfoDelegatedButtons) {
     if (!target) return;
     const action = target.getAttribute('data-action');
 
-    if (action === 'open-add-unavailable-sheet'){
+    if (action === 'open-add-plans-sheet'){
       e.preventDefault();
-      openAddUnavailableSheet();
+      openAddPlansSheet();
     }
-
-    if (action === 'close-add-unavailable-sheet'){
+    if (action === 'close-add-plans-sheet'){
       e.preventDefault();
-      document.getElementById('add-unavailable-overlay')?.remove();
+      document.getElementById('add-plans-overlay')?.remove();
     }
-
-    if (action === 'save-unavailable-plan'){
+    if (action === 'save-plans'){
       e.preventDefault();
-      saveUnavailablePlan();
+      savePlans();
+    }
+    if (action === 'availability-open-gathering'){
+      e.preventDefault();
+      const id = target.getAttribute('data-gathering-id');
+      if (id && typeof openGatheringDetail === 'function') openGatheringDetail(id);
+      else if (id && typeof showGatheringDetail === 'function') showGatheringDetail(id);
     }
   });
 
-  // Ensure the bottom nav label is corrected even if rendered dynamically later.
-  function relabelAvailabilityNav(){
+  function cleanNavLabels(){
+    document.querySelectorAll('.bottom-nav *, .nav-btn *').forEach(el => {
+      if (el.childNodes && el.childNodes.length === 1 && el.textContent && el.textContent.trim() === 'Availability'){
+        el.textContent = 'Availability';
+      }
+    });
     document.querySelectorAll('.nav-btn, .bottom-nav button, [data-page], [data-nav]').forEach(btn => {
       if (btn.textContent && btn.textContent.includes('Availability')){
-        btn.innerHTML = btn.innerHTML.replace(/Availability/g, 'Availability');
-      }
-      const page = btn.getAttribute('data-page') || btn.getAttribute('data-nav') || '';
-      if (page === 'myworld'){
-        btn.setAttribute('data-page','availability');
-        btn.setAttribute('data-nav','availability');
+        btn.innerHTML = btn.innerHTML.replace(/Availability/g,'Availability');
       }
     });
   }
 
-  setInterval(relabelAvailabilityNav, 750);
+  // Mutation observer keeps dynamic re-renders clean without duplicating page content.
+  const observer = new MutationObserver(() => cleanNavLabels());
   document.addEventListener('DOMContentLoaded', function(){
-    relabelAvailabilityNav();
-    setTimeout(renderAvailabilityPageClean, 250);
-    setTimeout(renderAvailabilityPageClean, 1000);
+    cleanNavLabels();
+    setTimeout(renderAvailabilitySingle, 200);
+    setTimeout(renderAvailabilitySingle, 900);
+    observer.observe(document.body, {childList:true, subtree:true});
   });
+
+  setInterval(function(){
+    cleanNavLabels();
+    const el = availabilityPageElement();
+    if (el && el.classList.contains('active') && !el.classList.contains('availability-rendered')){
+      renderAvailabilitySingle();
+    }
+  }, 1000);
 })();
 </script>
 
