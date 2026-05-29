@@ -18559,6 +18559,262 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 })();
 </script>
 
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 44.1 — NUMERIC FLOCK MEMBERSHIP RECOVERY
+   Purpose: keep users inside their flocks after the numeric ID cleanup.
+   Rules:
+   - user_id, member_id, flock_id are numeric application IDs.
+   - Firestore/string IDs live only in firestore_id / legacy_* fields.
+   - App routing should use flock_members to resolve current flock.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__KINVERLY_NUMERIC_FLOCK_MEMBERSHIP_RECOVERY__) return;
+  window.__KINVERLY_NUMERIC_FLOCK_MEMBERSHIP_RECOVERY__ = true;
+
+  function asNum(v){
+    if (v === null || v === undefined || v === '') return null;
+    var n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function legacyUserKey(u){
+    if (!u) return '';
+    return String(u.firestore_id || u.legacy_user_id || u.uid || u.id || u.user_id || u.name || '').trim();
+  }
+  function legacyFlockKey(f){
+    if (!f) return '';
+    return String(f.firestore_id || f.legacy_flock_id || f.uid || f.id || f.flock_id || '').trim();
+  }
+  function getAllFlocks(){ return window.FLOCKS || FLOCKS || {}; }
+  function getAllFlockKeys(){ return Object.keys(getAllFlocks() || {}); }
+
+  function nextNumericFrom(list, field){
+    var max = 0;
+    (list || []).forEach(function(r){
+      var n = asNum(r && r[field]);
+      if (n && n > max) max = n;
+    });
+    return max + 1;
+  }
+
+  function normalizeUsersNumeric(){
+    var users = [];
+    var seen = {};
+
+    // DATA.me is always the active Kinverly person.
+    if (window.DATA && DATA.me) users.push(DATA.me);
+
+    // Flock member records can still contain legacy user-shaped rows.
+    getAllFlockKeys().forEach(function(k){
+      var f = getAllFlocks()[k];
+      Object.keys((f && f.members) || {}).forEach(function(mk){ users.push(f.members[mk]); });
+    });
+
+    var rows = users.filter(Boolean).sort(function(a,b){
+      var ac = String(a.created_at || ''), bc = String(b.created_at || '');
+      if (ac !== bc) return ac < bc ? -1 : 1;
+      return legacyUserKey(a).localeCompare(legacyUserKey(b));
+    });
+
+    var numericByLegacy = {};
+    var next = 1;
+    rows.forEach(function(u){
+      var key = legacyUserKey(u);
+      if (!key) key = 'user_' + next;
+      if (!numericByLegacy[key]) numericByLegacy[key] = next++;
+    });
+
+    rows.forEach(function(u){
+      var legacy = legacyUserKey(u);
+      var numeric = asNum(u.user_id) || asNum(u.numeric_user_id) || numericByLegacy[legacy];
+      if (!numeric) numeric = next++;
+      if (!u.firestore_id && legacy && !/^\d+$/.test(legacy)) u.firestore_id = legacy;
+      u.legacy_user_id = u.legacy_user_id || (legacy && !/^\d+$/.test(legacy) ? legacy : null);
+      u.user_id = numeric;
+      // Leave display id/name alone for UI compatibility, but relationship joins use user_id.
+    });
+
+    return numericByLegacy;
+  }
+
+  function normalizeFlocksNumeric(){
+    var keys = getAllFlockKeys().sort(function(a,b){
+      var fa = getAllFlocks()[a] || {}, fb = getAllFlocks()[b] || {};
+      var ac = String(fa.created_at || ''), bc = String(fb.created_at || '');
+      if (ac !== bc) return ac < bc ? -1 : 1;
+      return String(a).localeCompare(String(b));
+    });
+    var numericByKey = {};
+    var next = 1;
+    keys.forEach(function(k){
+      var f = getAllFlocks()[k];
+      if (!f) return;
+      var existing = asNum(f.flock_id) || asNum(f.numeric_flock_id);
+      if (!existing) existing = next++;
+      f.flock_id = existing;
+      if (!f.firestore_id && String(k) && !/^\d+$/.test(String(k))) f.firestore_id = String(k);
+      f.legacy_flock_id = f.legacy_flock_id || (String(k) && !/^\d+$/.test(String(k)) ? String(k) : null);
+      numericByKey[k] = existing;
+      numericByKey[String(f.firestore_id || '')] = existing;
+      numericByKey[String(f.legacy_flock_id || '')] = existing;
+    });
+    return numericByKey;
+  }
+
+  function normalizeFlockMembersNumeric(){
+    var userMap = normalizeUsersNumeric();
+    normalizeFlocksNumeric();
+    var allMemberships = [];
+
+    getAllFlockKeys().forEach(function(flockKey){
+      var f = getAllFlocks()[flockKey];
+      if (!f) return;
+      if (!f.members) f.members = {};
+      if (!Array.isArray(f.memberIds)) f.memberIds = Object.keys(f.members);
+      var flockId = asNum(f.flock_id) || 1;
+
+      Object.keys(f.members).forEach(function(memberKey){
+        var m = f.members[memberKey];
+        if (!m) return;
+        var legacyUser = legacyUserKey(m) || String(memberKey);
+        var numericUserId = asNum(m.user_id) || userMap[legacyUser];
+        if (!numericUserId) {
+          if (window.DATA && DATA.me && (String(memberKey) === String(DATA.me.id) || legacyUser === legacyUserKey(DATA.me))) {
+            numericUserId = asNum(DATA.me.user_id) || 1;
+          }
+        }
+        if (!numericUserId) numericUserId = nextNumericFrom(allMemberships, 'user_id');
+
+        var existingMember = asNum(m.member_id) || asNum(m.numeric_member_id);
+        var row = {
+          member_id: existingMember,
+          flock_id: flockId,
+          user_id: numericUserId,
+          legacy_member_id: String(memberKey),
+          member_firestore_id: m.member_firestore_id || m.firestore_id || String(memberKey),
+          role: m.role || 'member',
+          membership_status: m.deleted_at ? 'removed' : (m.status || m.membership_status || 'active'),
+          created_at: m.created_at || (f.created_at || new Date().toISOString()),
+          updated_at: m.updated_at || new Date().toISOString()
+        };
+        allMemberships.push(row);
+      });
+    });
+
+    allMemberships.sort(function(a,b){
+      var ac = String(a.created_at || ''), bc = String(b.created_at || '');
+      if (ac !== bc) return ac < bc ? -1 : 1;
+      return String(a.legacy_member_id || '').localeCompare(String(b.legacy_member_id || ''));
+    });
+
+    var nextMember = 1;
+    allMemberships.forEach(function(r){ if (!r.member_id) r.member_id = nextMember++; else if (r.member_id >= nextMember) nextMember = r.member_id + 1; });
+
+    // Write normalized fields back into flock member objects.
+    getAllFlockKeys().forEach(function(flockKey){
+      var f = getAllFlocks()[flockKey];
+      if (!f || !f.members) return;
+      var flockId = asNum(f.flock_id) || 1;
+      Object.keys(f.members).forEach(function(memberKey){
+        var m = f.members[memberKey];
+        var row = allMemberships.find(function(x){ return x.flock_id === flockId && String(x.legacy_member_id) === String(memberKey); });
+        if (!row) return;
+        m.member_id = row.member_id;
+        m.flock_id = row.flock_id;
+        m.user_id = row.user_id;
+        m.legacy_member_id = row.legacy_member_id;
+        m.member_firestore_id = row.member_firestore_id;
+      });
+    });
+
+    window.__KINVERLY_FLOCK_MEMBERSHIP_ROWS__ = allMemberships;
+    return allMemberships;
+  }
+
+  function getActiveUserId(){
+    if (window.DATA && DATA.me) return asNum(DATA.me.user_id) || asNum(DATA.me.numeric_user_id) || null;
+    var stored = localStorage.getItem('kinverly_user_id');
+    return asNum(stored);
+  }
+
+  function resolveFlockByNumericId(flockId){
+    var target = asNum(flockId);
+    if (!target) return null;
+    var keys = getAllFlockKeys();
+    for (var i=0;i<keys.length;i++){
+      var f = getAllFlocks()[keys[i]];
+      if (f && asNum(f.flock_id) === target) return keys[i];
+    }
+    return null;
+  }
+
+  function recoverCurrentFlockFromMembership(){
+    var memberships = normalizeFlockMembersNumeric();
+    var userId = getActiveUserId();
+    if (!userId && window.DATA && DATA.me) userId = asNum(DATA.me.user_id);
+    var candidates = memberships.filter(function(m){
+      return asNum(m.user_id) === asNum(userId) && String(m.membership_status || 'active') !== 'removed';
+    });
+    candidates.sort(function(a,b){
+      var ac = String(a.created_at || ''), bc = String(b.created_at || '');
+      if (ac !== bc) return ac < bc ? -1 : 1;
+      return (a.member_id || 0) - (b.member_id || 0);
+    });
+    var chosen = candidates[0];
+    if (!chosen) return false;
+    var key = resolveFlockByNumericId(chosen.flock_id);
+    if (!key) return false;
+
+    window.currentFlockId = key;
+    try { currentFlockId = key; } catch(e) {}
+    try { localStorage.setItem('kinverly_current_flock', key); } catch(e2) {}
+    if (window.DATA && DATA.me) {
+      DATA.me.user_id = asNum(DATA.me.user_id) || chosen.user_id;
+      DATA.me.member_id = chosen.member_id;
+      DATA.me.flock_id = chosen.flock_id;
+    }
+    window.__KINVERLY_ACTIVE_MEMBER_ID__ = chosen.member_id;
+    window.__KINVERLY_ACTIVE_FLOCK_ID__ = chosen.flock_id;
+    return true;
+  }
+
+  // Wrap old resolvers without breaking Firestore document keys.
+  var oldResolveFlockKey = window.resolveFlockKey || (typeof resolveFlockKey === 'function' ? resolveFlockKey : null);
+  window.resolveFlockKey = function(flockId){
+    var direct = oldResolveFlockKey ? oldResolveFlockKey(flockId) : null;
+    if (direct) return direct;
+    var byNumeric = resolveFlockByNumericId(flockId);
+    if (byNumeric) return byNumeric;
+    recoverCurrentFlockFromMembership();
+    return oldResolveFlockKey ? oldResolveFlockKey(flockId) : null;
+  };
+
+  var oldSaveLocal = window.saveLocal || (typeof saveLocal === 'function' ? saveLocal : null);
+  window.saveLocal = function(){
+    normalizeFlockMembersNumeric();
+    if (oldSaveLocal) return oldSaveLocal.apply(this, arguments);
+  };
+
+  // Export helpers should use these rows for the clean flock_members table.
+  window.getNormalizedFlockMembershipRows = normalizeFlockMembersNumeric;
+  window.recoverCurrentFlockFromMembership = recoverCurrentFlockFromMembership;
+
+  // Run after initial load and again after realtime data arrives.
+  setTimeout(function(){
+    recoverCurrentFlockFromMembership();
+    var noFlockScreen = document.querySelector('.flock-prompt');
+    if (noFlockScreen && /Gather your people/i.test(noFlockScreen.textContent || '')) {
+      if (recoverCurrentFlockFromMembership()) {
+        try { if (typeof renderApp === 'function') renderApp(); } catch(e) {}
+        try { if (typeof showApp === 'function') showApp(); } catch(e2) {}
+      }
+    }
+  }, 50);
+  setTimeout(recoverCurrentFlockFromMembership, 500);
+})();
+</script>
+
 </body>
 </html>
 
