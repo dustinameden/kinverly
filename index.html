@@ -19165,65 +19165,6 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 </script>
 
 
----
-
-## Sprint 43.1 — Data Identity Normalization
-
-Kinverly now treats identity consistently across every export and data table:
-
-| Field | Meaning | Example |
-|---|---|---|
-| `user_id` | The Kinverly-wide person/account. Stable across all flocks. | Dustin as a Kinverly user |
-| `member_id` | That user’s membership row inside one flock. A user can have many member IDs across flocks. | Dustin in The Ameden Family |
-| `flock_id` | The flock/family/group context. | The Ameden Family |
-
-### Table rules
-
-- `users` uses `user_id` only.
-- `flock_members` maps `user_id` + `flock_id` to `member_id`.
-- Every flock-scoped action/export includes `flock_id`.
-- Every person-owned flock-scoped row includes both `user_id` and `member_id`.
-- Availability, RSVP, bring-list assignments, chat, photos, ideas, votes, reminders, and activity events all carry the same identity pattern.
-
-### Canonical schema pattern
-
-```sql
-users
-  id as user_id
-
-flocks
-  id as flock_id
-
-flock_members
-  id as member_id
-  user_id
-  flock_id
-  role
-  membership_status
-
-user_schedule_blocks
-  id
-  user_id
-  member_id
-  flock_id
-  schedule_name
-  start_date
-  end_date
-
-activity_events
-  id
-  user_id
-  member_id
-  flock_id
-  gathering_id
-  activity_type
-  entity_type
-  entity_id
-```
-
-This keeps the app simple: `user_id` answers “who is the person?”, `member_id` answers “who are they inside this flock?”, and `flock_id` answers “which family/group does this row belong to?”
-
-
 <script>
 /* ── SPRINT 43.4 — AVAILABILITY LOADING FINAL FIX ───────────────────────
    Prevents Availability from ever getting stuck on the static
@@ -19704,5 +19645,191 @@ This keeps the app simple: `user_id` answers “who is the person?”, `member_i
   };
 
   window.__KINVERLY_NUMERIC_DATASET_PATCH__ = true;
+})();
+</script>
+
+<script>
+/* Sprint 44.1 — Clean Availability Schedule UX
+   - Prevents raw schema/spec notes from rendering in the app.
+   - Removes the persistent green saved card from Availability.
+   - Renders saved user_schedule_blocks immediately in a compact Upcoming Schedule list.
+   - Handles many schedule rows with a View All Schedule Items sheet.
+*/
+(function(){
+  if (window.__KINVERLY_AVAILABILITY_CLEAN_SCHEDULE_PATCH__) return;
+
+  function esc(v){
+    if (typeof escapeHtml === 'function') return escapeHtml(v == null ? '' : v);
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});
+  }
+  function currentDateKey(){
+    try { return typeof isoDateKey === 'function' ? isoDateKey(new Date()) : new Date().toISOString().slice(0,10); }
+    catch(e){ return new Date().toISOString().slice(0,10); }
+  }
+  function rowTitle(ev){ return ev.schedule_name || ev.title || ev.name || 'Schedule item'; }
+  function rowId(ev){ return ev.id || ev.user_schedule_block_id || ev.calendar_event_id || ev.firestore_id || ''; }
+  function rowRange(ev){
+    try { if (typeof formatAvailabilityRange === 'function') return formatAvailabilityRange(ev); } catch(e){}
+    var s = String(ev.start_date || ev.start_at || '').slice(0,10);
+    var e = String(ev.end_date || ev.end_at || s).slice(0,10);
+    var t = ev.is_all_day === false && (ev.start_time || ev.end_time) ? ' · ' + [ev.start_time, ev.end_time].filter(Boolean).join('–') : '';
+    return (s && e && s !== e ? s + ' → ' + e : (s || e || 'Date not set')) + t;
+  }
+  function typeIcon(ev){
+    var raw = String(ev.schedule_type || ev.event_type || rowTitle(ev) || '').toLowerCase();
+    if (/travel|trip|flight|vacation|vermont|beach/.test(raw)) return '✈️';
+    if (/work|office|meeting/.test(raw)) return '💼';
+    if (/sport|football|soccer|game|practice|pitt|cal/.test(raw)) return '🏈';
+    if (/birthday|party|wedding|celebration/.test(raw)) return '🎉';
+    if (/school|kid|camp/.test(raw)) return '🎒';
+    if (/prefer|available/.test(raw)) return '⭐';
+    return '📅';
+  }
+  function allScheduleRows(){
+    var rows = [];
+    try {
+      rows = typeof getScheduleBlocksForAvailability === 'function' ? getScheduleBlocksForAvailability(9999) : [];
+    } catch(e) { rows = []; }
+    rows = Array.isArray(rows) ? rows.filter(function(r){ return r && !r.deleted_at; }) : [];
+    rows.sort(function(a,b){ return String(a.start_date || a.start_at || '').localeCompare(String(b.start_date || b.start_at || '')); });
+    return rows;
+  }
+  function scheduleCard(ev){
+    var id = rowId(ev);
+    return '<div class="xflock-card availability-edit-card" data-fid="' + esc(ev.fid || ev.flock_id || '') + '" data-event-id="' + esc(id) + '">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + typeIcon(ev) + '</div><div class="xflock-body">' +
+      '<div class="xflock-title">' + esc(rowTitle(ev)) + '</div>' +
+      '<div class="xflock-meta">' + esc(rowRange(ev)) + (ev.flock_name ? ' · ' + esc(ev.flock_name) : '') + '</div>' +
+      '<div class="xflock-link">Tap to edit →</div>' +
+      '</div></div></div>';
+  }
+  function scheduleListHtml(rows, opts){
+    opts = opts || {};
+    rows = Array.isArray(rows) ? rows : [];
+    if (!rows.length) {
+      return '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>';
+    }
+    var limit = opts.limit || 5;
+    var shown = rows.slice(0, limit);
+    var html = shown.map(scheduleCard).join('');
+    if (rows.length > limit) {
+      html += '<button class="btn-secondary" id="availability-view-all-schedule" style="margin:8px 0 14px">View all schedule items (' + rows.length + ') →</button>';
+    }
+    return html;
+  }
+
+  window.renderScheduleBlockCards = function(rows){
+    return scheduleListHtml(Array.isArray(rows) ? rows : [], { limit: 5 });
+  };
+
+  window.openScheduleItemsSheet = function(){
+    var rows = allScheduleRows();
+    var old = document.getElementById('schedule-items-overlay');
+    if (old) old.remove();
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'schedule-items-overlay';
+    overlay.innerHTML = '<div class="sheet">' +
+      '<div class="sheet-header"><div><div class="sheet-title">Your Schedule</div><div class="avail-review-sub" style="margin:4px 0 0">' + rows.length + ' saved item' + (rows.length === 1 ? '' : 's') + '</div></div><button class="sheet-close" data-action="close-schedule-items">×</button></div>' +
+      '<div class="sheet-body">' + scheduleListHtml(rows, { limit: 9999 }) + '</div>' +
+    '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e){
+      var close = e.target.closest('[data-action="close-schedule-items"]');
+      if (close || e.target === overlay) overlay.remove();
+      var card = e.target.closest('.availability-edit-card');
+      if (card && typeof openAvailabilityConflictSheet === 'function') {
+        overlay.remove();
+        openAvailabilityConflictSheet({ mode:'edit', fid:card.dataset.fid || '', eventId:card.dataset.eventId || '' });
+      }
+    });
+  };
+
+  function bindCleanAvailabilityEvents(el){
+    if (!el) return;
+    var addBtn = el.querySelector('#availability-add-unavailable');
+    if (addBtn) addBtn.addEventListener('click', function(){
+      if (typeof openAvailabilityConflictSheet === 'function') openAvailabilityConflictSheet({ mode:'add', date: currentDateKey() });
+    });
+    var viewAll = el.querySelector('#availability-view-all-schedule');
+    if (viewAll) viewAll.addEventListener('click', function(){ window.openScheduleItemsSheet(); });
+    (el.querySelectorAll('.availability-edit-card') || []).forEach(function(card){
+      card.addEventListener('click', function(){
+        if (typeof openAvailabilityConflictSheet === 'function') openAvailabilityConflictSheet({ mode:'edit', fid:card.dataset.fid || '', eventId:card.dataset.eventId || '' });
+      });
+    });
+    var chips = el.querySelector('#availability-pattern-chips');
+    if (chips) chips.addEventListener('click', function(e){
+      var chip = e.target.closest('[data-pattern]');
+      if (!chip) return;
+      if (typeof setAvailabilityPattern === 'function') setAvailabilityPattern(chip.dataset.pattern);
+      if (typeof toast === 'function') toast('Availability preference saved');
+      if (typeof window.renderAvailability === 'function') window.renderAvailability();
+    });
+  }
+
+  function cleanAvailabilityHtml(message){
+    var pattern = 'flexible';
+    try { pattern = typeof getAvailabilityPattern === 'function' ? getAvailabilityPattern() : 'flexible'; } catch(e){}
+    var rows = allScheduleRows();
+    var upcoming = rows.filter(function(ev){
+      var end = String(ev.end_date || ev.end_at || ev.start_date || ev.start_at || '').slice(0,10);
+      return !end || end >= currentDateKey();
+    }).length;
+    var thisMonth = rows.filter(function(ev){
+      var s = String(ev.start_date || ev.start_at || '').slice(0,7);
+      return s && s === currentDateKey().slice(0,7);
+    }).length;
+
+    var summary = rows.length ?
+      '<div class="decision-score-row" style="grid-template-columns:repeat(3,1fr);margin:0 0 12px"><div class="decision-score"><div class="decision-score-n">' + rows.length + '</div><div class="decision-score-l">total</div></div><div class="decision-score"><div class="decision-score-n">' + upcoming + '</div><div class="decision-score-l">upcoming</div></div><div class="decision-score"><div class="decision-score-n">' + thisMonth + '</div><div class="decision-score-l">this month</div></div></div>' : '';
+
+    var insight = rows.length ?
+      rows.length + ' schedule item' + (rows.length === 1 ? '' : 's') + ' saved. Kinverly uses these when ranking family gathering dates.' :
+      'No schedule items yet. Add anything meaningful that the family should plan around.';
+
+    return '<div class="decision-card">' +
+      '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div></div></div>' +
+      (message ? '<div class="avail-review-note">' + esc(message) + '</div>' : '') +
+      '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
+      '<div class="chip-group" id="availability-pattern-chips">' +
+        '<button class="chip ' + (pattern === 'flexible' ? 'selected' : '') + '" data-pattern="flexible">Mostly flexible</button>' +
+        '<button class="chip ' + (pattern === 'weekends' ? 'selected' : '') + '" data-pattern="weekends">Weekends best</button>' +
+        '<button class="chip ' + (pattern === 'evenings' ? 'selected' : '') + '" data-pattern="evenings">Weekday evenings</button>' +
+        '<button class="chip ' + (pattern === 'rarely' ? 'selected' : '') + '" data-pattern="rarely">Rarely available</button>' +
+      '</div></div>' +
+      '<div class="section-title">Upcoming schedule</div>' + summary + scheduleListHtml(rows, { limit: 5 }) +
+      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add To Your Schedule</button>' +
+      '<div class="section-title">Needs your response</div><div class="xflock-empty">No availability or RSVP requests right now.</div>' +
+      '<div class="section-title">Upcoming commitments</div><div class="xflock-empty">Gatherings you RSVP to will appear here.</div>' +
+      '<div class="section-title">Family scheduler insights</div><div class="avail-review-card"><div class="avail-review-title">' + esc(insight) + '</div><div class="avail-review-sub" style="margin-bottom:0">This stays compact even if you add 15+ schedule items. Use “View all” for the full list.</div></div>';
+  }
+
+  var previousSaveAvailabilityConflictFromSheet = window.saveAvailabilityConflictFromSheet;
+  window.saveAvailabilityConflictFromSheet = function(){
+    if (typeof previousSaveAvailabilityConflictFromSheet === 'function') previousSaveAvailabilityConflictFromSheet.apply(this, arguments);
+    window.lastScheduleSaveFeedback = null;
+    if (typeof toast === 'function') toast('Added to schedule');
+  };
+
+  window.renderAvailabilityFallback = function(message){ return cleanAvailabilityHtml(message); };
+  window.renderAvailability = function(){
+    var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
+    if (!el) return;
+    el.innerHTML = cleanAvailabilityHtml('');
+    bindCleanAvailabilityEvents(el);
+  };
+  window.renderAvailabilitySafe = function(){ window.renderAvailability(); return true; };
+
+  // If a previous render left the loading card visible, resolve it quickly.
+  setTimeout(function(){
+    var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
+    if (el && /Loading availability|Saved to your schedule|Nothing on your schedule yet/i.test(el.textContent || '')) {
+      // Only re-render if availability is the active section or the element exists.
+      try { window.renderAvailability(); } catch(e) {}
+    }
+  }, 250);
+
+  window.__KINVERLY_AVAILABILITY_CLEAN_SCHEDULE_PATCH__ = true;
 })();
 </script>
