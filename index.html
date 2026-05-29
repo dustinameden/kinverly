@@ -20122,6 +20122,198 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 })();
 </script>
 
+
+
+<!-- Sprint 52.8 — Hard Shell Navigation Restore
+     Purpose: permanently restore bottom tabs and page navigation after admin/recovery renders.
+     This patch is intentionally shell-only: it does not change data, members, flocks, or admin permissions. -->
+<style id="kv-hard-shell-nav-css">
+  #app{padding-bottom:72px!important;}
+  .bottom-nav{
+    position:fixed!important;
+    left:50%!important;
+    bottom:0!important;
+    transform:translateX(-50%)!important;
+    width:100%!important;
+    max-width:430px!important;
+    height:62px!important;
+    display:flex!important;
+    visibility:visible!important;
+    opacity:1!important;
+    z-index:2147483000!important;
+    pointer-events:auto!important;
+    background:#fff!important;
+    border-top:1px solid rgba(61,43,110,.12)!important;
+  }
+  .bottom-nav .nav-btn{
+    display:flex!important;
+    visibility:visible!important;
+    opacity:1!important;
+    pointer-events:auto!important;
+    position:relative!important;
+    z-index:2147483001!important;
+  }
+  .page-wrap{padding-bottom:84px!important;pointer-events:auto!important;}
+  .page,.subpage{pointer-events:auto!important;}
+  .overlay.hidden,
+  .task-detail-overlay.hidden,
+  .photo-lightbox.hidden,
+  #login-screen.hidden,
+  #flock-overlay.hidden,
+  #edit-overlay.hidden,
+  #auth-overlay.hidden,
+  #welcome-overlay.hidden{
+    display:none!important;
+    visibility:hidden!important;
+    opacity:0!important;
+    pointer-events:none!important;
+  }
+  body.kv-shell-ready #login-screen.hidden,
+  body.kv-shell-ready #flock-overlay.hidden,
+  body.kv-shell-ready #edit-overlay.hidden,
+  body.kv-shell-ready #auth-overlay.hidden,
+  body.kv-shell-ready #welcome-overlay.hidden{
+    display:none!important;
+    pointer-events:none!important;
+  }
+</style>
+<script id="kv-hard-shell-nav-restore-patch">
+(function(){
+  if (window.__kvHardShellNavRestorePatch) return;
+  window.__kvHardShellNavRestorePatch = true;
+
+  var NAV_HTML = ''+
+    '<nav class="bottom-nav" id="kv-bottom-nav-restored">'+
+      '<button class="nav-btn" data-page="home"><span style="font-size:22px;line-height:1">⌂</span><span>Home</span></button>'+
+      '<button class="nav-btn" data-page="myworld"><span style="font-size:21px;line-height:1">◎</span><span>Availability</span></button>'+
+      '<button class="nav-btn" data-page="gatherings"><span style="font-size:21px;line-height:1">▣</span><span>Gatherings</span></button>'+
+      '<button class="nav-btn" data-page="ideas"><span style="font-size:21px;line-height:1">♢</span><span>Ideas</span></button>'+
+      '<button class="nav-btn" data-page="flock"><span style="font-size:21px;line-height:1">♟</span><span>Flocks</span></button>'+
+      '<button class="nav-btn" data-page="profile"><span style="font-size:21px;line-height:1">♙</span><span>Profile</span></button>'+
+    '</nav>';
+
+  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function pageKey(p){ return p === 'myworld' ? 'availability' : (p || 'home'); }
+  function navKey(p){ return p === 'availability' ? 'myworld' : (p || 'home'); }
+  function safe(fn){ try { return fn && fn(); } catch(e){ console.warn('[Kinverly] hard shell safe error', e); } }
+
+  function appRoot(){ return document.getElementById('app') || document.body; }
+
+  function ensureBottomNav(){
+    var nav = document.querySelector('.bottom-nav');
+    if (!nav) {
+      appRoot().insertAdjacentHTML('beforeend', NAV_HTML);
+      nav = document.querySelector('.bottom-nav');
+    }
+    if (!nav.id) nav.id = 'kv-bottom-nav-restored';
+    nav.style.display = 'flex';
+    nav.style.visibility = 'visible';
+    nav.style.opacity = '1';
+    nav.style.pointerEvents = 'auto';
+    nav.style.zIndex = '2147483000';
+    return nav;
+  }
+
+  function unblockHiddenOverlays(){
+    ['login-screen','flock-overlay','edit-overlay','auth-overlay','welcome-overlay'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.classList.contains('hidden') || el.getAttribute('aria-hidden') === 'true' || el.style.display === 'none') {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+        el.style.pointerEvents = 'none';
+        el.style.visibility = 'hidden';
+      }
+    });
+    qsa('.overlay,.task-detail-overlay,.photo-lightbox').forEach(function(el){
+      if (el.classList.contains('hidden') || el.style.display === 'none' || el.getAttribute('aria-hidden') === 'true') {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+        el.style.pointerEvents = 'none';
+        el.style.visibility = 'hidden';
+      }
+    });
+  }
+
+  function forcePageActive(page){
+    var p = pageKey(page);
+    var targetId = 'page-' + p;
+    if (p === 'availability') targetId = document.getElementById('page-availability') ? 'page-availability' : 'page-myworld';
+    qsa('.page').forEach(function(el){ el.classList.remove('active'); });
+    var target = document.getElementById(targetId);
+    if (target) {
+      target.classList.add('active');
+      target.style.display = 'block';
+    }
+    qsa('.bottom-nav .nav-btn').forEach(function(btn){
+      btn.classList.toggle('active', pageKey(btn.dataset.page) === p);
+    });
+    window.currentPage = p;
+  }
+
+  function renderPage(page){
+    var p = pageKey(page);
+    safe(function(){ if (typeof window.renderPage === 'function') window.renderPage(p); });
+    safe(function(){ if (p === 'home' && typeof window.renderHome === 'function') window.renderHome(); });
+    safe(function(){ if (p === 'availability' && typeof window.renderMyWorld === 'function') window.renderMyWorld(); });
+    safe(function(){ if (p === 'availability' && typeof window.renderAvailabilityPage === 'function') window.renderAvailabilityPage(); });
+    safe(function(){ if (p === 'gatherings' && typeof window.renderGatherings === 'function') window.renderGatherings(); });
+    safe(function(){ if (p === 'ideas' && typeof window.renderIdeas === 'function') window.renderIdeas(); });
+    safe(function(){ if (p === 'flock' && typeof window.renderFlockPage === 'function') window.renderFlockPage(); });
+    safe(function(){ if (p === 'profile' && typeof window.renderProfile === 'function') window.renderProfile(); });
+  }
+
+  function go(page){
+    var p = pageKey(page);
+    document.body.classList.add('kv-shell-ready');
+    ensureBottomNav();
+    unblockHiddenOverlays();
+    if (typeof window.showPage === 'function') safe(function(){ window.showPage(p); });
+    else if (typeof showPage === 'function') safe(function(){ showPage(p); });
+    forcePageActive(p);
+    renderPage(p);
+    setTimeout(function(){ ensureBottomNav(); unblockHiddenOverlays(); forcePageActive(p); }, 0);
+    setTimeout(function(){ ensureBottomNav(); unblockHiddenOverlays(); }, 150);
+  }
+
+  window.kvGoPage = go;
+  window.kvRestoreShellNavigation = function(){
+    ensureBottomNav();
+    unblockHiddenOverlays();
+    qsa('.bottom-nav .nav-btn').forEach(function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        go(btn.dataset.page || 'home');
+        return false;
+      };
+    });
+  };
+
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('.bottom-nav .nav-btn') : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    go(btn.dataset.page || 'home');
+    return false;
+  }, true);
+
+  // If a render removes the bottom nav, put it back immediately.
+  var mo = new MutationObserver(function(){
+    safe(function(){ window.kvRestoreShellNavigation(); });
+  });
+  safe(function(){ mo.observe(appRoot(), { childList:true, subtree:true }); });
+
+  window.kvRestoreShellNavigation();
+  setTimeout(window.kvRestoreShellNavigation, 50);
+  setTimeout(window.kvRestoreShellNavigation, 250);
+  setInterval(window.kvRestoreShellNavigation, 1200);
+  console.info('[Kinverly] Sprint 52.8 hard shell navigation restore loaded');
+})();
+</script>
+
 </body>
 </html>
 
