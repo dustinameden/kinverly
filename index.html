@@ -19398,3 +19398,311 @@ This keeps the app simple: `user_id` answers “who is the person?”, `member_i
   setInterval(rescueIfStuck, 1000);
 })();
 </script>
+
+<!-- PATCH: CLEAN NUMERIC DATASET ID LANES -->
+<script>
+(function(){
+  'use strict';
+
+  function _str(v){ return (v === null || typeof v === 'undefined') ? '' : String(v); }
+  function _time(v){
+    try { if (typeof atTime === 'function') return atTime(v); } catch(e) {}
+    return _str(v || '');
+  }
+  function _sortRows(rows){
+    return (rows || []).slice().sort(function(a,b){
+      var at = _str((a && (a.created_at || a.createdAt)) || '');
+      var bt = _str((b && (b.created_at || b.createdAt)) || '');
+      if (at !== bt) return at < bt ? -1 : 1;
+      var ak = _str((a && (a.firestore_id || a.legacy_id || a.user_id || a.member_id || a.flock_id || a.gathering_id || a.id || a.display_name || a.name)) || '');
+      var bk = _str((b && (b.firestore_id || b.legacy_id || b.user_id || b.member_id || b.flock_id || b.gathering_id || b.id || b.display_name || b.name)) || '');
+      return ak < bk ? -1 : (ak > bk ? 1 : 0);
+    });
+  }
+  function _addAlias(map, alias, id){
+    if (alias === null || typeof alias === 'undefined' || alias === '') return;
+    map[_str(alias)] = id;
+  }
+  function _nextMap(rows, aliasFn){
+    var map = {}, id = 1;
+    _sortRows(rows).forEach(function(row){
+      var aliases = aliasFn(row) || [];
+      var existing = '';
+      aliases.forEach(function(a){ if (!existing && map[_str(a)]) existing = map[_str(a)]; });
+      var assigned = existing || id++;
+      aliases.forEach(function(a){ _addAlias(map, a, assigned); });
+    });
+    return map;
+  }
+  function _currentFlockForCleanExports(){
+    try { if (typeof getCurrentFlockRecord === 'function') return getCurrentFlockRecord() || {}; } catch(e){}
+    try { if (typeof getCurrentFlock === 'function') return getCurrentFlock() || {}; } catch(e){}
+    try { if (typeof currentFlockId !== 'undefined' && typeof FLOCKS !== 'undefined') return FLOCKS[currentFlockId] || {}; } catch(e){}
+    return {};
+  }
+  function _memberObjectsForCleanExports(){
+    var rows = [];
+    var flock = _currentFlockForCleanExports();
+    try {
+      Object.keys((flock && flock.members) || {}).forEach(function(k){
+        var m = flock.members[k];
+        if (!m) return;
+        rows.push(Object.assign({ legacy_member_key:k }, m));
+      });
+    } catch(e){}
+    try { if (window.DATA && DATA.me) rows.push(Object.assign({ legacy_member_key: DATA.me.id || DATA.me.user_id || 'me' }, DATA.me)); } catch(e){}
+    try { ((window.DATA && DATA.members) || []).forEach(function(m){ if (m) rows.push(Object.assign({ legacy_member_key:m.id || m.user_id || m.member_id || '' }, m)); }); } catch(e){}
+    return rows;
+  }
+  function _buildCleanIdentity(rawTables){
+    rawTables = rawTables || {};
+    var memberObjects = _memberObjectsForCleanExports();
+    var userSources = [];
+    (rawTables.users || []).forEach(function(r){ userSources.push(r); });
+    memberObjects.forEach(function(m){ userSources.push(m); });
+
+    var userMap = _nextMap(userSources, function(r){
+      return [
+        r && r.firestore_id,
+        r && r.legacy_user_id,
+        r && r.user_firestore_id,
+        r && r.user_id,
+        r && r.canonical_user_id,
+        r && r.auth_uid,
+        r && r.firebase_uid,
+        r && r.uid,
+        r && r.id,
+        r && r.email,
+        r && r.legacy_member_key
+      ];
+    });
+
+    var flockSources = [];
+    (rawTables.flocks || []).forEach(function(r){ flockSources.push(r); });
+    try {
+      var f = _currentFlockForCleanExports();
+      if (f) flockSources.push(Object.assign({ firestore_id: (typeof currentFlockId !== 'undefined' ? currentFlockId : '') }, f));
+    } catch(e){}
+    var flockMap = _nextMap(flockSources.length ? flockSources : [{id:1}], function(r){
+      return [r && r.firestore_id, r && r.legacy_flock_id, r && r.flock_id, r && r.id, (typeof currentFlockId !== 'undefined' ? currentFlockId : '')];
+    });
+
+    var membershipSources = [];
+    (rawTables.flock_members || []).forEach(function(r){ membershipSources.push(r); });
+    (rawTables.users || []).forEach(function(r){ if (r && (r.member_id || r.id || r.user_id)) membershipSources.push(r); });
+    memberObjects.forEach(function(m){ membershipSources.push(m); });
+    var memberMap = _nextMap(membershipSources, function(r){
+      return [
+        r && r.member_id,
+        r && r.legacy_member_id,
+        r && r.member_firestore_id,
+        r && r.legacy_member_key,
+        r && r.id,
+        r && r.user_id,
+        r && r.firestore_id,
+        r && r.uid,
+        r && r.email
+      ];
+    });
+
+    var gatheringMap = _nextMap(rawTables.gatherings || [], function(r){
+      return [r && r.firestore_id, r && r.legacy_gathering_id, r && r.gathering_id, r && r.id, r && r.title, r && r.name];
+    });
+
+    function mapUser(v){
+      if (v === null || typeof v === 'undefined' || v === '') return '';
+      if (userMap[_str(v)]) return userMap[_str(v)];
+      var n = parseInt(v,10);
+      return Number.isFinite(n) && _str(n) === _str(v) ? n : '';
+    }
+    function mapMember(v){
+      if (v === null || typeof v === 'undefined' || v === '') return '';
+      if (memberMap[_str(v)]) return memberMap[_str(v)];
+      var n = parseInt(v,10);
+      return Number.isFinite(n) && _str(n) === _str(v) ? n : '';
+    }
+    function mapFlock(v){
+      if (v === null || typeof v === 'undefined' || v === '') return flockMap[_str(typeof currentFlockId !== 'undefined' ? currentFlockId : '')] || 1;
+      if (flockMap[_str(v)]) return flockMap[_str(v)];
+      var n = parseInt(v,10);
+      return Number.isFinite(n) && _str(n) === _str(v) ? n : (flockMap[_str(typeof currentFlockId !== 'undefined' ? currentFlockId : '')] || 1);
+    }
+    function mapGathering(v){
+      if (v === null || typeof v === 'undefined' || v === '') return '';
+      if (gatheringMap[_str(v)]) return gatheringMap[_str(v)];
+      var n = parseInt(v,10);
+      return Number.isFinite(n) && _str(n) === _str(v) ? n : '';
+    }
+    return { userMap:userMap, memberMap:memberMap, flockMap:flockMap, gatheringMap:gatheringMap, mapUser:mapUser, mapMember:mapMember, mapFlock:mapFlock, mapGathering:mapGathering };
+  }
+
+  function _cleanCommon(row, id, maps){
+    row = row || {};
+    var legacy = row.firestore_id || row.legacy_id || row.id || '';
+    return {
+      id: id,
+      created_at: _time(row.created_at || row.createdAt || row.ts || ''),
+      updated_at: _time(row.updated_at || row.updatedAt || row.created_at || row.createdAt || row.ts || ''),
+      deleted_at: _time(row.deleted_at || row.deletedAt || ''),
+      created_by_user_id: maps.mapUser(row.created_by_user_id || row.created_by || row.createdByUserId || row.actor_user_id || row.user_id || ''),
+      updated_by_user_id: maps.mapUser(row.updated_by_user_id || row.updated_by || row.updatedByUserId || row.actor_user_id || row.user_id || ''),
+      firestore_id: (legacy && String(legacy).match(/[^0-9]/)) ? legacy : (row.firestore_id || '')
+    };
+  }
+
+  function _cleanGenericTable(tableName, rows, maps){
+    var idMap = _nextMap(rows || [], function(r){ return [r && r.id, r && r[tableName.replace(/s$/,'') + '_id'], r && r.firestore_id, r && r.legacy_id]; });
+    return _sortRows(rows || []).map(function(row, idx){
+      var legacy = row.id || row.firestore_id || row.legacy_id || '';
+      var id = idMap[_str(row.id)] || (idx + 1);
+      var out = Object.assign({}, row);
+      Object.keys(out).forEach(function(k){
+        if (k === 'id') return;
+        if (k === 'user_id' || /_user_id$/.test(k)) out[k] = maps.mapUser(out[k]);
+        else if (k === 'member_id' || /_member_id$/.test(k)) out[k] = maps.mapMember(out[k]);
+        else if (k === 'flock_id') out[k] = maps.mapFlock(out[k]);
+        else if (k === 'gathering_id') out[k] = maps.mapGathering(out[k]);
+      });
+      out.id = id;
+      out.created_at = _time(out.created_at || out.createdAt || out.ts || '');
+      out.updated_at = _time(out.updated_at || out.updatedAt || out.created_at || out.createdAt || out.ts || '');
+      out.deleted_at = _time(out.deleted_at || out.deletedAt || '');
+      out.created_by_user_id = maps.mapUser(out.created_by_user_id || out.created_by || out.actor_user_id || out.user_id || '');
+      out.updated_by_user_id = maps.mapUser(out.updated_by_user_id || out.updated_by || out.actor_user_id || out.user_id || '');
+      if (legacy && String(legacy).match(/[^0-9]/)) out.legacy_id = legacy;
+      return out;
+    });
+  }
+
+  function _cleanTables(rawTables){
+    rawTables = rawTables || {};
+    var maps = _buildCleanIdentity(rawTables);
+    var out = {};
+
+    var userSeen = {};
+    var userSource = [];
+    (rawTables.users || []).forEach(function(r){ userSource.push(r); });
+    _memberObjectsForCleanExports().forEach(function(m){ userSource.push(m); });
+    out.users = _sortRows(userSource).map(function(r){
+      var uid = maps.mapUser(r.firestore_id || r.user_id || r.canonical_user_id || r.uid || r.id || r.email || r.legacy_member_key || '');
+      if (!uid || userSeen[uid]) return null;
+      userSeen[uid] = true;
+      var legacy = r.firestore_id || r.user_id || r.canonical_user_id || r.uid || r.id || r.legacy_member_key || '';
+      var base = _cleanCommon(r, uid, maps);
+      return Object.assign(base, {
+        id: uid,
+        user_id: uid,
+        firestore_id: legacy && String(legacy).match(/[^0-9]/) ? legacy : (r.firestore_id || ''),
+        display_name: r.display_name || r.name || r.user_name || '',
+        email: r.email || '',
+        phone: r.phone || '',
+        avatar: r.avatar || r.animal || '',
+        status: r.deleted_at || r.removed_at || r.membership_status === 'removed' ? 'removed' : (r.status || 'active'),
+        last_login_at: _time(r.last_login_at || r.lastLoginAt || '')
+      });
+    }).filter(Boolean);
+
+    var memberSource = [];
+    (rawTables.flock_members || []).forEach(function(r){ memberSource.push(r); });
+    _memberObjectsForCleanExports().forEach(function(m){ memberSource.push(m); });
+    var memberSeen = {};
+    out.flock_members = _sortRows(memberSource).map(function(r){
+      var mid = maps.mapMember(r.member_id || r.legacy_member_id || r.member_firestore_id || r.legacy_member_key || r.id || r.user_id || r.firestore_id || r.uid || r.email || '');
+      if (!mid || memberSeen[mid]) return null;
+      memberSeen[mid] = true;
+      var uid = maps.mapUser(r.user_id || r.canonical_user_id || r.uid || r.id || r.firestore_id || r.email || r.legacy_member_key || '');
+      var legacyMember = r.member_id || r.id || r.legacy_member_key || '';
+      return Object.assign(_cleanCommon(r, mid, maps), {
+        id: mid,
+        member_id: mid,
+        flock_id: maps.mapFlock(r.flock_id || ''),
+        user_id: uid,
+        legacy_member_id: legacyMember && String(legacyMember).match(/[^0-9]/) ? legacyMember : (r.member_id && String(r.member_id) !== String(mid) ? r.member_id : ''),
+        member_firestore_id: r.member_firestore_id || (legacyMember && String(legacyMember).match(/[^0-9]/) ? legacyMember : ''),
+        role: r.role || 'member',
+        membership_status: r.deleted_at || r.removed_at || r.membership_status === 'removed' ? 'removed' : (r.membership_status || r.status || 'active'),
+        joined_at: _time(r.joined_at || r.created_at || ''),
+        removed_at: _time(r.removed_at || r.deleted_at || ''),
+        removed_by_user_id: maps.mapUser(r.removed_by_user_id || r.removed_by || r.deleted_by || '')
+      });
+    }).filter(Boolean);
+
+    out.flocks = _sortRows(rawTables.flocks || [{}]).map(function(r, idx){
+      var fid = maps.mapFlock(r.flock_id || r.id || r.firestore_id || '');
+      var legacy = r.firestore_id || r.id || (typeof currentFlockId !== 'undefined' ? currentFlockId : '') || '';
+      return Object.assign(_cleanCommon(r, fid || idx + 1, maps), {
+        id: fid || idx + 1,
+        flock_id: fid || idx + 1,
+        firestore_id: legacy && String(legacy).match(/[^0-9]/) ? legacy : (r.firestore_id || ''),
+        name: r.name || r.flock_name || '',
+        invite_code: r.invite_code || r.inviteCode || '',
+        status: r.status || 'active',
+        owner_user_id: maps.mapUser(r.owner_user_id || r.created_by_user_id || r.createdBy || '')
+      });
+    });
+
+    out.gatherings = _sortRows(rawTables.gatherings || []).map(function(r, idx){
+      var gid = maps.mapGathering(r.gathering_id || r.id || r.firestore_id || r.title || r.name || '') || (idx + 1);
+      var legacy = r.firestore_id || r.id || '';
+      return Object.assign(_cleanCommon(r, gid, maps), Object.assign({}, r, {
+        id: gid,
+        gathering_id: gid,
+        flock_id: maps.mapFlock(r.flock_id || ''),
+        firestore_id: legacy && String(legacy).match(/[^0-9]/) ? legacy : (r.firestore_id || ''),
+        created_by_user_id: maps.mapUser(r.created_by_user_id || r.createdByUserId || r.createdBy || r.host || ''),
+        updated_by_user_id: maps.mapUser(r.updated_by_user_id || r.updatedByUserId || r.created_by_user_id || '')
+      }));
+    });
+
+    Object.keys(rawTables).forEach(function(tableName){
+      if (out[tableName]) return;
+      out[tableName] = _cleanGenericTable(tableName, rawTables[tableName] || [], maps);
+    });
+
+    return out;
+  }
+
+  var previousBuildAdminDataTables = window.buildAdminDataTables;
+  window.buildAdminDataTables = function(payload){
+    var raw = {};
+    try { raw = previousBuildAdminDataTables ? previousBuildAdminDataTables(payload) : {}; } catch(e){ raw = {}; }
+    return _cleanTables(raw);
+  };
+
+  window.buildAdminTableSchema = function(){
+    var common = ['id','created_at','updated_at','deleted_at','created_by_user_id','updated_by_user_id','firestore_id'];
+    return {
+      access: 'server_admin_only',
+      id_model: {
+        user_id: 'Numeric Kinverly person ID. String Firestore/user keys live only in firestore_id or legacy_* fields.',
+        member_id: 'Numeric membership ID for one user inside one flock.',
+        flock_id: 'Numeric flock ID.',
+        gathering_id: 'Numeric gathering ID.',
+        assignment_rule: 'For export/import, IDs are assigned by created_at ascending; ties break by legacy Firestore key/name/id; new rows use max(id)+1 in that lane.'
+      },
+      common_columns: common,
+      tables: {
+        users: common.concat(['user_id','display_name','email','phone','avatar','status','last_login_at']),
+        flock_members: common.concat(['member_id','flock_id','user_id','member_firestore_id','legacy_member_id','role','membership_status','joined_at','removed_at','removed_by_user_id']),
+        flocks: common.concat(['flock_id','name','invite_code','status','owner_user_id']),
+        gatherings: common.concat(['gathering_id','flock_id','title','description','location','status','gathering_state','confirmed_start_at','confirmed_end_at']),
+        gathering_members: common.concat(['gathering_id','flock_id','user_id','member_id','access_status','invited_at','responded_at']),
+        availability_responses: common.concat(['gathering_id','date_option_id','flock_id','user_id','member_id','availability_status','notes','responded_at']),
+        rsvps: common.concat(['gathering_id','flock_id','user_id','member_id','rsvp_status','responded_at']),
+        user_schedule_blocks: common.concat(['user_schedule_block_id','user_id','member_id','flock_id','schedule_name','schedule_type','start_date','end_date','start_time','end_time','is_all_day','visibility','source']),
+        activity_events: common.concat(['activity_event_id','actor_user_id','actor_member_id','flock_id','gathering_id','entity_type','entity_id','activity_type','title','summary','action_label','action_target']),
+        bring_list_items: common.concat(['bring_list_item_id','gathering_id','flock_id','created_by_user_id','created_by_member_id','item_type','title','description','status','claimed_by_user_id','claimed_by_member_id']),
+        bring_item_assignments: common.concat(['bring_item_assignment_id','bring_list_item_id','gathering_id','flock_id','assigned_to_user_id','assigned_to_member_id','completed_at','completed_by_user_id','completed_by_member_id']),
+        tasks: common.concat(['gathering_id','flock_id','title','description','assigned_to_user_id','assigned_to_member_id','status','completed_at','completed_by_user_id','completed_by_member_id']),
+        chats: common.concat(['gathering_id','flock_id','user_id','member_id','message','message_type']),
+        photos: common.concat(['gathering_id','flock_id','uploaded_by_user_id','uploaded_by_member_id','caption','url']),
+        notes: common.concat(['gathering_id','flock_id','user_id','member_id','note_text']),
+        ideas: common.concat(['flock_id','user_id','member_id','title','description','status','vote_count']),
+        idea_votes: common.concat(['idea_id','flock_id','user_id','member_id','voted_at'])
+      }
+    };
+  };
+
+  window.__KINVERLY_NUMERIC_DATASET_PATCH__ = true;
+})();
+</script>
