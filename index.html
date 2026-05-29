@@ -18355,3 +18355,117 @@ if (!window.__kinverlyInfoDelegatedButtons) {
   ensureActivityPage();
 })();
 </script>
+
+
+<script>
+/* ── SPRINT 42.1 — COMPLETE SCROLLABLE ADMIN EXPORT LIST ────────────────
+   Fixes Admin > Data Exports so the panel always displays the full export
+   inventory as a vertical scroll list. Empty tables still appear with 0 rows,
+   so admins can see every available data model and export any table as CSV/JSON.
+*/
+(function(){
+  if (window.__kinverlyCompleteAdminExportList) return;
+  window.__kinverlyCompleteAdminExportList = true;
+
+  var COMPLETE_EXPORT_TABLES = [
+    'flocks',
+    'members',
+    'gatherings',
+    'gathering_members',
+    'gathering_windows',
+    'availability',
+    'availability_responses',
+    'rsvps',
+    'user_schedule_blocks',
+    'activity_events',
+    'event_log',
+    'activity_log',
+    'tasks',
+    'bring_list_items',
+    'bring_item_assignments',
+    'chat_messages',
+    'photos',
+    'ideas',
+    'votes'
+  ];
+
+  var EXPORT_META = {
+    flocks: ['Flocks', 'One row per flock with invite code and owner.'],
+    members: ['Members', 'People in this flock, including removed members for history.'],
+    gatherings: ['Gatherings', 'One row per gathering with lifecycle, location, and recommendation fields.'],
+    gathering_members: ['Gathering Members', 'Attendance, RSVP, guest counts, and assigned tasks by member.'],
+    gathering_windows: ['Gathering Windows', 'Proposed date windows used by the scheduler.'],
+    availability: ['Availability', 'Legacy availability rows when present.'],
+    availability_responses: ['Availability Responses', 'Availability answers and blocked dates by gathering.'],
+    rsvps: ['RSVPs', 'One row per RSVP response by member and gathering.'],
+    user_schedule_blocks: ['User Schedule Blocks', 'Add To Your Schedule rows used by the scheduler.'],
+    activity_events: ['Activity Events', 'Normalized Recent Activity source of truth for Home and Gathering Activity.'],
+    activity_log: ['Legacy Activity Log', 'Older activity rows kept for backfill/export history.'],
+    event_log: ['Legacy Event Log', 'Low-level event/audit rows kept for troubleshooting.'],
+    tasks: ['Tasks', 'Planning task rows and completion status.'],
+    bring_list_items: ['Bring List Items', 'Reminder, claimable, and assigned bring-list items.'],
+    bring_item_assignments: ['Bring Item Assignments', 'Specific person assignments and completion status.'],
+    chat_messages: ['Chat Messages', 'Gathering chat messages for history.'],
+    photos: ['Photos', 'Photo metadata and uploader information.'],
+    ideas: ['Ideas', 'Idea bank items and vote counts.'],
+    votes: ['Votes', 'Idea vote rows by member when present.']
+  };
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+
+  function titleize(name){
+    return String(name || '').replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+
+  // Ensure Export All includes empty-but-supported tables too.
+  if (typeof window.buildExportTables === 'function' && !window.__kinverlyCompleteExportTablesWrapped) {
+    window.__kinverlyCompleteExportTablesWrapped = true;
+    var previousBuildExportTables = window.buildExportTables;
+    window.buildExportTables = function(payload){
+      var tables = previousBuildExportTables.apply(this, arguments) || {};
+      COMPLETE_EXPORT_TABLES.forEach(function(name){
+        if (!Object.prototype.hasOwnProperty.call(tables, name)) tables[name] = [];
+      });
+      return tables;
+    };
+  }
+
+  window.getExportTableMeta = function(tableName){
+    return EXPORT_META[tableName] || [titleize(tableName), 'Export rows from the ' + tableName + ' table.'];
+  };
+
+  window.exportCardHtml = function(tableName, title, sub, rowEstimate){
+    return '<div class="data-export-card" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px;min-height:72px">' +
+      '<div style="width:34px;height:34px;border-radius:10px;background:#ede8ff;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🧾</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:900;color:var(--text1);line-height:1.2">' + esc(title) + '</div>' +
+        '<div style="font-size:11px;color:var(--text2);line-height:1.35;margin-top:2px">' + esc(sub || '') + '</div>' +
+        '<div style="font-size:10px;color:var(--text3);font-weight:900;margin-top:4px">' + esc(rowEstimate || '0 rows') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-shrink:0">' +
+        '<button class="admin-export-single-table" data-table="' + esc(tableName) + '" style="padding:8px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;flex-shrink:0">CSV</button>' +
+        '<button class="admin-export-single-table-json" data-table="' + esc(tableName) + '" style="padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--text2);font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;flex-shrink:0">JSON</button>' +
+      '</div>' +
+    '</div>';
+  };
+
+  window.buildAdminExportCardsHtml = function(){
+    var payload = (typeof buildExportPayload === 'function') ? buildExportPayload('all', null) : null;
+    var tables = (typeof buildExportTables === 'function') ? (buildExportTables(payload) || {}) : {};
+    var names = COMPLETE_EXPORT_TABLES.slice();
+    Object.keys(tables).sort().forEach(function(name){
+      if (names.indexOf(name) === -1) names.push(name);
+    });
+    return names.map(function(name){
+      var meta = window.getExportTableMeta(name);
+      var rows = tables[name] || [];
+      var label = rows.length + ' row' + (rows.length === 1 ? '' : 's');
+      return window.exportCardHtml(name, meta[0], meta[1], label);
+    }).join('');
+  };
+})();
+</script>
