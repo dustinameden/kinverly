@@ -3727,28 +3727,29 @@ function buildCrossFlockTodos() {
 
 function buildCrossFlockActivity(limit) {
   var out = [];
+  var max = limit || 20;
   getMyFlockKeys().forEach(function(fid){
     var flock = FLOCKS[fid];
-    ((flock.activity || [])).forEach(function(a){
-      if (!a || a.deleted_at) return;
-      var g = inferActivityGathering(flock, a);
-      var actor = a.member && a.member !== 'group' ? getFlockMemberFor(flock, a.member) : null;
+    if (!flock) return;
+    var rows = kinverlyUserVisibleActions(flock, max * 3);
+    rows.forEach(function(a){
+      var g = a.gathering_id ? ((flock.gatherings || []).find(function(x){ return String(x.id || x.gathering_id) === String(a.gathering_id); }) || null) : null;
       out.push({
         fid: fid,
-        gid: g ? g.id : null,
-        tab: g ? ((String(a.text || '').toLowerCase().indexOf('chat') >= 0 || String(a.text || '').toLowerCase().indexOf('message') >= 0) ? 'chat' : 'overview') : null,
-        sort: a.ts || Date.parse(a.created_at || '') || 0,
-        icon: a.icon || '✨',
-        flock: flock.name,
-        gathering: g ? g.name : '',
-        actor: actor ? actor.name : (a.member === 'group' ? 'The flock' : 'Someone'),
-        text: a.text || '',
-        time: a.time || a.created_at || ''
+        gid: g ? g.id : (a.gathering_id || null),
+        tab: kinverlyActionTab(a),
+        sort: kinverlyActionTs(a),
+        icon: kinverlyActionIcon(a),
+        flock: flock.name || 'Flock',
+        gathering: g ? (g.name || g.title || '') : (a.gathering_title || ''),
+        actor: a.actor_name || a.target_member_name || 'Someone',
+        text: kinverlyActionText(a, false),
+        time: kinverlyRelativeTime(kinverlyActionTs(a))
       });
     });
   });
   out.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
-  return out.slice(0, limit || 20);
+  return out.slice(0, max);
 }
 
 
@@ -4150,64 +4151,117 @@ function renderMyWorld() {
 }
 
 // -- HOME ----------------------------------------
+function kinverlyActionTs(a) {
+  if (!a) return 0;
+  return Date.parse(a.created_at || a.updated_at || '') || a.ts || a.created_ts || 0;
+}
+function kinverlyRelativeTime(ts) {
+  if (!ts) return '';
+  var diff = Math.max(0, Date.now() - ts);
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+function kinverlyIsAdminActionType(type) {
+  type = String(type || '').toLowerCase();
+  return type.indexOf('export') >= 0 || type.indexOf('admin') >= 0 || type.indexOf('table') >= 0 || type.indexOf('error') >= 0;
+}
+function kinverlyIsUserVisibleAction(a) {
+  if (!a || a.deleted_at || a.action_status === 'failed') return false;
+  if (a.visible_to_users === false || a.visible_to_users === 'false') return false;
+  var type = String(a.action_type || '').toLowerCase();
+  if (!type) return false;
+  if (kinverlyIsAdminActionType(type)) return false;
+  return /chat|message|note|bring|task|rsvp|availability|photo|idea|poll|gathering\.created|gathering\.updated|date|reminder/.test(type);
+}
+function kinverlyActionIcon(a) {
+  var type = String(a && a.action_type || '').toLowerCase();
+  if (type.indexOf('chat') >= 0 || type.indexOf('message') >= 0) return '💬';
+  if (type.indexOf('note') >= 0) return '📌';
+  if (type.indexOf('bring') >= 0) return '🎒';
+  if (type.indexOf('rsvp') >= 0) return '🎉';
+  if (type.indexOf('availability') >= 0 || type.indexOf('date') >= 0) return '📅';
+  if (type.indexOf('task') >= 0) return '✅';
+  if (type.indexOf('photo') >= 0) return '📷';
+  if (type.indexOf('idea') >= 0) return '💡';
+  if (type.indexOf('poll') >= 0) return '🗳️';
+  if (type.indexOf('reminder') >= 0) return '👋';
+  return '✨';
+}
+function kinverlyActionTab(a) {
+  var type = String(a && a.action_type || '').toLowerCase();
+  if (type.indexOf('chat') >= 0 || type.indexOf('message') >= 0) return 'chat';
+  if (type.indexOf('photo') >= 0) return 'photos';
+  if (type.indexOf('task') >= 0 || type.indexOf('bring') >= 0 || type.indexOf('note') >= 0 || type.indexOf('poll') >= 0) return 'plans';
+  return 'overview';
+}
+function kinverlyActionText(a, includeActor) {
+  a = a || {};
+  var actor = a.actor_name || 'Someone';
+  var gName = a.gathering_title || a.entity_name || '';
+  var type = String(a.action_type || '').toLowerCase();
+  var rawSummary = a.summary || '';
+  var summary = (typeof escapeHtml === 'function') ? escapeHtml(String(rawSummary)) : String(rawSummary);
+  var safeActor = (typeof escapeHtml === 'function') ? escapeHtml(actor) : actor;
+  var safeG = (typeof escapeHtml === 'function') ? escapeHtml(gName) : gName;
+  var prefix = includeActor ? '<strong>' + safeActor + '</strong> ' : '';
+  if (type.indexOf('chat') >= 0 || type.indexOf('message') >= 0) {
+    var msg = '';
+    try { var meta = a.metadata_json ? JSON.parse(a.metadata_json) : (a.metadata || {}); msg = meta.preview || meta.message || ''; } catch(e) {}
+    msg = msg ? ('<div style="margin-top:3px;color:var(--text2)">&ldquo;' + ((typeof escapeHtml === 'function') ? escapeHtml(msg) : msg) + '&rdquo;</div>') : '';
+    return prefix + 'posted in <strong>' + safeG + '</strong>' + msg;
+  }
+  if (type.indexOf('note') >= 0) return prefix + 'added a note' + (safeG ? ' in <strong>' + safeG + '</strong>' : '');
+  if (type.indexOf('bring') >= 0) return prefix + summary;
+  if (type.indexOf('rsvp') >= 0) return prefix + summary;
+  if (type.indexOf('availability') >= 0) return prefix + 'shared availability' + (safeG ? ' for <strong>' + safeG + '</strong>' : '');
+  if (type.indexOf('reminder') >= 0) return prefix + summary;
+  return prefix + (summary || 'updated the flock');
+}
+function kinverlyUserVisibleActions(flock, limit) {
+  flock = flock || (typeof kinCurrentFlock === 'function' ? kinCurrentFlock() : null) || (currentFlockId && FLOCKS[currentFlockId]);
+  var rows = [];
+  if (flock && Array.isArray(flock.action_log)) rows = rows.concat(flock.action_log);
+  if (typeof DATA !== 'undefined' && DATA && Array.isArray(DATA.action_log) && (!flock || DATA.action_log !== flock.action_log)) rows = rows.concat(DATA.action_log);
+  // Deduplicate by id/action/time so mirrored rows do not spam the feed.
+  var seen = {};
+  rows = rows.filter(function(a){
+    if (!kinverlyIsUserVisibleAction(a)) return false;
+    var key = [a.id, a.action_type, a.entity_type, a.entity_id, a.created_at, a.summary].join('|');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+  rows.sort(function(a,b){ return kinverlyActionTs(b) - kinverlyActionTs(a); });
+  return rows.slice(0, limit || 20);
+}
+
 function buildFlockActivity() {
-  // Generate real activity from flock's own data
-  var events = [];
-
-  // Gather RSVPs and attendees
-  (DATA.gatherings||[]).forEach(function(g){
-    (g.attending||[]).forEach(function(id){
-      var m = getMember(id);
-      if (!m) return;
-      events.push({
-        member: id,
-        text: 'is going to <strong>'+g.name+'</strong>',
-        time: g.month+' '+g.day,
-        sort: 1,
-        gId: g.id,
-        tab: 'overview'
-      });
-    });
-
-    // Completed tasks
-    (g.tasks||[]).forEach(function(t){
-      if (!t.done) return;
-      var m = getMember(t.owner);
-      if (!m) return;
-      events.push({
-        member: t.owner,
-        text: 'completed &ldquo;'+t.title+'&rdquo;',
-        time: g.name,
-        sort: 2,
-        gId: g.id,
-        tab: 'tasks'
-      });
-    });
-  });
-
-  // Ideas voted on
-  (DATA.ideas||[]).forEach(function(idea){
-    if (idea.votes > 0) {
-      events.push({
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  var actions = kinverlyUserVisibleActions(flock, 30);
+  if (actions.length) {
+    return actions.map(function(a){
+      return {
         member: 'group',
-        text: '<strong>'+idea.votes+' votes</strong> for &ldquo;'+idea.title+'&rdquo;',
-        time: 'Idea bank',
-        sort: 3,
-        icon: idea.icon
-      });
-    }
-  });
+        text: kinverlyActionText(a, true),
+        time: kinverlyRelativeTime(kinverlyActionTs(a)),
+        sort: kinverlyActionTs(a),
+        icon: kinverlyActionIcon(a),
+        gId: a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : null),
+        tab: kinverlyActionTab(a)
+      };
+    }).slice(0, 12);
+  }
 
-  // Shuffle for variety, cap at 10
-  events.sort(function(){ return Math.random()-0.5; });
-
-  // Prepend manually-logged activity (most recent first)
-  var manual = (DATA.activity||[]).slice(0, 8).map(function(a){
-    return { member: a.member, text: a.text, time: a.time, sort: 0, icon: a.icon, gId: a.gathering_id || null, tab: a.tab || 'overview' };
+  // Fallback for older flocks without action_log yet.
+  var manual = (DATA.activity||[]).slice(0, 12).map(function(a){
+    return { member: a.member || 'group', text: a.text || '', time: a.time || '', sort: a.ts || Date.parse(a.created_at || '') || 0, icon: a.icon || '✨', gId: a.gathering_id || null, tab: a.tab || 'overview' };
   });
-  // Put manual events first, then derived events
-  var combined = manual.concat(events);
-  return combined.slice(0, 12);
+  manual.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
+  return manual.slice(0, 12);
 }
 
 // ── Activity logging ──
@@ -10734,6 +10788,7 @@ function renderPinboard(g) {
       });
       g.notes = liveG.notes;
       touchGathering(liveG);
+      try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'note.created', action_status:'success', entity_type:'note', entity_id: liveG.notes[0] && liveG.notes[0].id || '', gathering_id: liveG.id || g.id, gathering_title: liveG.name || g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' added a note to ' + (liveG.name || g.name || 'a gathering'), metadata:{ preview:text } }); } catch(e) {}
       saveFlockState();
       logActivity(currentActorKey(), 'added a note to <strong>'+escapeHtml(liveG.name || g.name)+'</strong>', '📌');
       addInp.value = '';
@@ -10778,6 +10833,7 @@ function renderPinboard(g) {
         pinBtn.addEventListener('click', function(){
           note.pinned = !note.pinned;
           touchGathering(getLiveGathering(g.id) || g);
+          try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.unclaimed', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' unclaimed ' + (item.name || 'an item'), metadata:{ item:item.name || '' } }); } catch(e) {}
           saveFlockState();
           rebuild();
         });
@@ -11030,6 +11086,7 @@ function renderBringList(g) {
       });
       g.bringList = liveG.bringList;
       touchGathering(liveG);
+      try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.created', action_status:'success', entity_type:'bring_item', entity_id: liveG.bringList[liveG.bringList.length-1] && liveG.bringList[liveG.bringList.length-1].id || '', gathering_id: liveG.id || g.id, gathering_title: liveG.name || g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' added ' + text + ' to the bring list', metadata:{ item:text } }); } catch(e) {}
       saveFlockState();
       addInp.value = '';
       rebuild();
@@ -11076,6 +11133,7 @@ function renderBringList(g) {
           item.claimedName = currentActorName();
           item.updated_at = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
           touchGathering(getLiveGathering(g.id) || g);
+          try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.claimed', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' is bringing ' + (item.name || 'an item'), metadata:{ item:item.name || '' } }); } catch(e) {}
           saveFlockState();
           logActivity(currentActorKey(), 'is bringing <strong>' + escapeHtml(item.name) + '</strong>', '🎒');
           rebuild();
@@ -11111,6 +11169,7 @@ function renderBringList(g) {
             g.bringList[idx].updated_at = g.bringList[idx].deleted_at;
           }
           touchGathering(getLiveGathering(g.id) || g);
+          try { if (window.appendKinverlyActionLog) window.appendKinverlyActionLog({ action_type:'bring_item.deleted', action_status:'success', entity_type:'bring_item', entity_id:item.id || '', gathering_id:g.id, gathering_title:g.name || '', visible_to_users:true, summary: ((DATA.me && DATA.me.name) || 'Someone') + ' removed ' + (item.name || 'an item') + ' from the bring list', metadata:{ item:item.name || '' } }); } catch(e) {}
           saveFlockState();
           rebuild();
         });
@@ -11354,7 +11413,6 @@ function renderGatheringChat(gatheringId) {
   var wrap = document.createElement('div');
   wrap.className = 'chat-wrap';
 
-  // Input row FIRST (sits at top visually)
   var inputRow = document.createElement('div');
   inputRow.className = 'chat-input-row';
   var input = document.createElement('input');
@@ -11365,33 +11423,59 @@ function renderGatheringChat(gatheringId) {
   sendBtn.className = 'chat-send-btn';
   sendBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>';
 
-  function sendMessage() {
+  var msgList = document.createElement('div');
+  msgList.className = 'chat-messages';
+  msgList.id = 'chat-messages-' + gatheringId;
+  msgList.dataset.gid = gatheringId;
+
+  async function sendMessage() {
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
+    var liveG = (typeof getLiveGathering === 'function' ? getLiveGathering(g.id) : null) || g;
+    if (!Array.isArray(liveG.chat)) liveG.chat = [];
+    var stamp = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
     var msg = {
       id: 'msg_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
-      memberId: DATA.me.id,
-      memberName: DATA.me.name,
-      memberAnimal: DATA.me.animal,
+      memberId: currentActorKey ? currentActorKey() : (DATA.me && DATA.me.id),
+      member_id: (typeof getNumericMemberIdForExport === 'function' ? getNumericMemberIdForExport(DATA.me && DATA.me.id) : null),
+      user_id: (DATA.me && (DATA.me.user_id || DATA.me.uid || DATA.me.id)) || null,
+      memberName: currentActorName ? currentActorName() : (DATA.me && DATA.me.name),
+      memberAnimal: DATA.me && DATA.me.animal,
       text: text,
-      sentAt: Date.now()
+      sentAt: Date.now(),
+      created_at: stamp,
+      updated_at: stamp,
+      deleted_at: null
     };
-    // Add to gathering chat
-    g.chat.push(msg);
-    // Cap to last 100 messages per gathering to avoid oversized flock doc
-    if (g.chat.length > 100) g.chat = g.chat.slice(-100);
+    liveG.chat.push(msg);
+    if (liveG.chat.length > 100) liveG.chat = liveG.chat.slice(-100);
+    g.chat = liveG.chat;
 
-    // Re-render chat list
-    renderChatMessages(msgList, g);
+    try { if (typeof touchGathering === 'function') touchGathering(liveG); } catch(e) {}
+    try {
+      if (window.appendKinverlyActionLog) {
+        window.appendKinverlyActionLog({
+          action_type: 'chat.message_created',
+          action_status: 'success',
+          entity_type: 'chat_message',
+          entity_id: msg.id,
+          entity_name: 'Chat message',
+          gathering_id: liveG.id || g.id,
+          gathering_title: liveG.name || g.name || '',
+          visible_to_users: true,
+          summary: (DATA.me && DATA.me.name ? DATA.me.name : 'Someone') + ' posted in ' + (liveG.name || g.name || 'a gathering'),
+          metadata: { message: text, preview: text.length > 140 ? text.slice(0, 140) + '…' : text }
+        });
+      }
+    } catch(logErr) { console.warn('[Kinverly] chat action log failed:', logErr); }
 
-    // Save + sync immediately so other users see the message
-    saveAndSync();
-
-    // Log to activity feed (but only every 5th message to avoid spam)
-    if (g.chat.length % 5 === 1) {
-      logActivity(DATA.me.id, 'is chatting in <strong>' + escapeHtml(g.name) + '</strong>', '💬');
+    renderChatMessages(msgList, liveG);
+    try { if (typeof saveAndSync === 'function') await saveAndSync(); else if (typeof saveFlockState === 'function') await saveFlockState(); } catch(saveErr) {
+      if (window.recordKinverlyActionFailure) window.recordKinverlyActionFailure('chat.message_save_failed', 'chat_message', msg.id, saveErr, { gathering_id: liveG.id || g.id });
+      if (typeof toast === 'function') toast('Message saved locally, but sync failed.');
     }
+    try { if (typeof renderHome === 'function') renderHome(); if (typeof renderMyWorld === 'function') renderMyWorld(); } catch(e) {}
   }
 
   sendBtn.addEventListener('click', sendMessage);
@@ -11400,16 +11484,8 @@ function renderGatheringChat(gatheringId) {
   inputRow.appendChild(input);
   inputRow.appendChild(sendBtn);
   wrap.appendChild(inputRow);
-
-  // Messages list BELOW input
-  var msgList = document.createElement('div');
-  msgList.className = 'chat-messages';
-  msgList.id = 'chat-messages-' + gatheringId;
-  msgList.dataset.gid = gatheringId;
   wrap.appendChild(msgList);
-
   renderChatMessages(msgList, g);
-
   return wrap;
 }
 
