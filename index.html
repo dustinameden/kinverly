@@ -20088,4 +20088,170 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 
   window.__KINVERLY_AVAILABILITY_CLEAN_SCHEDULE_PATCH__ = true;
 })();
+
+
+/* === SPRINT 44.2 — FINAL ONBOARDING / MEMBERSHIP RECOVERY FIX ===
+   Problem fixed:
+   The app was routing to the first-run onboarding screen even when the
+   logged-in user still had a valid flock membership. This happened because
+   identity normalization moved the app toward numeric user_id/member_id/flock_id,
+   while some live flock member records still used legacy Firestore/string keys.
+
+   Rule:
+   - Flocks are selected by numeric flock_id when available.
+   - Membership is validated through flock_members / members using user_id,
+     member_id, and legacy firestore_id fallbacks during migration.
+   - Onboarding is ONLY shown when there are truly zero valid memberships.
+*/
+(function(){
+  if (window.__KINVERLY_ONBOARDING_MEMBERSHIP_FINAL_FIX__) return;
+
+  function s(v){ return v === null || v === undefined ? '' : String(v); }
+  function isRemoved(rec){
+    if (!rec) return true;
+    return !!rec.deleted_at || s(rec.status).toLowerCase() === 'removed' || rec.removed === true;
+  }
+  function currentUserIdentitySet(){
+    var set = {};
+    var me = (window.DATA && DATA.me) ? DATA.me : {};
+    [me.id, me.user_id, me.member_id, me.firestore_id, me.legacy_user_key, me.uid, me.created_by_user_id].forEach(function(v){
+      if (v !== undefined && v !== null && s(v) !== '') set[s(v)] = true;
+    });
+    // Migration fallback: legacy apps often used the lowercase name/handle as the user key.
+    [me.name, me.display_name].forEach(function(v){
+      var x = s(v).trim().toLowerCase().replace(/\s+/g,'');
+      if (x) set[x] = true;
+    });
+    return set;
+  }
+  function recordIdentityValues(rec){
+    if (!rec) return [];
+    var vals = [rec.id, rec.user_id, rec.member_id, rec.firestore_id, rec.legacy_user_key, rec.uid, rec.created_by_user_id, rec.updated_by_user_id];
+    [rec.name, rec.display_name].forEach(function(v){
+      var x = s(v).trim().toLowerCase().replace(/\s+/g,'');
+      if (x) vals.push(x);
+    });
+    return vals.filter(function(v){ return v !== undefined && v !== null && s(v) !== ''; }).map(s);
+  }
+  function memberMatchesCurrentUser(member){
+    if (!member || isRemoved(member)) return false;
+    var ids = currentUserIdentitySet();
+    var vals = recordIdentityValues(member);
+    for (var i=0;i<vals.length;i++) if (ids[vals[i]]) return true;
+    var me = (window.DATA && DATA.me) ? DATA.me : {};
+    // Strong numeric fallback.
+    if (me.user_id !== undefined && member.user_id !== undefined && s(me.user_id) === s(member.user_id)) return true;
+    if (me.member_id !== undefined && member.member_id !== undefined && s(me.member_id) === s(member.member_id)) return true;
+    return false;
+  }
+  function memberListForFlock(flock){
+    var out = [];
+    if (!flock) return out;
+    if (Array.isArray(flock.flock_members)) out = out.concat(flock.flock_members);
+    if (Array.isArray(flock.members)) out = out.concat(flock.members);
+    else if (flock.members && typeof flock.members === 'object') {
+      Object.keys(flock.members).forEach(function(k){
+        var m = flock.members[k];
+        if (m && typeof m === 'object') {
+          if (m.id === undefined) m.id = k;
+          out.push(m);
+        }
+      });
+    }
+    return out;
+  }
+  function activeMemberForCurrentUser(flock){
+    var list = memberListForFlock(flock);
+    for (var i=0;i<list.length;i++) if (memberMatchesCurrentUser(list[i])) return list[i];
+    return null;
+  }
+  function numericFlockIdForKey(fid, flock){
+    return (flock && (flock.flock_id || flock.id)) || fid;
+  }
+  function resolveFlockKeyByNumericId(flockId){
+    if (!window.FLOCKS) return null;
+    if (FLOCKS[flockId]) return flockId;
+    var target = s(flockId);
+    var keys = Object.keys(FLOCKS);
+    for (var i=0;i<keys.length;i++) {
+      var f = FLOCKS[keys[i]] || {};
+      if (s(f.flock_id || f.id) === target || s(f.firestore_id) === target || s(f.storage_key) === target || s(f.uid) === target) return keys[i];
+    }
+    return null;
+  }
+
+  window.getMyFlockKeys = function(){
+    var keys = Object.keys(window.FLOCKS || {});
+    var valid = [];
+    keys.forEach(function(fid){
+      var flock = FLOCKS[fid];
+      if (!flock || isRemoved(flock)) return;
+      var member = activeMemberForCurrentUser(flock);
+      if (member) valid.push(fid);
+    });
+    return valid;
+  };
+
+  window.getCurrentFlockMember = function(){
+    var fid = resolveFlockKeyByNumericId(window.currentFlockId) || (window.getMyFlockKeys()[0] || null);
+    return fid && FLOCKS[fid] ? activeMemberForCurrentUser(FLOCKS[fid]) : null;
+  };
+
+  window.ensureActiveFlockMembership = function(options){
+    options = options || {};
+    if (!window.FLOCKS || !Object.keys(FLOCKS).length) return false;
+    var resolved = resolveFlockKeyByNumericId(window.currentFlockId);
+    var keys = window.getMyFlockKeys();
+    if (!resolved || keys.indexOf(resolved) < 0) resolved = keys[0] || null;
+    if (!resolved) return false;
+
+    window.currentFlockId = resolved;
+    try { currentFlockId = resolved; } catch(e) {}
+
+    var flock = FLOCKS[resolved];
+    var member = activeMemberForCurrentUser(flock);
+    if (member && window.DATA && DATA.me) {
+      // Keep numeric lanes on the active session for future filters.
+      if (member.user_id !== undefined && DATA.me.user_id === undefined) DATA.me.user_id = member.user_id;
+      if (member.member_id !== undefined) DATA.me.member_id = member.member_id;
+      DATA.me.flock_id = numericFlockIdForKey(resolved, flock);
+      DATA.me.current_flock_id = numericFlockIdForKey(resolved, flock);
+    }
+
+    var ov = document.getElementById('flock-overlay');
+    if (ov) ov.style.display = 'none';
+    if (!options.silent) {
+      try { if (typeof normalizeCurrentFlockSchema === 'function') normalizeCurrentFlockSchema(); } catch(e) {}
+      try { if (typeof updateContextBar === 'function') updateContextBar({page: window.currentPage || 'home'}); } catch(e) {}
+    }
+    return true;
+  };
+
+  var previousShowFlockOnboarding = window.showFlockOnboarding;
+  window.showFlockOnboarding = function(force){
+    // Default path: recover membership and do NOT show first-run onboarding.
+    if (!force && window.ensureActiveFlockMembership({silent:false})) {
+      try {
+        if (typeof renderPage === 'function') renderPage(window.currentPage || 'home');
+      } catch(e) {}
+      return;
+    }
+    if (typeof previousShowFlockOnboarding === 'function') return previousShowFlockOnboarding.apply(this, arguments);
+  };
+
+  // Startup guard: any delayed onboarding call gets corrected after the first data load tick.
+  function recoverAfterLoad(){
+    if (window.ensureActiveFlockMembership({silent:false})) {
+      var ov = document.getElementById('flock-overlay');
+      if (ov) ov.style.display = 'none';
+      try { if (typeof renderPage === 'function') renderPage(window.currentPage || 'home'); } catch(e) {}
+    }
+  }
+  setTimeout(recoverAfterLoad, 100);
+  setTimeout(recoverAfterLoad, 750);
+  setTimeout(recoverAfterLoad, 1800);
+
+  window.__KINVERLY_ONBOARDING_MEMBERSHIP_FINAL_FIX__ = true;
+})();
+
 </script>
