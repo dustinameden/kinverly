@@ -1817,38 +1817,6 @@ img,svg{display:block}
 .context-viewing strong{color:var(--text1)}
 @media (max-width:390px){.context-viewing{display:none}.context-crumb{max-width:120px}}
 
-
-
-/* ── MY WORLD COMMAND CENTER CLEANUP ───────────────── */
-.mw-command-hero{background:linear-gradient(135deg,var(--brand),var(--brand2));border-radius:22px;padding:18px;margin:0 0 14px;color:#fff;box-shadow:var(--shadow)}
-.mw-command-eyebrow{font-size:10px;font-weight:900;color:rgba(240,192,48,.85);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
-.mw-command-title{font-family:'Fredoka One',cursive;font-size:25px;line-height:1.1;margin-bottom:6px;color:#fff}
-.mw-command-sub{font-size:13px;line-height:1.45;color:rgba(255,255,255,.68)}
-.mw-command-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
-.mw-command-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:13px;padding:10px 6px;text-align:center}
-.mw-command-stat-n{font-size:22px;font-weight:300;color:#fff;line-height:1}
-.mw-command-stat-l{font-size:9px;color:rgba(240,192,48,.75);font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
-.mw-health-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
-.mw-health-top{display:flex;align-items:flex-start;gap:12px}
-.mw-health-icon{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:var(--green-bg)}
-.mw-health-card.needs .mw-health-icon{background:var(--amber-bg)}
-.mw-health-title{font-size:15px;font-weight:900;color:var(--text1);margin-bottom:2px}
-.mw-health-sub{font-size:12px;color:var(--text2);line-height:1.45}
-.mw-health-action{margin-top:10px;width:100%;padding:11px 12px;border-radius:12px;border:none;background:var(--brand);color:#fff;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
-.mw-section-head{display:flex;align-items:center;justify-content:space-between;margin:18px 0 9px}
-.mw-section-title{font-size:11px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.09em}
-.mw-section-link{border:none;background:transparent;color:var(--brand);font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
-.mw-request-list,.mw-upcoming-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
-.mw-request-card,.mw-upcoming-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:13px 14px;box-shadow:var(--shadow);cursor:pointer}
-.mw-request-top,.mw-upcoming-top{display:flex;align-items:flex-start;gap:10px}
-.mw-request-icon,.mw-upcoming-icon{width:36px;height:36px;border-radius:12px;background:#ede8ff;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.mw-request-title,.mw-upcoming-title{font-size:14px;font-weight:900;color:var(--text1);line-height:1.25}
-.mw-request-meta,.mw-upcoming-meta{font-size:11.5px;color:var(--text2);margin-top:2px;line-height:1.35}
-.mw-request-action{display:inline-flex;margin-top:9px;padding:7px 12px;border-radius:999px;background:#ede8ff;color:var(--brand);font-size:11px;font-weight:900}
-.mw-activity-clean .xflock-card{box-shadow:none;margin-bottom:0;border-radius:0;border-left:none;border-right:none;border-bottom:none}
-.mw-activity-clean .xflock-card:first-child{border-top-left-radius:16px;border-top-right-radius:16px}
-.mw-activity-clean .xflock-card:last-child{border-bottom-left-radius:16px;border-bottom-right-radius:16px}
-
 </style>
 </head>
 <body>
@@ -2607,7 +2575,7 @@ function maybeRunAutomaticReminderQueue() {
   if (!(typeof can === 'function' && (can('edit_gathering') || can('finalize_gathering') || can('manage_flock')))) return;
   window._autoReminderRun = window._autoReminderRun || {};
   (DATA.gatherings || []).forEach(function(g){
-    if (!g || g.deleted_at || g.status === 'completed') return;
+    if (!g || isArchivedGatheringRecord(g) || g.status === 'completed') return;
     var q = computeReminderQueue(g).filter(function(row){ return row.due; });
     if (!q.length) return;
     var key = g.id + ':' + reminderKindForGathering(g);
@@ -2630,8 +2598,8 @@ function renderReminderQueueCard(g) {
       (due.length ? due.length + ' reminder' + (due.length === 1 ? ' is' : 's are') + ' ready to send now.' : 'Next reminder scheduled for ' + formatReminderTime(next && next.next_ts) + '.') +
     '</div>' +
     '<div style="display:flex;gap:8px">' +
-      '<button class="btn-primary" style="flex:1" data-nudge-gathering-id="' + escapeHtml(String(g.id)) + '">Send now</button>' +
-      '<button class="btn-secondary" style="flex:1" data-reminder-skip="1">Skip for now</button>' +
+      '<button class="btn-primary" style="flex:1" onclick="nudgeGatheringById(\'' + escapeHtml(String(g.id)) + '\')">Send now</button>' +
+      '<button class="btn-secondary" style="flex:1" onclick="toast(\'Reminder left in queue\')">Skip for now</button>' +
     '</div>' +
   '</div>';
 }
@@ -2897,7 +2865,9 @@ function normalizeKinverlySchema(flock) {
     (g.bringList || []).forEach(function(b){ ensureAuditFields(b, g.created_at); });
     (g.expenses || []).forEach(function(ex){ ensureAuditFields(ex, g.created_at); });
   });
-  flock.gatherings = (flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+  // Keep archived/soft-deleted gatherings in flock.gatherings for history/export/sync.
+  // Active pages use getActiveGatheringsForUi() instead.
+  flock.gatherings = (flock.gatherings || []).filter(function(g){ return !!g; });
 
   (flock.ideas || []).forEach(function(i){
     ensureAuditFields(i, flock.created_at);
@@ -2930,7 +2900,7 @@ function normalizeKinverlySchema(flock) {
 function normalizeCurrentFlockSchema() {
   if (currentFlockId && FLOCKS[currentFlockId]) {
     normalizeKinverlySchema(FLOCKS[currentFlockId]);
-    DATA.gatherings = (FLOCKS[currentFlockId].gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+    DATA.gatherings = getActiveGatheringsForUi(FLOCKS[currentFlockId].gatherings || []);
     DATA.ideas = (FLOCKS[currentFlockId].ideas || []).filter(function(i){ return i && !i.deleted_at; });
     DATA.activity = FLOCKS[currentFlockId].activity || DATA.activity || [];
     DATA.events = FLOCKS[currentFlockId].events || DATA.events || [];
@@ -2959,7 +2929,7 @@ function deriveFlockState(flockId) {
   allMembers = Object.values(flock.members || {}).filter(Boolean);
   var activeMembers = allMembers.filter(isActiveMemberRecord);
   var archivedMembers = allMembers.filter(function(m){ return m && !isActiveMemberRecord(m); });
-  var gatherings = (flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+  var gatherings = getActiveGatheringsForUi(flock.gatherings || []);
   return {
     flock: flock,
     key: key,
@@ -3234,6 +3204,53 @@ function applySoftDelete(entity, actorSummary) {
   return entity;
 }
 
+
+// ── Archived gathering rules ─────────────────────────────
+// Archived gatherings are historical records. They stay in the database/export,
+// but every active UI surface must ignore them.
+function isArchivedGatheringRecord(g) {
+  if (!g) return true;
+  var status = String(g.status || '').toLowerCase();
+  return !!(g.deleted_at || g.archived_at || status === 'archived');
+}
+function getActiveGatheringsForUi(list) {
+  return (list || []).filter(function(g){ return g && !isArchivedGatheringRecord(g); });
+}
+function mergeGatheringArraysPreserveArchived(existing, liveRows) {
+  var map = {};
+  function put(g) {
+    if (!g) return;
+    var id = String(g.id || g.gathering_id || '');
+    if (!id) return;
+    var old = map[id];
+    if (!old || entityModifiedTime(g) >= entityModifiedTime(old)) map[id] = g;
+  }
+  (existing || []).forEach(put);   // includes archived tombstones
+  (liveRows || []).forEach(put);   // current active UI edits
+  return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){
+    return entityModifiedTime(b) - entityModifiedTime(a);
+  });
+}
+function archiveGatheringById(gatheringId, reason) {
+  var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+  if (!flock) return null;
+  if (!Array.isArray(flock.gatherings)) flock.gatherings = [];
+  var idx = flock.gatherings.findIndex(function(x){ return x && String(x.id) === String(gatheringId); });
+  var gObj = idx >= 0 ? flock.gatherings[idx] : (DATA.gatherings || []).find(function(x){ return x && String(x.id) === String(gatheringId); });
+  if (!gObj) return null;
+  var before = safeCloneForEvent(gObj);
+  applySoftDelete(gObj, reason || 'Archived gathering');
+  gObj.status = 'archived';
+  gObj.archived_at = gObj.archived_at || gObj.deleted_at || nowISO();
+  gObj.updated_at = nowISO();
+  gObj.updatedAt = Date.now();
+  if (idx < 0) flock.gatherings.push(gObj);
+  DATA.gatherings = getActiveGatheringsForUi(flock.gatherings);
+  recordEvent('gathering.archived', 'gathering', gObj.id, before, gObj, 'Archived gathering ' + (gObj.name || ''), '🗄️');
+  if (typeof logActivity === 'function') logActivity(DATA.me.id, 'archived <strong>' + escapeHtml(gObj.name || 'a gathering') + '</strong>', '🗄️');
+  return gObj;
+}
+
 function markMemberRemoved(member, removedAt, removedBy, reason) {
   if (!member) return member;
   var ts = removedAt || nowISO();
@@ -3497,14 +3514,14 @@ function getFlockMemberFor(flock, memberId) {
 }
 
 function getFlockGatheringById(flock, gatheringId) {
-  return ((flock && flock.gatherings) || []).find(function(g){ return g && g.id === gatheringId && !g.deleted_at; }) || null;
+  return ((flock && flock.gatherings) || []).find(function(g){ return g && String(g.id) === String(gatheringId) && !isArchivedGatheringRecord(g); }) || null;
 }
 
 function inferActivityGathering(flock, activity) {
   if (!flock || !activity) return null;
   if (activity.gathering_id) return getFlockGatheringById(flock, activity.gathering_id);
   var txt = String(activity.text || '');
-  return ((flock.gatherings || []).filter(function(g){ return g && !g.deleted_at; }).find(function(g){
+  return (getActiveGatheringsForUi(flock.gatherings || []).find(function(g){
     return g.name && txt.indexOf(g.name) >= 0;
   })) || null;
 }
@@ -3909,123 +3926,45 @@ function renderMyWorldCalendarDetails(dateKey, events) {
     '</div>';
   }).join('') + '</div>';
 }
-
-function buildMyWorldUpcomingGatherings(limit) {
-  var out = [];
-  getMyFlockKeys().forEach(function(fid){
-    var flock = FLOCKS[fid];
-    ((flock && flock.gatherings) || []).forEach(function(g){
-      if (!g || g.deleted_at || g.status === 'completed') return;
-      var label = (typeof getGatheringDateDisplay === 'function') ? getGatheringDateDisplay(g).replace('Confirmed: ', '') : ((g.month || '') + ' ' + (g.day || ''));
-      out.push({ fid: fid, gid: g.id, tab: 'overview', icon: g.status === 'planning' ? '🟡' : '🟢', title: g.name || 'Gathering', meta: (label || 'Date TBD') + ' · ' + ((flock && flock.name) || 'Flock'), sort: g._createdAt || Date.parse(g.created_at || '') || 0 });
-    });
-  });
-  out.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
-  return out.slice(0, limit || 5);
-}
-
-function buildMyWorldGatheringRequests(limit) {
-  var todos = buildCrossFlockTodos().filter(function(t){ return t.action === 'RSVP' || t.action === 'Dates'; });
-  var seen = {};
-  var out = [];
-  todos.forEach(function(t){
-    var key = t.fid + '|' + t.gid + '|' + t.action;
-    if (seen[key]) return;
-    seen[key] = true;
-    out.push(t);
-  });
-  return out.slice(0, limit || 6);
-}
-
-function buildCleanSocialActivity(limit) {
-  var noisy = /export|csv|directory|tables|download|admin tools|saved a copy/i;
-  return buildCrossFlockActivity(30).filter(function(a){
-    return !noisy.test(String(a.text || ''));
-  }).slice(0, limit || 8);
-}
-
-function getMyWorldHealth(todos) {
-  var requests = (todos || buildMyWorldGatheringRequests()).filter(function(t){ return t.action === 'RSVP' || t.action === 'Dates'; });
-  if (requests.length) {
-    return { status: 'needs', icon: '🟡', title: 'Needs review', sub: requests[0].text + (requests.length > 1 ? ' +' + (requests.length - 1) + ' more' : ''), target: requests[0] };
-  }
-  return { status: 'ok', icon: '🟢', title: 'Availability is up to date', sub: 'No gathering requests need you right now.', target: null };
-}
-
 function renderMyWorld() {
   var el = document.getElementById('myworld-content');
   if (!el) return;
   var myFlocks = getMyFlockKeys();
   if (!myFlocks.length) {
-    el.innerHTML = '<div class="xflock-empty">Join or create a flock to see your personal command center.</div>';
+    el.innerHTML = '<div class="xflock-empty">Join or create a flock to see your cross-flock dashboard.</div>';
     return;
   }
-
-  var requests = buildMyWorldGatheringRequests(8);
-  var todos = buildCrossFlockTodos();
-  var upcoming = buildMyWorldUpcomingGatherings(5);
-  var personalEvents = getMemberPersonalCalendarEventsAcrossFlocks ? getMemberPersonalCalendarEventsAcrossFlocks().filter(function(e){ return e && !e.deleted_at; }) : [];
-  var health = getMyWorldHealth(requests);
-  var displayName = (DATA.me && (DATA.me.name || DATA.me.first_name)) || 'there';
-  var firstName = String(displayName).split(' ')[0] || displayName;
 
   var strip = '<div class="myworld-flock-strip">' + myFlocks.map(function(fid){
     var f = FLOCKS[fid];
     return '<button class="myworld-flock-chip' + (fid === currentFlockId ? ' active' : '') + '" data-fid="' + escapeHtml(fid) + '"><span>' + escapeHtml(f.emoji === 'HOME' ? '🏠' : (f.emoji || '👥')) + '</span>' + escapeHtml(f.name || 'Flock') + '</button>';
   }).join('') + '</div>';
 
-  var hero = '<div class="mw-command-hero">' +
-    '<div class="mw-command-eyebrow">My World</div>' +
-    '<div class="mw-command-title">Hey ' + escapeHtml(firstName) + '</div>' +
-    '<div class="mw-command-sub">Everything you need across your flocks — requests, calendar, upcoming gatherings, and the updates that matter.</div>' +
-    '<div class="mw-command-stats">' +
-      '<div class="mw-command-stat"><div class="mw-command-stat-n">' + requests.length + '</div><div class="mw-command-stat-l">Requests</div></div>' +
-      '<div class="mw-command-stat"><div class="mw-command-stat-n">' + upcoming.length + '</div><div class="mw-command-stat-l">Upcoming</div></div>' +
-      '<div class="mw-command-stat"><div class="mw-command-stat-n">' + personalEvents.length + '</div><div class="mw-command-stat-l">Calendar</div></div>' +
-    '</div></div>';
-
-  var healthHtml = '<div class="mw-health-card ' + (health.status === 'needs' ? 'needs' : 'ok') + '">' +
-    '<div class="mw-health-top"><div class="mw-health-icon">' + health.icon + '</div><div style="flex:1;min-width:0">' +
-      '<div class="mw-health-title">' + escapeHtml(health.title) + '</div>' +
-      '<div class="mw-health-sub">' + escapeHtml(health.sub) + '</div>' +
-    '</div></div>' +
-    (health.target ? '<button class="mw-health-action" data-fid="' + escapeHtml(health.target.fid) + '" data-gid="' + escapeHtml(health.target.gid) + '" data-tab="' + escapeHtml(health.target.tab || 'overview') + '">Review now</button>' : '') +
-    '</div>';
-
-  var requestHtml = requests.length ? '<div class="mw-request-list">' + requests.map(function(t){
-    var actionLabel = t.action === 'Dates' ? 'Review availability' : 'RSVP now';
-    return '<div class="mw-request-card" data-fid="' + escapeHtml(t.fid) + '" data-gid="' + escapeHtml(t.gid) + '" data-tab="' + escapeHtml(t.tab || 'overview') + '">' +
-      '<div class="mw-request-top"><div class="mw-request-icon">' + t.icon + '</div><div style="flex:1;min-width:0">' +
-      '<div class="mw-request-title">' + escapeHtml(t.gathering || t.text) + '</div>' +
-      '<div class="mw-request-meta">' + escapeHtml(t.flock || 'Flock') + ' · ' + escapeHtml(t.action === 'Dates' ? 'Waiting for your availability' : 'Waiting for your RSVP') + '</div>' +
-      '<span class="mw-request-action">' + actionLabel + ' →</span>' +
+  var todos = buildCrossFlockTodos();
+  var todoHtml = todos.length ? todos.slice(0, 12).map(function(t){
+    return '<div class="xflock-card xflock-todo" data-fid="' + escapeHtml(t.fid) + '" data-gid="' + escapeHtml(t.gid) + '" data-tab="' + escapeHtml(t.tab) + '">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + t.icon + '</div><div class="xflock-body">' +
+      '<div class="xflock-title">' + escapeHtml(t.text) + '</div>' +
+      '<div class="xflock-meta">' + escapeHtml(t.flock) + ' · ' + escapeHtml(t.gathering) + '</div>' +
+      '<div class="xflock-link">Open ' + escapeHtml(t.action) + ' →</div>' +
       '</div></div></div>';
-  }).join('') + '</div>' : '<div class="xflock-empty">Nothing needs your response right now. You’re all caught up 🫶</div>';
+  }).join('') : '<div class="xflock-empty">All clear — nothing needs you right now. Enjoy the quiet 🫶</div>';
 
-  var upcomingHtml = upcoming.length ? '<div class="mw-upcoming-list">' + upcoming.map(function(g){
-    return '<div class="mw-upcoming-card" data-fid="' + escapeHtml(g.fid) + '" data-gid="' + escapeHtml(g.gid) + '" data-tab="overview">' +
-      '<div class="mw-upcoming-top"><div class="mw-upcoming-icon">' + g.icon + '</div><div style="flex:1;min-width:0">' +
-      '<div class="mw-upcoming-title">' + escapeHtml(g.title) + '</div>' +
-      '<div class="mw-upcoming-meta">' + escapeHtml(g.meta) + '</div>' +
-      '</div></div></div>';
-  }).join('') + '</div>' : '<div class="xflock-empty">No upcoming gatherings yet.</div>';
-
-  var acts = buildCleanSocialActivity(8);
-  var actHtml = acts.length ? '<div class="mw-activity-clean">' + acts.map(function(a){
+  var acts = buildCrossFlockActivity(12);
+  var actHtml = acts.length ? acts.map(function(a){
     var canOpen = !!a.gid;
     return '<div class="xflock-card xflock-activity" data-fid="' + escapeHtml(a.fid) + '" data-gid="' + escapeHtml(a.gid || '') + '" data-tab="' + escapeHtml(a.tab || 'overview') + '">' +
       '<div class="xflock-top"><div class="xflock-icon">' + escapeHtml(a.icon) + '</div><div class="xflock-body">' +
       '<div class="xflock-title"><strong>' + escapeHtml(a.actor) + '</strong> ' + a.text + '</div>' +
       '<div class="xflock-meta">' + escapeHtml(a.flock) + (a.gathering ? ' · ' + escapeHtml(a.gathering) : '') + (a.time ? ' · ' + escapeHtml(a.time) : '') + '</div>' +
-      (canOpen ? '<div class="xflock-link">Open →</div>' : '<div class="xflock-link">Open flock →</div>') +
+      (canOpen ? '<div class="xflock-link">Open referenced gathering/chat →</div>' : '<div class="xflock-link">Open flock →</div>') +
       '</div></div></div>';
-  }).join('') + '</div>' : '<div class="xflock-empty">No meaningful social updates yet. Admin exports and system noise stay out of your feed.</div>';
+  }).join('') : '<div class="xflock-empty">No updates yet. When someone plans, chats, or changes a gathering, it will show up here.</div>';
 
-  el.innerHTML = strip + hero + healthHtml +
-    '<div class="mw-section-head"><div class="mw-section-title">Gathering requests</div></div>' + requestHtml +
-    '<div class="mw-section-head"><div class="mw-section-title">My calendar</div><button class="mw-section-link" id="mw-add-unavailable-top">+ Unavailable</button></div>' + renderMyWorldCalendar() +
-    '<div class="mw-section-head"><div class="mw-section-title">Upcoming gatherings</div></div>' + upcomingHtml +
-    '<div class="mw-section-head"><div class="mw-section-title">Recent activity</div></div>' + actHtml;
+  el.innerHTML = strip +
+    renderMyWorldCalendar() +
+    '<div class="section-title">Your to-do across flocks</div>' + todoHtml +
+    '<div class="section-title">Recent activity across flocks</div>' + actHtml;
 
   var prev = el.querySelector('#mw-cal-prev');
   var next = el.querySelector('#mw-cal-next');
@@ -4044,19 +3983,17 @@ function renderMyWorld() {
   if (share) share.addEventListener('click', function(){
     var planning = buildCrossFlockTodos().find(function(t){ return t.action === 'Dates'; });
     if (planning) openCrossFlockTarget(planning.fid, planning.gid, 'overview');
-    else toast('No pending availability requests right now ✓');
+    else toast('No pending blackout date requests right now ✓');
   });
-  var addTop = el.querySelector('#mw-add-unavailable-top');
-  if (addTop) addTop.addEventListener('click', function(){ addPersonalEventFromCalendar(myWorldCalendarState.selectedKey, true); });
   var addBlackout = el.querySelector('#mw-cal-add-blackout');
   if (addBlackout) addBlackout.addEventListener('click', function(){ addPersonalEventFromCalendar(myWorldCalendarState.selectedKey, true); });
   var addEvent = el.querySelector('#mw-cal-add-event');
   if (addEvent) addEvent.addEventListener('click', function(){ addPersonalEventFromCalendar(myWorldCalendarState.selectedKey, false); });
 
   el.querySelectorAll('.myworld-flock-chip').forEach(function(btn){
-    btn.addEventListener('click', function(){ switchToFlock(btn.dataset.fid); showPage('myworld'); renderMyWorld(); });
+    btn.addEventListener('click', function(){ switchToFlock(btn.dataset.fid); showPage('gatherings'); renderGatherings(); });
   });
-  el.querySelectorAll('.mw-health-action,.mw-request-card,.mw-upcoming-card,.xflock-card').forEach(function(card){
+  el.querySelectorAll('.xflock-card').forEach(function(card){
     card.addEventListener('click', function(){ openCrossFlockTarget(card.dataset.fid, card.dataset.gid || null, card.dataset.tab || 'overview'); });
   });
 }
@@ -4200,7 +4137,7 @@ function updateAlertCard() {
 
 
 function getPrimaryLiveGathering() {
-  var active = (DATA.gatherings || []).filter(function(g){ return g && g.status !== 'completed'; });
+  var active = getActiveGatheringsForUi(DATA.gatherings || []).filter(function(g){ return g && g.status !== 'completed'; });
   if (active.length === 0) return null;
   active.sort(function(a,b){
     var order = { next:0, planning:1, upcoming:2 };
@@ -6259,7 +6196,7 @@ function deriveFamilyState(flockId) {
     return count > 1;
   });
 
-  var gatherings = (flock.gatherings || DATA.gatherings || []).filter(function(g){ return g && !g.deleted_at; });
+  var gatherings = getActiveGatheringsForUi(flock.gatherings || DATA.gatherings || []);
   var activeGatherings = gatherings.filter(function(g){ return g.status !== 'completed' && g.status !== 'archived'; });
   var recentActivity = (flock.activity || DATA.activity || []).slice(0, 6);
 
@@ -8969,7 +8906,7 @@ function saveLocal() {
         if (!g.attending) g.attending = [];
       });
 
-      _f.gatherings = DATA.gatherings;
+      _f.gatherings = mergeGatheringArraysPreserveArchived(_f.gatherings || [], DATA.gatherings || []);
       _f.ideas      = DATA.ideas;
       _f.activity   = DATA.activity;
       _f.events     = DATA.events || _f.events || [];
@@ -9378,7 +9315,7 @@ function addMeToFlock(flockId) {
   DATA.members = Object.values(flock.members).filter(function(m){ return m && !m.deleted_at && m.id !== DATA.me.id; });
 
   // Pull in any existing flock gatherings/ideas
-  DATA.gatherings = flock.gatherings;
+  DATA.gatherings = getActiveGatheringsForUi(flock.gatherings || []);
   DATA.ideas = flock.ideas;
   DATA.activity = flock.activity;
 
@@ -10153,17 +10090,7 @@ function openRSVP(gatheringId) {
     };
 
     if (!rsvpData[gatheringId]) rsvpData[gatheringId] = {};
-    var rsvpUserId = String(me.user_id || me.auth_uid || me.firebase_uid || me.uid || me.id);
-    rsvp.user_id = rsvpUserId;
-    rsvp.member_id = me.member_id != null ? me.member_id : me.id;
-    rsvp.legacy_member_id = String(me.id);
-    rsvp.updated_at = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
-    if (!rsvp.created_at) rsvp.created_at = rsvp.updated_at;
-    rsvpData[gatheringId][rsvpUserId] = rsvp;
     rsvpData[gatheringId][me.id] = rsvp;
-    rsvpData[gatheringId][String(me.id)] = rsvp;
-    if (me.member_id != null) rsvpData[gatheringId][String(me.member_id)] = rsvp;
-    if (me.canonical_member_id != null) rsvpData[gatheringId][String(me.canonical_member_id)] = rsvp;
 
     // Update gathering attending list
     var gIdx = DATA.gatherings.findIndex(function(x){ return x.id === gatheringId; });
@@ -10175,19 +10102,8 @@ function openRSVP(gatheringId) {
         attending = attending.filter(function(id){ return id !== me.id; });
       }
       DATA.gatherings[gIdx].attending = attending;
-      var rsvpUserId2 = String(me.user_id || me.auth_uid || me.firebase_uid || me.uid || me.id);
-      var attendingUsers = (DATA.gatherings[gIdx].attending_user_ids || DATA.gatherings[gIdx].attendingUserIds || []).map(String);
-      if (selectedStatus === 'yes' || selectedStatus === 'virtual') {
-        if (attendingUsers.indexOf(rsvpUserId2) === -1) attendingUsers.push(rsvpUserId2);
-      } else {
-        attendingUsers = attendingUsers.filter(function(id){ return id !== rsvpUserId2; });
-      }
-      DATA.gatherings[gIdx].attending_user_ids = attendingUsers;
-      DATA.gatherings[gIdx].attendingUserIds = attendingUsers;
       DATA.gatherings[gIdx].mode = selectedStatus === 'virtual' ? 'virtual' : 'in-person';
-      if (typeof saveAndSync === 'function') saveAndSync();
-      else if (typeof saveFlockState === 'function') saveFlockState();
-      try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e){}
+      saveAndSync();
     }
 
     // RSVP syncs to all users via flock document (saveFlockState triggers syncFlockToFirebase)
@@ -11742,7 +11658,7 @@ function renderFlockSchedule() {
       // Load ALL members first (we'll filter out self after restoreSession sets DATA.me.id)
       DATA.members = Object.values(flock.members).filter(Boolean);
     }
-    if (flock.gatherings && flock.gatherings.length > 0) DATA.gatherings = flock.gatherings;
+    if (flock.gatherings && flock.gatherings.length > 0) DATA.gatherings = getActiveGatheringsForUi(flock.gatherings || []);
     if (flock.ideas      && flock.ideas.length      > 0) DATA.ideas      = flock.ideas;
     if (flock.activity   && flock.activity.length   > 0) DATA.activity   = flock.activity;
 
@@ -13075,23 +12991,15 @@ try {
       document.getElementById('ge-delete-btn').style.display = '';
     });
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
-      var idx = DATA.gatherings.findIndex(function(x){ return x.id === g.id; });
-      if (idx >= 0) {
-        var gObj = DATA.gatherings[idx];
-        var beforeDelete = safeCloneForEvent(gObj);
-        applySoftDelete(gObj, 'Archived from edit sheet');
-        gObj.status = 'archived';
-        gObj.archived_at = nowISO();
-        recordEvent('gathering.archived', 'gathering', gObj.id, beforeDelete, gObj, 'Archived gathering ' + (gObj.name || ''), '🗄️');
-        if (typeof logActivity === 'function') logActivity(DATA.me.id, 'archived <strong>' + escapeHtml(gObj.name || 'a gathering') + '</strong>', '🗄️');
-        // Drop it from the live list so it leaves active views + exports at once.
-        DATA.gatherings.splice(idx, 1);
-      }
-      saveFlockState();
+      var archived = archiveGatheringById(g.id, 'Archived from edit sheet');
+      if (!archived) { toast('Could not archive gathering'); return; }
+      saveAndSync();
       document.getElementById('gather-edit-overlay').classList.add('hidden');
       showPage('gatherings');
       renderGatherings();
       renderHome();
+      if (typeof renderMyWorld === 'function') renderMyWorld();
+      if (detailOpen && window._currentDetailGathering && String(window._currentDetailGathering.id) === String(g.id)) closeDetail();
       toast('Gathering archived');
     });
 
@@ -13881,10 +13789,10 @@ try {
           footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
       }
       // Not replied yet → the second question.
-      return { tone:'brand', pill: dates, sentence:'It\u2019s set for <strong>' + escapeHtml(dates) + '</strong>. Reply so the flock knows who is coming.',
+      return { tone:'brand', pill: dates, sentence:'It\u2019s set for <strong>' + escapeHtml(dates) + '</strong>. Can you make it?',
         actions:[
-          { label:'I\u2019m going', onclick:"quickRSVP('"+gid+"','yes')", primary:true },
-          { label:'I can\u2019t go', onclick:"quickRSVP('"+gid+"','no')" }
+          { label:'Yes, I\u2019m in', onclick:"quickRSVP('"+gid+"','yes')", primary:true },
+          { label:'Can\u2019t make it', onclick:"quickRSVP('"+gid+"','no')" }
         ],
         footer:(state.attendingCount || 0) + ' coming so far', collision: collisionHtml };
     }
@@ -13940,12 +13848,7 @@ try {
     var m = computeGatheringNextAction(g);
     var actionsHtml = (m.actions || []).map(function(a){
       var cls = a.primary ? 'qcard-btn qcard-btn-primary' : 'qcard-btn';
-      var onclick = a.onclick || '';
-      var attrs = '';
-      var qr = onclick.match(/^quickRSVP\('([^']+)'\s*,\s*'([^']+)'\)$/);
-      if (qr) attrs = ' data-quick-rsvp-gid="' + escapeHtml(qr[1]) + '" data-quick-rsvp-status="' + escapeHtml(qr[2]) + '"';
-      var safeClick = onclick ? ' onclick="' + onclick.replace(/"/g, '&quot;') + '"' : '';
-      return '<button type="button" class="' + cls + '"' + attrs + safeClick + '>' + escapeHtml(a.label) + '</button>';
+      return '<button class="' + cls + '" onclick="' + a.onclick + '">' + escapeHtml(a.label) + '</button>';
     }).join('');
 
     var collisionHtml = m.collision
@@ -14024,78 +13927,35 @@ try {
   // availability, mirrors how the RSVP modal writes data.
   function quickRSVP(gid, status){
     var g = resolveG(gid);
-    if (!g) { toast('Gathering could not be found. Try refreshing.'); return; }
-    if (!DATA || !DATA.me) { toast('Please choose your profile first.'); return; }
-
-    var me = DATA.me;
-    var userId = String(me.user_id || me.auth_uid || me.firebase_uid || me.uid || me.id);
-    var legacyId = String(me.id || userId);
-    var now = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
-
+    if (!g) return;
+    var meId = DATA.me && DATA.me.id;
     if (!rsvpData[g.id]) rsvpData[g.id] = {};
+    var mine = Object.assign({}, rsvpData[g.id][meId] || rsvpData[g.id][String(meId)] || {});
+    mine.id = meId; mine.member_id = meId;
+    mine.status = status;
+    mine.updated_at = (typeof nowISO === 'function') ? nowISO() : new Date().toISOString();
+    if (!mine.created_at) mine.created_at = mine.updated_at;
+    rsvpData[g.id][meId] = mine;
+    rsvpData[g.id][String(meId)] = mine;
 
-    var existing = rsvpData[g.id][userId] || rsvpData[g.id][legacyId] ||
-      (me.member_id != null ? rsvpData[g.id][String(me.member_id)] : null) ||
-      (me.canonical_member_id != null ? rsvpData[g.id][String(me.canonical_member_id)] : null) || {};
-
-    var mine = Object.assign({}, existing, {
-      id: userId,
-      user_id: userId,
-      member_id: me.member_id != null ? me.member_id : legacyId,
-      legacy_member_id: legacyId,
-      memberName: me.name || existing.memberName || 'You',
-      memberAnimal: me.animal || existing.memberAnimal || '',
-      status: status,
-      rsvp_status: status,
-      attendance_status: status,
-      responded_at: existing.responded_at || now,
-      updated_at: now,
-      updatedAt: Date.now()
-    });
-    if (!mine.created_at) mine.created_at = now;
-
-    rsvpData[g.id][userId] = mine;
-    rsvpData[g.id][legacyId] = mine;
-    if (me.member_id != null) rsvpData[g.id][String(me.member_id)] = mine;
-    if (me.canonical_member_id != null) rsvpData[g.id][String(me.canonical_member_id)] = mine;
-
-    var attendingUserIds = (g.attending_user_ids || g.attendingUserIds || []).map(String);
-    var attendingLegacy = (g.attending || []).map(String);
-    if (status === 'yes' || status === 'virtual'){
-      if (attendingUserIds.indexOf(userId) === -1) attendingUserIds.push(userId);
-      if (attendingLegacy.indexOf(legacyId) === -1) attendingLegacy.push(legacyId);
-    } else {
-      attendingUserIds = attendingUserIds.filter(function(id){ return id !== userId; });
-      attendingLegacy = attendingLegacy.filter(function(id){ return id !== legacyId && id !== userId; });
-    }
-    g.attending_user_ids = attendingUserIds;
-    g.attendingUserIds = attendingUserIds;
-    g.attending = attendingLegacy;
-    g.updated_at = now;
-    g.updatedAt = Date.now();
-    g.updatedBy = userId;
-    g.updated_by_user_id = userId;
+    // Keep the gathering's attending list in sync (same as the modal).
+    var attending = (g.attending || []).slice();
+    if (status === 'yes' || status === 'virtual'){ if (attending.indexOf(meId) === -1) attending.push(meId); }
+    else { attending = attending.filter(function(id){ return id !== meId; }); }
+    g.attending = attending;
     if (typeof touchEntity === 'function') touchEntity(g);
 
     if (typeof logActivity === 'function'){
-      var verb = status === 'yes' ? 'is going to' : status === 'virtual' ? 'is joining virtually' : 'can\u2019t go to';
-      logActivity(legacyId, verb + ' <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', status === 'yes' ? '\ud83c\udf89' : status === 'virtual' ? '\ud83d\udcbb' : '\ud83d\udc94');
+      var verb = status === 'yes' ? 'is coming to' : status === 'virtual' ? 'is joining virtually' : 'can\u2019t make';
+      logActivity(meId, verb + ' <strong>' + escapeHtml(g.name || 'a gathering') + '</strong>', status === 'yes' ? '\ud83c\udf89' : status === 'virtual' ? '\ud83d\udcbb' : '\ud83d\udc94');
     }
-    if (typeof recordEvent === 'function') recordEvent('rsvp.updated', 'rsvp', g.id, null, mine, 'RSVP: ' + status, status === 'no' ? '\ud83d\udc94' : '\ud83c\udf89');
-
-    try { if (typeof saveFlockState === 'function') saveFlockState(); }
-    catch(e){ console.warn('[Kinverly] quick RSVP save failed:', e); }
-    try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); }
-    catch(e){ console.warn('[Kinverly] quick RSVP firebase sync failed:', e); }
-    if (typeof kEmit === 'function') kEmit('rsvp.updated', { gathering: g, status: status, user_id: userId });
-
-    try { if (typeof renderDetail === 'function') renderDetail(g); } catch(e){}
-    try { if (typeof renderGatherings === 'function') renderGatherings(); } catch(e){}
-    try { if (typeof renderHome === 'function') renderHome(); } catch(e){}
-    try { if (typeof renderMyWorld === 'function') renderMyWorld(); } catch(e){}
-
-    toast(status === 'yes' ? '\ud83c\udf89 You\u2019re going!' : status === 'virtual' ? '\ud83d\udcbb You\u2019re joining virtually' : 'Got it \u2014 marked not going');
+    if (typeof recordEvent === 'function') recordEvent('rsvp.updated', 'rsvp', g.id, null, mine, 'RSVP: ' + status, '\ud83c\udf89');
+    if (typeof kEmit === 'function') kEmit('rsvp.updated', { gathering: g, status: status });
+    else { if (typeof saveFlockState === 'function') saveFlockState(); }
+    if (typeof renderDetail === 'function') try { renderDetail(g); } catch(e){}
+    toast(status === 'yes' ? '\ud83c\udf89 You\u2019re in!' : status === 'virtual' ? '\ud83d\udcbb You\u2019re joining virtually' : 'Got it \u2014 you\u2019ll be missed');
   }
+  window.quickRSVP = quickRSVP;
 
   // Lock the engine's recommended window in one tap.
   function lockRecommendedWindow(gid){
