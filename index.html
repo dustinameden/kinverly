@@ -20300,16 +20300,11 @@ if (!window.__kinverlyInfoDelegatedButtons) {
     return false;
   }, true);
 
-  // If a render removes the bottom nav, put it back immediately.
-  var mo = new MutationObserver(function(){
-    safe(function(){ window.kvRestoreShellNavigation(); });
-  });
-  safe(function(){ mo.observe(appRoot(), { childList:true, subtree:true }); });
-
+  // Browser Freeze Fix: do not run a MutationObserver/polling loop here.
+  // Restore the shell once after load and once after the next render tick only.
   window.kvRestoreShellNavigation();
   setTimeout(window.kvRestoreShellNavigation, 50);
   setTimeout(window.kvRestoreShellNavigation, 250);
-  setInterval(window.kvRestoreShellNavigation, 1200);
   console.info('[Kinverly] Sprint 52.8 hard shell navigation restore loaded');
 })();
 </script>
@@ -25630,210 +25625,13 @@ signInKinverlyAccount = function(username, password) {
     });
   }
   bindShellClicks();
-  setInterval(bindShellClicks, 1000);
+  // Browser Freeze Fix: bind once, then once more after render settles.
+  setTimeout(bindShellClicks, 1000);
   setTimeout(function(){ goPage((window.currentPage || 'home')); }, 100);
   console.info('[Kinverly] Sprint 52.7 shell click recovery patch loaded');
 })();
 </script>
 
-
-<!-- Sprint 52.8 — Emergency Out-of-Band Bottom Navigation
-     Purpose: the in-app bottom nav was being removed/covered by page/admin renders.
-     This patch creates one fixed nav directly under <body>, above every app overlay,
-     and handles navigation without depending on old tab handlers. -->
-<style id="kv-emergency-bottom-nav-css">
-  body.kv-emergency-nav-enabled{padding-bottom:72px!important;}
-  body.kv-emergency-nav-enabled #app .bottom-nav:not(#kv-emergency-bottom-nav){display:none!important;}
-  #kv-emergency-bottom-nav{
-    position:fixed!important;
-    left:50%!important;
-    bottom:0!important;
-    transform:translateX(-50%)!important;
-    width:100%!important;
-    max-width:430px!important;
-    height:64px!important;
-    background:#fff!important;
-    border-top:1px solid rgba(61,43,110,.14)!important;
-    display:flex!important;
-    align-items:stretch!important;
-    justify-content:space-around!important;
-    z-index:2147483647!important;
-    pointer-events:auto!important;
-    box-shadow:0 -2px 14px rgba(61,43,110,.08)!important;
-  }
-  #kv-emergency-bottom-nav.hidden{display:none!important;}
-  #kv-emergency-bottom-nav .kv-emergency-nav-btn{
-    appearance:none!important;
-    -webkit-appearance:none!important;
-    flex:1!important;
-    min-width:0!important;
-    border:0!important;
-    background:transparent!important;
-    color:#9E97B8!important;
-    font-family:'Nunito',system-ui,sans-serif!important;
-    font-size:10px!important;
-    font-weight:800!important;
-    display:flex!important;
-    flex-direction:column!important;
-    align-items:center!important;
-    justify-content:center!important;
-    gap:3px!important;
-    cursor:pointer!important;
-    pointer-events:auto!important;
-    position:relative!important;
-    z-index:2147483647!important;
-    padding:5px 2px 6px!important;
-  }
-  #kv-emergency-bottom-nav .kv-emergency-nav-btn span:first-child{font-size:22px!important;line-height:1!important;display:block!important;}
-  #kv-emergency-bottom-nav .kv-emergency-nav-btn.active{color:#3D2B6E!important;}
-  #kv-emergency-bottom-nav .kv-emergency-nav-btn:active{transform:scale(.97)!important;}
-</style>
-<script id="kv-emergency-bottom-nav-patch">
-(function(){
-  if (window.__kvEmergencyBottomNavPatch) return;
-  window.__kvEmergencyBottomNavPatch = true;
-
-  var NAV_ITEMS = [
-    ['home','⌂','Home'],
-    ['availability','◎','Availability'],
-    ['gatherings','▣','Gatherings'],
-    ['ideas','♢','Ideas'],
-    ['flock','♟','Flocks'],
-    ['profile','♙','Profile']
-  ];
-
-  function qsa(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
-  function normalizePage(p){ return p === 'myworld' ? 'availability' : (p || 'home'); }
-  function signedIn(){
-    return !!(window.currentUser || window.currentUserId || window.activeFlockId || window.currentFlockId || (window.session && window.session.user_id));
-  }
-  function safe(fn){ try { return fn && fn(); } catch(e){ console.warn('[Kinverly] emergency nav safe error', e); } }
-
-  function ensureEmergencyNav(){
-    document.body.classList.add('kv-emergency-nav-enabled');
-    var nav = document.getElementById('kv-emergency-bottom-nav');
-    if (!nav) {
-      nav = document.createElement('nav');
-      nav.id = 'kv-emergency-bottom-nav';
-      nav.setAttribute('aria-label','Primary navigation');
-      nav.innerHTML = NAV_ITEMS.map(function(item){
-        return '<button type="button" class="kv-emergency-nav-btn" data-page="'+item[0]+'"><span>'+item[1]+'</span><span>'+item[2]+'</span></button>';
-      }).join('');
-      document.body.appendChild(nav);
-    } else if (nav.parentNode !== document.body) {
-      document.body.appendChild(nav);
-    }
-    nav.style.pointerEvents = 'auto';
-    nav.style.zIndex = '2147483647';
-    bindNav(nav);
-    updateNavVisibility();
-    updateActiveNav(window.currentPage || 'home');
-    return nav;
-  }
-
-  function updateNavVisibility(){
-    var nav = document.getElementById('kv-emergency-bottom-nav');
-    if (!nav) return;
-    var login = document.getElementById('login-screen');
-    var loginVisible = login && !login.classList.contains('hidden') && getComputedStyle(login).display !== 'none';
-    // Do not show app nav on true signed-out login/account screens.
-    if (loginVisible && !signedIn()) nav.classList.add('hidden');
-    else nav.classList.remove('hidden');
-  }
-
-  function updateActiveNav(page){
-    var p = normalizePage(page);
-    qsa('#kv-emergency-bottom-nav .kv-emergency-nav-btn').forEach(function(btn){
-      btn.classList.toggle('active', normalizePage(btn.dataset.page) === p);
-    });
-    qsa('.bottom-nav:not(#kv-emergency-bottom-nav) .nav-btn').forEach(function(btn){
-      btn.classList.toggle('active', normalizePage(btn.dataset.page) === p);
-    });
-  }
-
-  function closeClickBlockersForNavigation(){
-    // Hidden overlays should never catch clicks.
-    qsa('#login-screen.hidden,.overlay.hidden,.task-detail-overlay.hidden,.photo-lightbox.hidden').forEach(function(el){
-      el.style.display = 'none';
-      el.style.pointerEvents = 'none';
-    });
-    // If a signed-in user taps nav, close modal overlays that may be sitting over the shell.
-    if (signedIn()) {
-      qsa('.overlay,.task-detail-overlay,.photo-lightbox').forEach(function(el){
-        el.classList.add('hidden');
-        el.style.display = 'none';
-        el.style.pointerEvents = 'none';
-      });
-      var login = document.getElementById('login-screen');
-      if (login) { login.classList.add('hidden'); login.style.display = 'none'; login.style.pointerEvents = 'none'; }
-    }
-  }
-
-  function manualShowPage(page){
-    var p = normalizePage(page);
-    qsa('.page').forEach(function(el){ el.classList.remove('active'); el.style.display = 'none'; });
-    var target = document.getElementById('page-' + p);
-    if (!target && p === 'availability') target = document.getElementById('page-myworld');
-    if (target) { target.classList.add('active'); target.style.display = 'block'; }
-    window.currentPage = p;
-    updateActiveNav(p);
-  }
-
-  function renderCurrentPage(page){
-    var p = normalizePage(page);
-    safe(function(){ if (p === 'home' && typeof window.renderHome === 'function') window.renderHome(); });
-    safe(function(){ if (p === 'availability' && typeof window.renderAvailabilityPage === 'function') window.renderAvailabilityPage(); });
-    safe(function(){ if (p === 'availability' && typeof window.renderMyWorld === 'function') window.renderMyWorld(); });
-    safe(function(){ if (p === 'gatherings' && typeof window.renderGatherings === 'function') window.renderGatherings(); });
-    safe(function(){ if (p === 'ideas' && typeof window.renderIdeas === 'function') window.renderIdeas(); });
-    safe(function(){ if (p === 'flock' && typeof window.renderFlockPage === 'function') window.renderFlockPage(); });
-    safe(function(){ if (p === 'profile' && typeof window.renderProfile === 'function') window.renderProfile(); });
-  }
-
-  function emergencyGo(page){
-    var p = normalizePage(page);
-    closeClickBlockersForNavigation();
-
-    // Use the original router if available, but always follow with manual state repair.
-    safe(function(){ if (typeof window.showPage === 'function') window.showPage(p); });
-    manualShowPage(p);
-    renderCurrentPage(p);
-    ensureEmergencyNav();
-    updateActiveNav(p);
-    setTimeout(function(){ ensureEmergencyNav(); updateActiveNav(p); }, 0);
-    setTimeout(function(){ ensureEmergencyNav(); updateActiveNav(p); }, 150);
-  }
-  window.kvEmergencyGoPage = emergencyGo;
-
-  function bindNav(nav){
-    qsa('#kv-emergency-bottom-nav .kv-emergency-nav-btn').forEach(function(btn){
-      if (btn.__kvEmergencyBound) return;
-      btn.__kvEmergencyBound = true;
-      btn.addEventListener('click', function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-        emergencyGo(btn.dataset.page || 'home');
-      }, true);
-    });
-  }
-
-  // If anything removes/replaces the app shell, put the nav back immediately.
-  var observer = new MutationObserver(function(){ ensureEmergencyNav(); });
-  safe(function(){ observer.observe(document.body, {childList:true, subtree:true}); });
-
-  // Capture any click that reaches the emergency nav even if another listener is broken.
-  window.addEventListener('click', function(e){
-    var btn = e.target && e.target.closest ? e.target.closest('#kv-emergency-bottom-nav .kv-emergency-nav-btn') : null;
-    if (!btn) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-    emergencyGo(btn.dataset.page || 'home');
-  }, true);
-
-  ensureEmergencyNav();
-  setInterval(function(){ ensureEmergencyNav(); updateNavVisibility(); }, 500);
-  console.info('[Kinverly] Sprint 52.8 emergency bottom nav loaded');
-})();
-</script>
+<!-- Sprint 52.9 — Browser Freeze Fix
+     Removed the emergency out-of-band bottom nav patch because its MutationObserver + setInterval
+     repeatedly rebuilt navigation and could make the browser stop responding. -->
