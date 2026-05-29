@@ -20591,6 +20591,141 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 
   window.__KINVERLY_AVAILABILITY_CLEAN_SCHEDULE_PATCH__ = true;
 })();
+
+
+// ═══════════════════════════════════════════════
+// SPRINT 48.1 — GLOBAL ADMIN LANDING FIX
+// After a global admin account is created or signed in, the app must not force
+// the admin into the normal "Join a flock" flow. Admins have cross-flock access
+// through users.global_role = 'admin'. They can select any existing flock from
+// an Admin Flock Directory, or create the first flock if none exist.
+// ═══════════════════════════════════════════════
+function renderAdminFlockDirectory() {
+  var inner = document.getElementById('flock-inner');
+  if (!inner) return;
+  inner.innerHTML = '';
+  var flocks = Object.keys(FLOCKS || {}).map(function(key){
+    return { key:key, flock:FLOCKS[key] };
+  }).filter(function(x){ return x.flock && !x.flock.deleted_at; });
+
+  var card = document.createElement('div');
+  card.className = 'flock-onboard-card';
+  card.innerHTML =
+    '<div class="flock-onboard-logo">Kinverly.</div>'+ 
+    '<div class="flock-onboard-tag">Global admin</div>'+ 
+    '<div class="flock-onboard-mascot" aria-hidden="true">🛡️</div>'+ 
+    '<div class="flock-onboard-title">Admin access ready</div>'+ 
+    '<div class="flock-onboard-copy">Signed in as <strong>' + escapeHtml((DATA.me && (DATA.me.name || DATA.me.username)) || 'Admin') + '</strong>. Global admins can open any flock without creating fake membership rows.</div>'+
+    '<div id="admin-flock-list" style="display:flex;flex-direction:column;gap:10px;margin-top:16px"></div>'+
+    '<button type="button" class="flock-onboard-action secondary" id="admin-create-first-flock" style="margin-top:14px;width:100%">'+
+      '<span class="flock-onboard-action-icon">🏠</span><span><span class="flock-onboard-action-title">Create a new flock</span><span class="flock-onboard-action-sub">Creates numeric flock_id; admin can manage it</span></span>'+ 
+    '</button>'+
+    '<button type="button" class="flock-recovery-link" id="admin-switch-account">Use a different account</button>';
+  inner.appendChild(card);
+
+  var list = document.getElementById('admin-flock-list');
+  if (flocks.length) {
+    flocks.forEach(function(entry){
+      var f = entry.flock || {};
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'flock-onboard-action primary';
+      btn.style.width = '100%';
+      btn.innerHTML =
+        '<span class="flock-onboard-action-icon">' + escapeHtml(f.emoji || '🏠') + '</span>'+
+        '<span><span class="flock-onboard-action-title">Open ' + escapeHtml(f.name || 'Flock') + '</span>'+ 
+        '<span class="flock-onboard-action-sub">flock_id ' + escapeHtml(String(f.flock_id || f.id || entry.key)) + '</span></span>';
+      btn.addEventListener('click', function(){
+        currentFlockId = entry.key;
+        try { localStorage.setItem('kinverly_current_flock', currentFlockId); } catch(e){}
+        hideFlockOverlay();
+        if (typeof renderAll === 'function') renderAll();
+      });
+      list.appendChild(btn);
+    });
+  } else {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'padding:14px;border-radius:16px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.16);color:rgba(255,255,255,.72);font-size:13px;font-weight:700;text-align:center;line-height:1.45';
+    empty.textContent = 'No flocks exist yet. Create the first flock to get started.';
+    list.appendChild(empty);
+  }
+
+  var createBtn = document.getElementById('admin-create-first-flock');
+  if (createBtn) createBtn.addEventListener('click', function(){ renderFlockCreate(); });
+  var switchBtn = document.getElementById('admin-switch-account');
+  if (switchBtn) switchBtn.addEventListener('click', function(){ renderAccountGate('join'); });
+}
+
+// Override: admins land in the Admin Flock Directory, not Join a flock.
+var __kinverlyOriginalRenderFlockWelcome = renderFlockWelcome;
+renderFlockWelcome = function() {
+  if (!DATA.me || !DATA.me.user_id || !DATA.me.username) {
+    renderAccountGate('join');
+    return;
+  }
+  if (typeof isGlobalAdminUser === 'function' && isGlobalAdminUser()) {
+    var visible = getVisibleFlocksForCurrentUser ? getVisibleFlocksForCurrentUser() : [];
+    if (visible.length === 1) {
+      currentFlockId = visible[0].key;
+      try { localStorage.setItem('kinverly_current_flock', currentFlockId); } catch(e){}
+      hideFlockOverlay();
+      if (typeof renderAll === 'function') renderAll();
+      return;
+    }
+    renderAdminFlockDirectory();
+    return;
+  }
+  return __kinverlyOriginalRenderFlockWelcome();
+};
+
+// Override admin creation: after creating the admin user, never show Join a flock.
+renderCreateAdminAccount = function(nextStep) {
+  var inner = document.getElementById('flock-inner');
+  if (!inner) return;
+  inner.innerHTML = '';
+  var card = document.createElement('div');
+  card.className = 'flock-onboard-card';
+  card.innerHTML =
+    '<div class="flock-onboard-logo">Kinverly.</div>'+ 
+    '<div class="flock-onboard-tag">Admin setup</div>'+ 
+    '<div class="flock-onboard-mascot" aria-hidden="true">🛡️</div>'+ 
+    '<div class="flock-onboard-title">Create admin login</div>'+ 
+    '<div class="flock-onboard-copy">This creates a numeric <strong>user_id</strong> with <strong>global_role = admin</strong>. Admins access all flocks without fake flock memberships.</div>'+ 
+    '<div class="flock-field-label" style="margin-top:16px">Admin username</div>'+ 
+    '<input id="admin-username" class="flock-input" placeholder="e.g. admin" autocapitalize="none">'+ 
+    '<div class="flock-field-label">Admin password</div>'+ 
+    '<input id="admin-password" class="flock-input" placeholder="Create admin password" type="password">'+ 
+    '<div class="flock-field-label">Display name</div>'+ 
+    '<input id="admin-display-name" class="flock-input" placeholder="e.g. Kinverly Admin">'+ 
+    '<div id="admin-create-error" class="flock-err"></div>'+ 
+    '<button type="button" id="admin-create-login" class="flock-btn">Create admin login</button>'+ 
+    '<button type="button" id="admin-create-back" class="flock-btn-outline">Back</button>';
+  inner.appendChild(card);
+
+  document.getElementById('admin-create-login').addEventListener('click', function(){
+    var res = createKinverlyAdminAccount(
+      document.getElementById('admin-username').value,
+      document.getElementById('admin-password').value,
+      document.getElementById('admin-display-name').value
+    );
+    var err = document.getElementById('admin-create-error');
+    if (res.error) { err.textContent = res.error; err.style.display = 'block'; return; }
+    toast('Admin login created');
+    renderAdminFlockDirectory();
+  });
+  document.getElementById('admin-create-back').addEventListener('click', function(){ renderAccountGate(nextStep || 'join'); });
+};
+
+// Override sign-in landing for admin accounts too.
+var __kinverlyOriginalSignIn = signInKinverlyAccount;
+signInKinverlyAccount = function(username, password) {
+  var res = __kinverlyOriginalSignIn(username, password);
+  if (res && res.user && isGlobalAdminUser(res.user)) {
+    try { localStorage.setItem('kinverly_current_user_id', String(res.user.user_id)); } catch(e){}
+  }
+  return res;
+};
+
 </script>
 
 
