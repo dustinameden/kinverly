@@ -4353,6 +4353,42 @@ function getMemberPersonalCalendarEventsAcrossFlocks() {
   });
   return out;
 }
+
+function getScheduleBlocksForAvailability(limit) {
+  // Single source of truth for the Availability tab. The UI must always read
+  // directly from user_schedule_blocks so newly saved items show immediately.
+  var today = isoDateKey(new Date());
+  var rows = [];
+  try {
+    rows = getMemberPersonalCalendarEventsAcrossFlocks();
+  } catch(err) {
+    console.warn('[Kinverly] schedule block read failed', err);
+    rows = [];
+  }
+  rows = rows.filter(function(ev){
+    if (!ev || ev.deleted_at) return false;
+    var end = ev.end_date || ev.start_date || '';
+    return !end || end >= today;
+  });
+  rows.sort(function(a,b){ return String(a.start_date || '').localeCompare(String(b.start_date || '')); });
+  return rows.slice(0, limit || 12);
+}
+
+function renderScheduleBlockCards(rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  if (!rows.length) {
+    return '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>';
+  }
+  return rows.map(function(ev){
+    var id = ev.id || ev.user_schedule_block_id || ev.calendar_event_id || '';
+    return '<div class="xflock-card availability-edit-card" data-fid="' + escapeHtml(ev.fid || ev.flock_id || '') + '" data-event-id="' + escapeHtml(id) + '">' +
+      '<div class="xflock-top"><div class="xflock-icon">📅</div><div class="xflock-body">' +
+      '<div class="xflock-title">' + escapeHtml(ev.schedule_name || ev.title || 'Schedule item') + '</div>' +
+      '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · ' + escapeHtml(ev.flock_name) : '') + '</div>' +
+      '<div class="xflock-link">Tap to edit →</div>' +
+      '</div></div></div>';
+  }).join('');
+}
 var lastScheduleSaveFeedback = null;
 
 function createPersonalCalendarEvent(opts) {
@@ -4498,7 +4534,7 @@ function saveAvailabilityConflictFromSheet() {
     closeAvailabilityConflictSheet();
     renderAvailability();
     setTimeout(function(){
-      var savedCard = document.querySelector('.availability-edit-card[data-event-id="' + CSS.escape(String(created.id || created.user_schedule_block_id || created.calendar_event_id || '')) + '"]');
+      var savedCard = document.querySelector('.availability-edit-card[data-event-id="' + String(created.id || created.user_schedule_block_id || created.calendar_event_id || '').replace(/\"/g,'') + '"]');
       if (savedCard && savedCard.scrollIntoView) savedCard.scrollIntoView({behavior:'smooth', block:'center'});
     }, 60);
     toast('Saved to your schedule');
@@ -4903,26 +4939,33 @@ function setAvailabilityPattern(pattern) {
   } catch(err) { console.warn('[Kinverly] could not save availability pattern', err); }
 }
 function renderAvailabilityFallback(message) {
+  // Fallback should still be useful and data-bound. Never show a permanent
+  // scary "safe view" that hides saved schedule rows.
+  var pattern = 'flexible';
+  try { pattern = getAvailabilityPattern(); } catch(err) {}
+  var scheduleRows = [];
+  try { scheduleRows = getScheduleBlocksForAvailability(12); } catch(err2) { scheduleRows = []; }
+  var savedHtml = lastScheduleSaveFeedback ?
+    '<div class="avail-review-card" style="border-color:rgba(59,138,74,.25);background:var(--green-bg)"><div class="avail-review-title">Saved to your schedule</div><div class="avail-review-sub" style="margin-bottom:0">' + escapeHtml(lastScheduleSaveFeedback.title || 'Schedule item') + ' was saved and will now be used when ranking gathering dates.</div></div>' : '';
   return '<div class="decision-card">' +
     '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div></div></div>' +
     (message ? '<div class="avail-review-note">' + escapeHtml(message) + '</div>' : '') +
     '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
     '<div class="chip-group" id="availability-pattern-chips">' +
-      '<button class="chip selected" data-pattern="flexible">Mostly flexible</button>' +
-      '<button class="chip" data-pattern="weekends">Weekends best</button>' +
-      '<button class="chip" data-pattern="evenings">Weekday evenings</button>' +
-      '<button class="chip" data-pattern="rarely">Rarely available</button>' +
+      '<button class="chip ' + (pattern === 'flexible' ? 'selected' : '') + '" data-pattern="flexible">Mostly flexible</button>' +
+      '<button class="chip ' + (pattern === 'weekends' ? 'selected' : '') + '" data-pattern="weekends">Weekends best</button>' +
+      '<button class="chip ' + (pattern === 'evenings' ? 'selected' : '') + '" data-pattern="evenings">Weekday evenings</button>' +
+      '<button class="chip ' + (pattern === 'rarely' ? 'selected' : '') + '" data-pattern="rarely">Rarely available</button>' +
     '</div>' +
   '</div>' +
-  '<div class="section-title">Your schedule</div>' +
-  '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>' +
+  '<div class="section-title">Your schedule</div>' + savedHtml + renderScheduleBlockCards(scheduleRows) +
   '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add To Your Schedule</button>' +
   '<div class="section-title">Needs your response</div>' +
   '<div class="xflock-empty">No availability or RSVP requests right now.</div>' +
   '<div class="section-title">Upcoming commitments</div>' +
   '<div class="xflock-empty">Gatherings you RSVP to will appear here.</div>' +
   '<div class="section-title">Family scheduler insights</div>' +
-  '<div class="xflock-empty">Kinverly will compare everyone’s schedule items, RSVP status, and general availability to recommend the strongest gathering dates.</div>';
+  '<div class="xflock-empty">Kinverly compares everyone’s schedule items, RSVP status, and general availability to recommend the strongest gathering dates.</div>';
 }
 function renderAvailability() {
   var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
@@ -4936,15 +4979,8 @@ function renderAvailability() {
     }
 
     var pattern = getAvailabilityPattern();
-    var unavailable = getUpcomingUnavailableEvents(12);
-    var unavailableHtml = unavailable.length ? unavailable.map(function(ev){
-      return '<div class="xflock-card availability-edit-card" data-fid="' + escapeHtml(ev.fid || '') + '" data-event-id="' + escapeHtml(ev.id || ev.user_schedule_block_id || ev.calendar_event_id || '') + '">' +
-        '<div class="xflock-top"><div class="xflock-icon">🚫</div><div class="xflock-body">' +
-        '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable') + '</div>' +
-        '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
-        '<div class="xflock-link">Tap to edit →</div>' +
-        '</div></div></div>';
-    }).join('') : '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>';
+    var unavailable = getScheduleBlocksForAvailability(12);
+    var unavailableHtml = renderScheduleBlockCards(unavailable);
 
     var scheduleSaveHtml = lastScheduleSaveFeedback ?
       '<div class="avail-review-card" style="border-color:rgba(59,138,74,.25);background:var(--green-bg)"><div class="avail-review-title">Saved to your schedule</div><div class="avail-review-sub" style="margin-bottom:0">' + escapeHtml(lastScheduleSaveFeedback.title || 'Schedule item') + ' was added to <strong>user_schedule_blocks</strong> and will now be used when ranking gathering dates.</div></div>' : '';
@@ -5013,7 +5049,7 @@ function renderAvailability() {
     bindAvailabilityPageEvents(el);
   } catch(err) {
     console.error('[Kinverly] renderAvailability failed', err);
-    el.innerHTML = renderAvailabilityFallback('Availability had trouble loading, so Kinverly is showing the safe view.');
+    el.innerHTML = renderAvailabilityFallback('Availability loaded with a simplified view. Your saved schedule items are still shown below.');
     bindAvailabilityPageEvents(el);
   }
 }
@@ -9124,6 +9160,42 @@ function downloadSingleExportTableCsv(tableName) {
   toast(tableName + ' CSV downloaded');
 }
 
+function downloadSingleExportTableJson(tableName) {
+  var payload = buildExportPayload('all', null);
+  var tables = buildExportTables(payload);
+  var rows = tables[tableName] || [];
+  var base = sanitizeFilenamePart((payload.flock && payload.flock.name) || 'kinverly');
+  downloadTextFile(base + '-' + tableName + '.json', JSON.stringify(rows, null, 2), 'application/json;charset=utf-8');
+  logActivity(DATA.me.id, 'exported ' + tableName + ' JSON table', '🧾');
+  saveFlockState();
+  toast(tableName + ' JSON downloaded');
+}
+
+function getExportTableMeta(tableName) {
+  var meta = {
+    flocks: ['Flocks', 'One row per flock with invite code and owner.'],
+    members: ['Members', 'People in this flock, including removed members for history.'],
+    gatherings: ['Gatherings', 'One row per gathering with lifecycle, location, and recommendation fields.'],
+    gathering_members: ['Gathering Members', 'Attendance, RSVP, guest counts, and assigned tasks by member.'],
+    gathering_windows: ['Gathering Windows', 'Proposed date windows used by the scheduler.'],
+    availability: ['Availability', 'Legacy availability rows when present.'],
+    availability_responses: ['Availability Responses', 'RSVP availability answers and blocked dates by gathering.'],
+    user_schedule_blocks: ['User Schedule Blocks', 'Add To Your Schedule rows used by the scheduler.'],
+    activity_events: ['Activity Events', 'Normalized Recent Activity source of truth for Home.'],
+    activity_log: ['Legacy Activity Log', 'Older activity rows kept for backfill/export history.'],
+    event_log: ['Legacy Event Log', 'Low-level event/audit rows kept for troubleshooting.'],
+    tasks: ['Tasks', 'Planning task rows and completion status.'],
+    bring_list_items: ['Bring List Items', 'Reminder, claimable, and assigned bring-list items.'],
+    bring_item_assignments: ['Bring Item Assignments', 'Specific person assignments and completion status.'],
+    chat_messages: ['Chat Messages', 'Gathering chat messages for history.'],
+    photos: ['Photos', 'Photo metadata and uploader information.'],
+    ideas: ['Ideas', 'Idea bank items and vote counts.'],
+    votes: ['Votes', 'Idea vote rows by member when present.']
+  };
+  var fallbackTitle = String(tableName || '').replace(/_/g, ' ').replace(/\w/g, function(c){ return c.toUpperCase(); });
+  return meta[tableName] || [fallbackTitle, 'Export rows from the ' + tableName + ' table.'];
+}
+
 function exportCardHtml(tableName, title, sub, rowEstimate) {
   return '<div class="data-export-card" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px">' +
     '<div style="width:34px;height:34px;border-radius:10px;background:#ede8ff;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🧾</div>' +
@@ -9132,8 +9204,31 @@ function exportCardHtml(tableName, title, sub, rowEstimate) {
       '<div style="font-size:11px;color:var(--text2);line-height:1.35;margin-top:2px">' + escapeHtml(sub || '') + '</div>' +
       (rowEstimate ? '<div style="font-size:10px;color:var(--text3);font-weight:800;margin-top:4px">' + escapeHtml(rowEstimate) + '</div>' : '') +
     '</div>' +
-    '<button class="admin-export-single-table" data-table="' + escapeHtml(tableName) + '" style="padding:8px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;flex-shrink:0">CSV</button>' +
+    '<div style="display:flex;gap:6px;flex-shrink:0">' +
+      '<button class="admin-export-single-table" data-table="' + escapeHtml(tableName) + '" style="padding:8px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;flex-shrink:0">CSV</button>' +
+      '<button class="admin-export-single-table-json" data-table="' + escapeHtml(tableName) + '" style="padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--text2);font-size:11px;font-weight:900;cursor:pointer;font-family:inherit;flex-shrink:0">JSON</button>' +
+    '</div>' +
   '</div>';
+}
+
+function buildAdminExportCardsHtml() {
+  var payload = buildExportPayload('all', null);
+  var tables = buildExportTables(payload) || {};
+  var preferredOrder = [
+    'flocks','members','gatherings','gathering_members','gathering_windows','availability','availability_responses',
+    'user_schedule_blocks','activity_events','event_log','activity_log','tasks','bring_list_items','bring_item_assignments',
+    'chat_messages','photos','ideas','votes'
+  ];
+  var names = [];
+  preferredOrder.forEach(function(name){ if (tables.hasOwnProperty(name)) names.push(name); });
+  Object.keys(tables).sort().forEach(function(name){ if (names.indexOf(name) === -1) names.push(name); });
+  if (!names.length) return '<div style="font-size:12px;color:var(--text2);padding:12px;background:#fff;border-radius:12px;border:1px solid var(--border)">No export tables are available yet.</div>';
+  return names.map(function(name){
+    var meta = getExportTableMeta(name);
+    var rows = tables[name] || [];
+    var label = rows.length + ' row' + (rows.length === 1 ? '' : 's');
+    return exportCardHtml(name, meta[0], meta[1], label);
+  }).join('');
 }
 
 function exportGatheringsJson(scope, gatheringId) {
@@ -9440,19 +9535,7 @@ function openAdminPanel() {
         '<button class="admin-export-tables" style="width:100%;padding:12px;border-radius:12px;border:none;background:#2A1B52;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:8px">Export All Data CSVs</button>'+ 
         '<button class="admin-export-tables-json" style="width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:12px">Export All Data JSON</button>'+ 
         '<div style="display:flex;flex-direction:column;gap:8px">'+
-          exportCardHtml('members', 'Members', 'People in this flock, including removed members for history.', '')+
-          exportCardHtml('gatherings', 'Gatherings', 'One row per gathering with lifecycle, location, and recommendation fields.', '')+
-          exportCardHtml('gathering_members', 'Gathering Members', 'Attendance, RSVP, guest counts, and assigned tasks by member.', '')+
-          exportCardHtml('gathering_windows', 'Gathering Windows', 'Proposed date windows used by the scheduler.', '')+
-          exportCardHtml('availability_responses', 'Availability Responses', 'RSVP availability answers and blocked dates by gathering.', '')+
-          exportCardHtml('user_schedule_blocks', 'User Schedule Blocks', 'Add To Your Schedule rows: user_id, flock_id, schedule_name, start/end date and time.', '')+
-          exportCardHtml('activity_events', 'Activity Events', 'Normalized Recent Activity source of truth for the Home page.', '')+
-          exportCardHtml('tasks', 'Tasks', 'Planning task rows and completion status.', '')+
-          exportCardHtml('chat_messages', 'Chat Messages', 'Gathering chat messages for history.', '')+
-          exportCardHtml('photos', 'Photos', 'Photo metadata and uploader information.', '')+
-          exportCardHtml('ideas', 'Ideas', 'Idea bank items and vote counts.', '')+
-          exportCardHtml('activity_log', 'Legacy Activity Log', 'Older activity rows kept for backfill/export history.', '')+
-          exportCardHtml('event_log', 'Legacy Event Log', 'Low-level event/audit rows kept for troubleshooting.', '')+
+          buildAdminExportCardsHtml()+
         '</div>'+ 
         '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:10px">Every table starts with id, created_at, updated_at, and deleted_at where available. Use Export All Data for a full pull, or export one table at a time below.</div>'+ 
       '</div>'+ 
@@ -9478,6 +9561,12 @@ function openAdminPanel() {
       btn.addEventListener('click', function(e){
         e.stopPropagation();
         downloadSingleExportTableCsv(btn.dataset.table || 'members');
+      });
+    });
+    body.querySelectorAll('.admin-export-single-table-json').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        downloadSingleExportTableJson(btn.dataset.table || 'members');
       });
     });
     var membersBtn = body.querySelector('.admin-export-members');
