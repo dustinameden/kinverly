@@ -9714,7 +9714,7 @@ function showFlockSheet() {
         var confirmBox = document.createElement('div');
         confirmBox.style.cssText = 'display:none;background:var(--red-bg);border:1.5px solid var(--red);border-radius:12px;padding:12px 14px;flex:1';
         confirmBox.innerHTML =
-          '<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
+          '<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px">Delete this gathering?</div>' +
           '<div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">This will permanently delete <strong>' + flock.name.replace(/</g,'&lt;') + '</strong> and all its gatherings, ideas, and data for everyone. This can\'t be undone.</div>' +
           '<div style="display:flex;gap:8px">' +
             '<button class="flock-del-yes" style="flex:1;padding:9px;border-radius:8px;background:var(--red);color:#fff;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
@@ -12860,10 +12860,10 @@ try {
 
       // ── Delete ──
       '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">' +
-        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Archive this gathering</button>' +
+        '<button id="ge-delete-btn" style="width:100%;padding:13px;border-radius:14px;background:transparent;color:var(--red);font-size:14px;font-weight:800;border:1.5px solid var(--red);cursor:pointer;font-family:inherit;transition:all .15s">Delete this gathering</button>' +
       '</div>' +
       '<div id="ge-delete-confirm" style="display:none;margin-top:10px;background:var(--red-bg);border:1.5px solid var(--red);border-radius:14px;padding:16px">' +
-        '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Are you sure?</div>' +
+        '<div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px">Delete this gathering?</div>' +
         '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px">This will permanently remove <strong>' + g.name.replace(/</g,'&lt;') + '</strong> and all its tasks, RSVPs, and photos. This can\'t be undone.</div>' +
         '<div style="display:flex;gap:8px">' +
           '<button id="ge-delete-yes" style="flex:1;padding:11px;border-radius:10px;background:var(--red);color:#fff;font-size:13px;font-weight:800;border:none;cursor:pointer;font-family:inherit">Yes, delete it</button>' +
@@ -12991,16 +12991,7 @@ try {
       document.getElementById('ge-delete-btn').style.display = '';
     });
     document.getElementById('ge-delete-yes').addEventListener('click', function(){
-      var archived = archiveGatheringById(g.id, 'Archived from edit sheet');
-      if (!archived) { toast('Could not archive gathering'); return; }
-      saveAndSync();
-      document.getElementById('gather-edit-overlay').classList.add('hidden');
-      showPage('gatherings');
-      renderGatherings();
-      renderHome();
-      if (typeof renderMyWorld === 'function') renderMyWorld();
-      if (detailOpen && window._currentDetailGathering && String(window._currentDetailGathering.id) === String(g.id)) closeDetail();
-      toast('Gathering archived');
+      confirmDeleteGatheringFromEdit(g.id, this);
     });
 
     // Wire save
@@ -13070,6 +13061,62 @@ try {
     });
 
     document.getElementById('gather-edit-overlay').classList.remove('hidden');
+  }
+
+
+
+  // Centralized gathering delete/archive flow. This is a soft delete: the gathering
+  // stays in the flock document and exports with deleted_at, but disappears from
+  // active flock pages, My World, calendar, requests, nudges, and counts.
+  async function confirmDeleteGatheringFromEdit(gatheringId, btn) {
+    var g = getGatheringById(gatheringId) || (editingGathering && String(editingGathering.id) === String(gatheringId) ? editingGathering : null) || window._currentDetailGathering;
+    if (!g || !g.id) { toast('Could not find that gathering'); return; }
+    var oldText = btn ? btn.textContent : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
+    }
+    try {
+      var deleted = archiveGatheringById(g.id, 'Deleted from edit sheet');
+      if (!deleted) throw new Error('archiveGatheringById returned null');
+      // Make the soft-delete fields explicit for exports / tables.
+      deleted.deleted_at = deleted.deleted_at || nowISO();
+      deleted.deleted_by = deleted.deleted_by || (DATA.me && DATA.me.id ? DATA.me.id : '');
+      deleted.updated_at = nowISO();
+      deleted.updatedAt = Date.now();
+      deleted.status = 'archived';
+      deleted.archived_at = deleted.archived_at || deleted.deleted_at;
+
+      var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
+      if (flock && Array.isArray(flock.gatherings)) {
+        flock.gatherings = flock.gatherings.map(function(row){
+          return row && String(row.id) === String(deleted.id) ? deleted : row;
+        });
+      }
+      DATA.gatherings = getActiveGatheringsForUi((flock && flock.gatherings) || DATA.gatherings || []);
+
+      saveLocal();
+      if (typeof syncFlockToFirebase === 'function') await syncFlockToFirebase();
+      else if (typeof pushToFirebase === 'function') pushToFirebase();
+
+      var overlay = document.getElementById('gather-edit-overlay');
+      if (overlay) overlay.classList.add('hidden');
+      editingGathering = null;
+      if (detailOpen && window._currentDetailGathering && String(window._currentDetailGathering.id) === String(deleted.id)) closeDetail();
+      if (typeof showPage === 'function') showPage('gatherings');
+      if (typeof renderGatherings === 'function') renderGatherings();
+      if (typeof renderHome === 'function') renderHome();
+      if (typeof renderMyWorld === 'function') renderMyWorld();
+      if (typeof renderFlocksPage === 'function') renderFlocksPage();
+      toast('Gathering deleted from active flock ✓');
+    } catch (err) {
+      console.warn('[Kinverly] Gathering delete failed:', err);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = oldText || 'Yes, delete it';
+      }
+      toast('Could not delete gathering yet');
+    }
   }
 
   window.openGatherEdit = openGatherEdit;
@@ -13179,6 +13226,36 @@ try {
       saveGatheringEditFromSheet(btn);
     }, true);
   }
+
+  if (gatherEditOverlay && !gatherEditOverlay.dataset.hardenedDeleteBound) {
+    gatherEditOverlay.dataset.hardenedDeleteBound = '1';
+    gatherEditOverlay.addEventListener('click', function(e){
+      var target = e.target && e.target.closest ? e.target.closest('#ge-delete-btn,#ge-delete-no,#ge-delete-yes') : null;
+      if (!target) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+
+      if (target.id === 'ge-delete-btn') {
+        var panel = document.getElementById('ge-delete-confirm');
+        if (panel) panel.style.display = 'block';
+        target.style.display = 'none';
+        return;
+      }
+      if (target.id === 'ge-delete-no') {
+        var panelNo = document.getElementById('ge-delete-confirm');
+        var delBtn = document.getElementById('ge-delete-btn');
+        if (panelNo) panelNo.style.display = 'none';
+        if (delBtn) delBtn.style.display = '';
+        return;
+      }
+      if (target.id === 'ge-delete-yes') {
+        var g = editingGathering || window._currentDetailGathering;
+        confirmDeleteGatheringFromEdit(g && g.id, target);
+      }
+    }, true);
+  }
+
   if (gatherEditOverlay && !gatherEditOverlay.dataset.autoSaveBound) {
     gatherEditOverlay.dataset.autoSaveBound = '1';
     var autoTimer = null;
