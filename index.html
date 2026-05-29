@@ -18469,3 +18469,150 @@ if (!window.__kinverlyInfoDelegatedButtons) {
   };
 })();
 </script>
+
+
+<script>
+/* ── SPRINT 42.2 — AVAILABILITY RESTORE AFTER ADMIN EXPORT UPDATE ─────────
+   The export-list patch must not replace or bypass the real Availability page.
+   This patch re-binds Availability to user_schedule_blocks, supports legacy rows
+   that were saved with user_id only, and makes any old "safe" renderer delegate
+   back to the real Availability dashboard.
+*/
+(function(){
+  if (window.__kinverlyAvailabilityRestoreAfterExport) return;
+  window.__kinverlyAvailabilityRestoreAfterExport = true;
+
+  function currentUserKeys(){
+    var keys = [];
+    try { if (window.DATA && DATA.me && DATA.me.id) keys.push(String(DATA.me.id)); } catch(e) {}
+    try { if (window.DATA && DATA.me && DATA.me.user_id) keys.push(String(DATA.me.user_id)); } catch(e) {}
+    try { if (typeof getCurrentUserId === 'function') keys.push(String(getCurrentUserId())); } catch(e) {}
+    try { if (window.currentUser && currentUser.id) keys.push(String(currentUser.id)); } catch(e) {}
+    return keys.filter(Boolean);
+  }
+  function currentMemberIds(){
+    var ids = [];
+    try { if (window.DATA && DATA.me && DATA.me.member_id != null) ids.push(String(DATA.me.member_id)); } catch(e) {}
+    try { if (typeof getCurrentMemberNumericId === 'function') ids.push(String(getCurrentMemberNumericId())); } catch(e) {}
+    try { if (typeof getNumericMemberIdForExport === 'function' && window.DATA && DATA.me && DATA.me.id) ids.push(String(getNumericMemberIdForExport(DATA.me.id))); } catch(e) {}
+    return ids.filter(Boolean);
+  }
+  function flockMap(){
+    try { if (window.FLOCKS) return window.FLOCKS; } catch(e) {}
+    try { if (window.state && state.flocks) return state.flocks; } catch(e) {}
+    try { if (window.appState && appState.flocks) return appState.flocks; } catch(e) {}
+    return {};
+  }
+  function myFlockIds(){
+    try { if (typeof getMyFlockKeys === 'function') return getMyFlockKeys(); } catch(e) {}
+    return Object.keys(flockMap() || {});
+  }
+  function ensureStore(flock){
+    if (!flock) return [];
+    if (typeof ensurePersonalCalendarStore === 'function') {
+      try { return ensurePersonalCalendarStore(flock); } catch(e) {}
+    }
+    if (!Array.isArray(flock.user_schedule_blocks)) flock.user_schedule_blocks = [];
+    return flock.user_schedule_blocks;
+  }
+  function rowBelongsToMe(row){
+    if (!row) return false;
+    var userKeys = currentUserKeys();
+    var memberIds = currentMemberIds();
+    var rowUserKeys = [row.member_key, row.user_id, row.created_by_user_id, row.updated_by_user_id].filter(function(v){ return v != null && v !== ''; }).map(String);
+    var rowMemberIds = [row.member_id, row.user_member_id].filter(function(v){ return v != null && v !== ''; }).map(String);
+    if (!rowUserKeys.length && !rowMemberIds.length) return true;
+    return rowUserKeys.some(function(v){ return userKeys.indexOf(v) >= 0; }) || rowMemberIds.some(function(v){ return memberIds.indexOf(v) >= 0; });
+  }
+
+  window.getMemberPersonalCalendarEventsAcrossFlocks = function(){
+    var out = [];
+    var map = flockMap();
+    myFlockIds().forEach(function(fid){
+      var flock = map[fid];
+      if (!flock) return;
+      ensureStore(flock).forEach(function(ev){
+        if (!ev || ev.deleted_at) return;
+        if (!rowBelongsToMe(ev)) return;
+        out.push(Object.assign({
+          fid: fid,
+          flock_name: flock.name || flock.flock_name || 'Flock'
+        }, ev));
+      });
+    });
+    return out;
+  };
+
+  window.getScheduleBlocksForAvailability = function(limit){
+    var today = (typeof isoDateKey === 'function') ? isoDateKey(new Date()) : new Date().toISOString().slice(0,10);
+    var rows = window.getMemberPersonalCalendarEventsAcrossFlocks().filter(function(ev){
+      var end = ev.end_date || ev.end_at || ev.start_date || ev.start_at || '';
+      end = String(end || '').slice(0,10);
+      return !end || end >= today;
+    });
+    rows.sort(function(a,b){ return String(a.start_date || a.start_at || '').localeCompare(String(b.start_date || b.start_at || '')); });
+    return rows.slice(0, limit || 12);
+  };
+
+  function esc(v){
+    if (typeof escapeHtml === 'function') return escapeHtml(v == null ? '' : v);
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; });
+  }
+  function range(ev){
+    if (typeof formatAvailabilityRange === 'function') return formatAvailabilityRange(ev);
+    var s = String(ev.start_date || ev.start_at || '').slice(0,10);
+    var e = String(ev.end_date || ev.end_at || s).slice(0,10);
+    return s && e && s !== e ? s + ' → ' + e : (s || e || 'Date not set');
+  }
+  function fallbackScheduleCards(rows){
+    if (typeof renderScheduleBlockCards === 'function') {
+      try { return renderScheduleBlockCards(rows); } catch(e) {}
+    }
+    if (!rows.length) return '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, busy weekends, or dates you want the family to plan around.</div>';
+    return rows.map(function(ev){
+      var id = ev.id || ev.user_schedule_block_id || ev.calendar_event_id || '';
+      return '<div class="xflock-card availability-edit-card" data-fid="' + esc(ev.fid || ev.flock_id || '') + '" data-event-id="' + esc(id) + '">' +
+        '<div class="xflock-top"><div class="xflock-icon">📅</div><div class="xflock-body">' +
+        '<div class="xflock-title">' + esc(ev.schedule_name || ev.title || 'Schedule item') + '</div>' +
+        '<div class="xflock-meta">' + esc(range(ev)) + (ev.flock_name ? ' · ' + esc(ev.flock_name) : '') + '</div>' +
+        '<div class="xflock-link">Tap to edit →</div></div></div></div>';
+    }).join('');
+  }
+  function renderAvailabilityHardFallback(message){
+    var el = document.getElementById('availability-content') || document.getElementById('myworld-content') || document.querySelector('[data-page="availability"]');
+    if (!el) return false;
+    var rows = window.getScheduleBlocksForAvailability(12);
+    el.innerHTML =
+      '<div class="decision-card"><div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div></div></div>' +
+      (message ? '<div class="avail-review-note">' + esc(message) + '</div>' : '') + '</div>' +
+      '<div class="section-title">Your schedule</div>' + fallbackScheduleCards(rows) +
+      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add To Your Schedule</button>' +
+      '<div class="section-title">Needs your response</div><div class="xflock-empty">No availability or RSVP requests right now.</div>' +
+      '<div class="section-title">Family scheduler insights</div><div class="avail-review-card"><div class="avail-review-title">' + rows.length + ' schedule item' + (rows.length === 1 ? '' : 's') + ' saved</div><div class="avail-review-sub" style="margin-bottom:0">These rows come from user_schedule_blocks and are used when ranking gathering dates.</div></div>';
+    try { if (typeof bindAvailabilityPageEvents === 'function') bindAvailabilityPageEvents(el); } catch(e) {}
+    return true;
+  }
+
+  var realRenderAvailability = window.renderAvailability;
+  window.renderAvailability = function(){
+    var el = document.getElementById('availability-content') || document.getElementById('myworld-content');
+    try {
+      if (typeof realRenderAvailability === 'function') realRenderAvailability.apply(this, arguments);
+      if (el && /Loading availability|Availability had trouble loading/i.test(el.textContent || '')) {
+        renderAvailabilityHardFallback('Availability was restored after the export-panel update.');
+      }
+    } catch(err) {
+      console.warn('[Kinverly] Availability render restored after export update', err);
+      renderAvailabilityHardFallback('Availability had trouble rendering, so Kinverly restored the data-bound schedule view.');
+    }
+  };
+
+  window.renderAvailabilitySafe = function(){
+    if (typeof window.renderAvailability === 'function') {
+      window.renderAvailability();
+      return true;
+    }
+    return renderAvailabilityHardFallback();
+  };
+})();
+</script>
