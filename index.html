@@ -8857,10 +8857,23 @@ function saveLocal() {
         if (!g.attending) g.attending = [];
       });
 
-      _f.gatherings = DATA.gatherings;
-      _f.ideas      = DATA.ideas;
-      _f.activity   = DATA.activity;
-      _f.events     = DATA.events || _f.events || [];
+      // Protect shared flock state during startup. If this browser has only
+      // a partial/local shell and the first Firestore snapshot has not hydrated
+      // the flock yet, do not overwrite existing remote-capable arrays with
+      // empty UI arrays.
+      var _hasRemoteHydration = !!_f.__remote_hydrated;
+      var _hasExistingSharedData = hasUsableFlockData(_f);
+      var _incomingLooksBlank = (!DATA.gatherings || DATA.gatherings.length === 0) &&
+        (!DATA.ideas || DATA.ideas.length === 0) &&
+        (!DATA.activity || DATA.activity.length === 0);
+      if (!_hasRemoteHydration && _hasExistingSharedData && _incomingLooksBlank) {
+        // keep the cached/shared arrays intact until Firestore finishes loading
+      } else {
+        _f.gatherings = DATA.gatherings;
+        _f.ideas      = DATA.ideas;
+        _f.activity   = DATA.activity;
+        _f.events     = DATA.events || _f.events || [];
+      }
       if (!_f.members) _f.members = {};
       if (!_f.memberIds) _f.memberIds = [];
 
@@ -9085,6 +9098,52 @@ function getGatheringsForFirestore(localGatherings) {
   return (localGatherings || []).map(sanitizeGatheringForFirestore);
 }
 
+
+function hasUsableFlockData(flock) {
+  if (!flock) return false;
+  if (flock.members && Object.keys(flock.members).length > 0) return true;
+  if (Array.isArray(flock.gatherings) && flock.gatherings.length > 0) return true;
+  if (Array.isArray(flock.activity) && flock.activity.length > 0) return true;
+  if (Array.isArray(flock.ideas) && flock.ideas.length > 0) return true;
+  return false;
+}
+
+function hydrateDataFromCurrentFlock(source) {
+  try {
+    var key = resolveFlockKey(currentFlockId);
+    if (!key || !FLOCKS[key]) return false;
+    currentFlockId = key;
+    window.currentFlockId = key;
+    normalizeKinverlySchema(FLOCKS[key]);
+    var fs = (typeof deriveFlockState === 'function') ? deriveFlockState(key) : null;
+    DATA.gatherings = fs && fs.gatherings ? fs.gatherings : ((FLOCKS[key].gatherings || []).filter(function(g){ return g && !g.deleted_at; }));
+    DATA.ideas = fs && fs.ideas ? fs.ideas : ((FLOCKS[key].ideas || []).filter(function(i){ return i && !i.deleted_at; }));
+    DATA.activity = fs && fs.activity ? fs.activity : (FLOCKS[key].activity || []);
+    DATA.events = fs && fs.events ? fs.events : (FLOCKS[key].events || []);
+    var myUid = getCanonicalUserId(DATA.me);
+    DATA.members = fs && fs.activeMembers ? fs.activeMembers.filter(function(m){ return getCanonicalUserId(m) !== myUid; }) : [];
+    var nameEl = document.getElementById('topbar-flock-name');
+    if (nameEl && FLOCKS[key].name) nameEl.textContent = FLOCKS[key].name;
+    try {
+      localStorage.setItem('kinverly_current_flock', key);
+      localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
+    } catch(_storeErr) {}
+    return true;
+  } catch(e) {
+    console.warn('[Kinverly] hydrateDataFromCurrentFlock failed:', e && e.message);
+    return false;
+  }
+}
+
+function renderAllAppViews() {
+  try { renderHome(); } catch(e) { console.warn('[Kinverly] renderHome failed:', e && e.message); }
+  try { renderGatherings(); } catch(e) { console.warn('[Kinverly] renderGatherings failed:', e && e.message); }
+  try { renderIdeas(); } catch(e) { console.warn('[Kinverly] renderIdeas failed:', e && e.message); }
+  try { renderFlockPage(); } catch(e) { console.warn('[Kinverly] renderFlockPage failed:', e && e.message); }
+  try { renderProfile(); } catch(e) { console.warn('[Kinverly] renderProfile failed:', e && e.message); }
+  try { updateCountdown(); } catch(e) {}
+}
+
 function loadFlockState() {
   try {
     var s = localStorage.getItem('kinverly_flocks');
@@ -9095,6 +9154,7 @@ function loadFlockState() {
     if (resolved) currentFlockId = resolved;
     else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
     normalizeAppState();
+    window.currentFlockId = currentFlockId;
   } catch(e) { console.warn('[Kinverly] loadFlockState warning', e); }
 }
 
@@ -9118,16 +9178,8 @@ function switchToFlock(flockId) {
   var nameEl = document.getElementById('topbar-flock-name');
   if (nameEl) nameEl.textContent = flock.name;
 
-  // Load members — exclude myself
-  DATA.members = (flock.members && Object.keys(flock.members).length > 0)
-    ? flockState.activeMembers.filter(function(m){ return isActiveMemberRecord(m) && m.id !== DATA.me.id; })
-    : [];
-
-  // Load flock data
-  DATA.gatherings = flockState.gatherings || [];
-  DATA.ideas      = flockState.ideas || [];
-  DATA.activity   = flockState.activity || [];
-  DATA.events     = flockState.events || [];
+  // Load flock data from the same derived state used by every page.
+  hydrateDataFromCurrentFlock('switchToFlock');
 
   // Save currentFlockId to localStorage so refresh remembers which flock
   try {
@@ -11960,6 +12012,7 @@ try {
       if (!window.FLOCKS[activeKey]) window.FLOCKS[activeKey] = {};
       var local = window.FLOCKS[activeKey];
       stampCanonicalFlockIdentity(activeKey, local);
+      local.__remote_hydrated = true;
 
       // ── MEMBERS: remote is authoritative for who's in the flock ──
       if (remote.members) {
@@ -12179,12 +12232,8 @@ try {
       }
 
       // Re-render ALL views so every user sees changes
-      renderHome();
-      renderGatherings();
-      renderIdeas();
-      renderFlockPage();
-      renderProfile();
-      updateCountdown();
+      hydrateDataFromCurrentFlock('remote-snapshot');
+      renderAllAppViews();
 
       // If gathering detail is open, update only the chat messages (preserve input)
       if (window._currentDetailGathering) {
@@ -12216,7 +12265,78 @@ try {
     });
   };
 
-  window.__attachFlockListener(window.currentFlockId || localStorage.getItem('kinverly_current_flock'));
+
+  window.__bootstrapUserFlocks = async function() {
+    var attachedKey = window.currentFlockId || currentFlockId || localStorage.getItem('kinverly_current_flock');
+    if (attachedKey) {
+      try { window.__attachFlockListener(attachedKey); } catch(_attachErr) {}
+    }
+
+    var userId = DATA && DATA.me && DATA.me.id ? DATA.me.id : localStorage.getItem('kinverly_user_id');
+    if (!userId || !getDoc) return;
+
+    try {
+      var userSnap = await getDoc(doc(db, 'users', userId));
+      if (!userSnap.exists()) return;
+      var userData = userSnap.data() || {};
+      var memberships = userData.flocks || userData.flock_memberships || {};
+      var refs = [];
+
+      if (Array.isArray(memberships)) {
+        memberships.forEach(function(m){
+          var fid = m && (m.flock_firestore_id || m.flock_key || m.firestore_id || m.id);
+          var status = String((m && (m.status || m.membership_status)) || 'active').toLowerCase();
+          if (fid && status !== 'removed' && status !== 'archived') refs.push(String(fid));
+        });
+      } else {
+        Object.keys(memberships || {}).forEach(function(fid){
+          var m = memberships[fid] || {};
+          var status = String(m.status || m.membership_status || 'active').toLowerCase();
+          if (fid && status !== 'removed' && status !== 'archived') refs.push(String(fid));
+        });
+      }
+
+      // De-dupe refs.
+      refs = refs.filter(function(fid, idx){ return refs.indexOf(fid) === idx; });
+      if (!refs.length) return;
+
+      for (var i = 0; i < refs.length; i++) {
+        try {
+          var fsnap = await getDoc(doc(db, 'flocks', refs[i]));
+          if (!fsnap.exists()) continue;
+          var remoteFlock = fsnap.data() || {};
+          remoteFlock.firestore_id = fsnap.id;
+          remoteFlock.storage_key = fsnap.id;
+          remoteFlock.uid = remoteFlock.uid || fsnap.id;
+          remoteFlock.__remote_hydrated = true;
+          window.FLOCKS[fsnap.id] = mergeCanonicalFlockRecords(remoteFlock, window.FLOCKS[fsnap.id] || {});
+          window.FLOCKS[fsnap.id].__remote_hydrated = true;
+        } catch(_oneErr) {
+          console.warn('[Kinverly] Could not hydrate flock ref:', refs[i], _oneErr && _oneErr.message);
+        }
+      }
+
+      normalizeFlockStorageKeys();
+
+      var active = resolveFlockKey(currentFlockId) || resolveFlockKey(attachedKey);
+      if (!active || !hasUsableFlockData(window.FLOCKS[active])) {
+        active = refs.map(function(r){ return resolveFlockKey(r); }).filter(Boolean)[0] || Object.keys(window.FLOCKS || {})[0];
+      }
+
+      if (active && window.FLOCKS[active]) {
+        currentFlockId = active;
+        window.currentFlockId = active;
+        hydrateDataFromCurrentFlock('user-membership-bootstrap');
+        renderAllAppViews();
+        window.__attachFlockListener(active);
+      }
+    } catch(err) {
+      console.warn('[Kinverly] User flock bootstrap failed:', err && err.message);
+    }
+  };
+
+  window.__bootstrapUserFlocks();
+
 
   // Save member to Firestore when they join a flock
   window.__saveMemberToFlock = async function(flockId, member) {
