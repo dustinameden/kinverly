@@ -3217,6 +3217,7 @@ function normalizeAppState() {
     if (resolved) currentFlockId = resolved;
     else if (Object.keys(FLOCKS || {}).length) currentFlockId = Object.keys(FLOCKS)[0];
     normalizeCurrentFlockSchema();
+    kinNormalizeNumericIdentityLanes();
   } catch(e) {
     console.warn('[Kinverly] normalizeAppState warning', e);
   }
@@ -3261,6 +3262,227 @@ function deriveWorldState(memberId) {
   return { member_id: memberId || (DATA.me && DATA.me.id), flocks: flocks, gatherings: gatherings };
 }
 function touchEntity(obj) { if (obj) obj.updated_at = nowISO(); return obj; }
+
+
+/* ═══════════════════════════════════════════════
+   SPRINT 43.2 — NUMERIC ID LANES
+
+   All primary/business IDs are numeric and live in their own lane.
+
+   user_id                = numeric Kinverly-wide person/account id
+   flock_id               = numeric flock/family/group id
+   member_id              = numeric membership-row id for a user inside a flock
+   gathering_id           = numeric gathering id
+   user_schedule_block_id = numeric schedule-block id
+   activity_event_id      = numeric activity-event id
+
+   Legacy/browser/auth keys are preserved only as *_key fields so routing and
+   old localStorage records can still be reconciled, but exports and app logic
+   should use the numeric ID columns.
+
+   Backfill rule for existing data:
+   1) sort records by created_at ASC
+   2) if two records share created_at, use a stable tie breaker
+      (legacy id/key/name) so the sequence is deterministic
+   3) assign the next integer in that lane
+
+   New-row rule:
+   - next id = max(existing numeric id in that lane) + 1
+═══════════════════════════════════════════════ */
+var KINVERLY_ID_LANES = [
+  'user','flock','member','gathering','gathering_member','user_schedule_block',
+  'activity_event','task','message','photo','idea','vote','bring_item',
+  'bring_item_assignment','rsvp','note','event'
+];
+function kinIdMeta(){
+  if (!DATA.meta) DATA.meta = {};
+  if (!DATA.meta.id_lanes) DATA.meta.id_lanes = {};
+  KINVERLY_ID_LANES.forEach(function(lane){
+    var prop = 'next_' + lane + '_id';
+    if (typeof DATA.meta.id_lanes[prop] !== 'number' || DATA.meta.id_lanes[prop] < 1) DATA.meta.id_lanes[prop] = 1;
+  });
+  return DATA.meta.id_lanes;
+}
+function kinCreatedSortValue(row){
+  var raw = row && (row.created_at || row.createdAt || row._createdAt || row.joined_at || row.added_at || row.updated_at);
+  var d = raw ? new Date(String(raw).replace(' ', 'T')) : null;
+  return d && !isNaN(d.getTime()) ? d.getTime() : 0;
+}
+function kinTieBreaker(row, fallback){
+  row = row || {};
+  return String(
+    row.legacy_id || row.legacy_key || row.auth_uid || row.firebase_uid || row.uid ||
+    row.id || row.key || row.email || row.name || fallback || ''
+  );
+}
+function kinSortByCreatedThenTie(a,b){
+  var ad = kinCreatedSortValue(a.row || a);
+  var bd = kinCreatedSortValue(b.row || b);
+  if (ad !== bd) return ad - bd;
+  return kinTieBreaker(a.row || a, a.key).localeCompare(kinTieBreaker(b.row || b, b.key));
+}
+function kinReserveNumericId(idField, lane, val){
+  var n = parseInt(val, 10);
+  if (!n || n < 1) return;
+  var meta = kinIdMeta();
+  var prop = 'next_' + lane + '_id';
+  if (n >= meta[prop]) meta[prop] = n + 1;
+}
+function kinNextNumericId(lane){
+  var meta = kinIdMeta();
+  var prop = 'next_' + lane + '_id';
+  var out = meta[prop] || 1;
+  meta[prop] = out + 1;
+  return out;
+}
+function kinAssignNumericLane(rows, idField, lane){
+  rows = (rows || []).filter(function(x){ return x && x.row; });
+  rows.sort(kinSortByCreatedThenTie);
+  rows.forEach(function(x){ kinReserveNumericId(idField, lane, x.row[idField]); });
+  rows.forEach(function(x){
+    var existing = parseInt(x.row[idField], 10);
+    if (existing && existing > 0) x.row[idField] = existing;
+    else x.row[idField] = kinNextNumericId(lane);
+    if (x.row.id !== undefined && idField !== 'user_id') {
+      if (typeof x.row.id !== 'number') x.row.legacy_id = x.row.legacy_id || x.row.id;
+      x.row.id = x.row[idField];
+    }
+  });
+}
+function kinLegacyUserKey(obj, fallback){
+  obj = obj || {};
+  var existing = obj.legacy_user_key || obj.auth_uid || obj.firebase_uid || obj.uid || obj.email || obj.user_key;
+  if (existing) return String(existing);
+  if (obj.user_id && isNaN(parseInt(obj.user_id, 10))) return String(obj.user_id);
+  if (obj.id && isNaN(parseInt(obj.id, 10))) return String(obj.id);
+  return String(fallback || obj.id || obj.name || 'user');
+}
+function kinLegacyFlockKey(flock, fallback){
+  flock = flock || {};
+  return String(flock.legacy_flock_key || flock.legacy_id || flock.id || fallback || 'flock');
+}
+function kinFindMemberByNumericUserId(flock, userId){
+  var uid = parseInt(userId, 10);
+  var members = flock && flock.members ? Object.values(flock.members) : [];
+  for (var i=0;i<members.length;i++) if (parseInt(members[i].user_id, 10) === uid) return members[i];
+  return null;
+}
+function kinNormalizeNumericIdentityLanes(){
+  var flockRows = [];
+  var userByKey = {};
+  var userRows = [];
+  var memberRows = [];
+
+  Object.keys(FLOCKS || {}).forEach(function(fkey){
+    var flock = FLOCKS[fkey];
+    if (!flock) return;
+    ensureAuditFields(flock);
+    flock.legacy_flock_key = flock.legacy_flock_key || fkey;
+    if (typeof flock.id !== 'number') flock.legacy_id = flock.legacy_id || flock.id || fkey;
+    flockRows.push({key:fkey,row:flock});
+
+    Object.keys(flock.members || {}).forEach(function(mkey){
+      var m = flock.members[mkey];
+      if (!m) return;
+      ensureAuditFields(m, flock.created_at);
+      m.legacy_member_key = m.legacy_member_key || mkey;
+      var ukey = kinLegacyUserKey(m, mkey);
+      m.legacy_user_key = m.legacy_user_key || ukey;
+      if (!userByKey[ukey]) {
+        userByKey[ukey] = { row:{
+          created_at: m.created_at || flock.created_at,
+          legacy_user_key: ukey,
+          name: m.name || '',
+          email: m.email || ''
+        }, members:[] };
+        userRows.push({key:ukey,row:userByKey[ukey].row});
+      }
+      userByKey[ukey].members.push(m);
+      memberRows.push({key:fkey + ':' + mkey,row:m});
+    });
+  });
+
+  if (DATA && DATA.me) {
+    ensureAuditFields(DATA.me);
+    var meKey = kinLegacyUserKey(DATA.me, DATA.me.id || 'me');
+    DATA.me.legacy_user_key = DATA.me.legacy_user_key || meKey;
+    if (!userByKey[meKey]) {
+      userByKey[meKey] = { row:{ created_at: DATA.me.created_at, legacy_user_key: meKey, name: DATA.me.name || '', email: DATA.me.email || '' }, members:[] };
+      userRows.push({key:meKey,row:userByKey[meKey].row});
+    }
+  }
+
+  kinAssignNumericLane(flockRows, 'flock_id', 'flock');
+  kinAssignNumericLane(userRows, 'user_id', 'user');
+  kinAssignNumericLane(memberRows, 'member_id', 'member');
+
+  Object.keys(userByKey).forEach(function(ukey){
+    var numericUserId = userByKey[ukey].row.user_id;
+    userByKey[ukey].members.forEach(function(m){ m.user_id = numericUserId; });
+    if (DATA && DATA.me && DATA.me.legacy_user_key === ukey) DATA.me.user_id = numericUserId;
+  });
+
+  Object.keys(FLOCKS || {}).forEach(function(fkey){
+    var flock = FLOCKS[fkey];
+    if (!flock) return;
+    flock.id = flock.flock_id;
+    Object.keys(flock.members || {}).forEach(function(mkey){
+      var m = flock.members[mkey];
+      if (!m) return;
+      m.flock_id = flock.flock_id;
+      m.id = m.member_id;
+    });
+
+    kinAssignNumericLane((flock.gatherings || []).map(function(g,idx){ return {key:fkey+':g:'+idx,row:g}; }), 'gathering_id', 'gathering');
+    (flock.gatherings || []).forEach(function(g){
+      if (!g) return;
+      g.flock_id = flock.flock_id;
+      g.id = g.gathering_id;
+      kinAssignNumericLane((g.responses || []).map(function(r,idx){ return {key:'r:'+idx,row:r}; }), 'rsvp_id', 'rsvp');
+      (g.responses || []).forEach(function(r){
+        if (!r) return;
+        r.flock_id = flock.flock_id;
+        r.gathering_id = g.gathering_id;
+        var rm = kinFindMemberByNumericUserId(flock, r.user_id) || kinFindMemberByNumericUserId(flock, r.canonical_user_id);
+        if (rm) { r.user_id = rm.user_id; r.member_id = rm.member_id; }
+      });
+      kinAssignNumericLane((g.tasks || []).map(function(t,idx){ return {key:'t:'+idx,row:t}; }), 'task_id', 'task');
+      (g.tasks || []).forEach(function(t){ if (t) { t.flock_id = flock.flock_id; t.gathering_id = g.gathering_id; } });
+      kinAssignNumericLane((g.chat || []).map(function(c,idx){ return {key:'c:'+idx,row:c}; }), 'message_id', 'message');
+      (g.chat || []).forEach(function(c){ if (c) { c.flock_id = flock.flock_id; c.gathering_id = g.gathering_id; } });
+      kinAssignNumericLane((g.photos || []).map(function(p,idx){ return {key:'p:'+idx,row:p}; }), 'photo_id', 'photo');
+      (g.photos || []).forEach(function(p){ if (p) { p.flock_id = flock.flock_id; p.gathering_id = g.gathering_id; } });
+      kinAssignNumericLane((g.bringList || []).map(function(b,idx){ return {key:'b:'+idx,row:b}; }), 'bring_item_id', 'bring_item');
+      (g.bringList || []).forEach(function(b){
+        if (!b) return;
+        b.flock_id = flock.flock_id;
+        b.gathering_id = g.gathering_id;
+        b.id = b.bring_item_id;
+        kinAssignNumericLane((b.assignments || []).map(function(a,idx){ return {key:'ba:'+idx,row:a}; }), 'bring_item_assignment_id', 'bring_item_assignment');
+        (b.assignments || []).forEach(function(a){ if (a) { a.flock_id = flock.flock_id; a.gathering_id = g.gathering_id; a.bring_item_id = b.bring_item_id; } });
+      });
+    });
+
+    kinAssignNumericLane((flock.user_schedule_blocks || []).map(function(s,idx){ return {key:fkey+':s:'+idx,row:s}; }), 'user_schedule_block_id', 'user_schedule_block');
+    (flock.user_schedule_blocks || []).forEach(function(s){
+      if (!s) return;
+      s.id = s.user_schedule_block_id;
+      s.flock_id = flock.flock_id;
+      var sm = kinFindMemberByNumericUserId(flock, s.user_id) || (DATA && DATA.me ? kinFindMemberByNumericUserId(flock, DATA.me.user_id) : null);
+      if (sm) { s.user_id = sm.user_id; s.member_id = sm.member_id; }
+    });
+
+    kinAssignNumericLane((flock.events || []).map(function(e,idx){ return {key:fkey+':e:'+idx,row:e}; }), 'activity_event_id', 'activity_event');
+    (flock.events || []).forEach(function(e){
+      if (!e) return;
+      e.id = e.activity_event_id;
+      e.flock_id = flock.flock_id;
+      if (e.gathering && !e.gathering_id) e.gathering_id = e.gathering.gathering_id;
+      var em = kinFindMemberByNumericUserId(flock, e.user_id) || kinFindMemberByNumericUserId(flock, e.actor_user_id);
+      if (em) { e.user_id = em.user_id; e.member_id = em.member_id; }
+    });
+  });
+}
 
 
 // ═══════════════════════════════════════════════
@@ -4292,37 +4514,47 @@ function buildCrossFlockActivity(limit) {
 /* ═══════════════════════════════════════════════
    SPRINT 43.1 — CANONICAL IDENTITY MODEL
 
-   Kinverly uses three IDs consistently:
+   Kinverly uses three numeric IDs consistently:
 
-   user_id   = the Kinverly-wide person/account. Stable across every flock.
-   member_id = that user's membership row inside one flock. Different per flock.
-   flock_id  = the flock/family/group context the member belongs to.
+   user_id   = numeric Kinverly-wide person/account id. Stable across every flock.
+   member_id = numeric membership row id for that user inside one flock. Different per flock membership.
+   flock_id  = numeric flock/family/group id the member belongs to.
 
    Rules:
-   1) Every person-owned row stores user_id.
-   2) Every flock-scoped row also stores member_id and flock_id when the actor/owner is a flock member.
-   3) Schedules, RSVPs, bring-list assignments, chat, photos, ideas, and activity all use user_id for identity and member_id for flock membership context.
-   4) Exports always include both user_id and member_id where a member performed/owns the action.
+   1) Every person-owned row stores numeric user_id.
+   2) Every flock-scoped row stores numeric flock_id.
+   3) Every row owned/performed by a flock member stores numeric member_id as membership context.
+   4) Legacy string IDs are kept only as *_key / legacy_* fields for reconciliation.
+   5) New records use the next integer in that table's ID lane. Existing records are backfilled by created_at, with a stable tie breaker.
 ═══════════════════════════════════════════════ */
 function kinCanonicalUserId(memberOrUser){
   try {
-    if (!memberOrUser) return DATA && DATA.me ? (DATA.me.user_id || DATA.me.id || DATA.me.uid || '') : '';
-    if (typeof memberOrUser === 'string' || typeof memberOrUser === 'number') return String(memberOrUser);
-    return String(memberOrUser.user_id || memberOrUser.canonical_user_id || memberOrUser.uid || memberOrUser.id || '');
+    var m = memberOrUser || (DATA && DATA.me) || {};
+    var n = parseInt(m.user_id, 10);
+    if (n && n > 0) return n;
+    kinNormalizeNumericIdentityLanes();
+    n = parseInt((m || {}).user_id, 10);
+    return n && n > 0 ? n : '';
   } catch(e){ return ''; }
 }
 function kinCanonicalMemberId(memberOrUser){
   try {
     var m = memberOrUser || (DATA && DATA.me) || {};
-    if (m.member_id !== undefined && m.member_id !== null && m.member_id !== '') return m.member_id;
-    if (typeof getNumericMemberIdForExport === 'function') return getNumericMemberIdForExport(m.id || m.user_id || '');
-    return '';
+    var n = parseInt(m.member_id, 10);
+    if (n && n > 0) return n;
+    kinNormalizeNumericIdentityLanes();
+    n = parseInt((m || {}).member_id, 10);
+    return n && n > 0 ? n : '';
   } catch(e){ return ''; }
 }
 function kinCanonicalFlockId(flock){
   try {
-    var f = flock || (currentFlockId && FLOCKS && FLOCKS[currentFlockId]) || {};
-    return String(f.flock_id || f.id || currentFlockId || '');
+    var f = flock || (currentFlockId && FLOCKS && FLOCKS[currentFlockId]) || getCurrentFlockRecord && getCurrentFlockRecord() || {};
+    var n = parseInt(f.flock_id, 10);
+    if (n && n > 0) return n;
+    kinNormalizeNumericIdentityLanes();
+    n = parseInt((f || {}).flock_id, 10);
+    return n && n > 0 ? n : '';
   } catch(e){ return ''; }
 }
 function kinStampIdentity(row, memberOrUser, flock){
@@ -4337,6 +4569,19 @@ function kinStampIdentity(row, memberOrUser, flock){
 var availabilityState = { offset: 0, selectedKey: null };
 var myWorldCalendarState = availabilityState;
 
+
+
+/* Numeric table lanes used by exports:
+   users.user_id
+   flocks.flock_id
+   flock_members.member_id + user_id + flock_id
+   gatherings.gathering_id + flock_id
+   gathering_members.gathering_member_id + gathering_id + member_id + user_id + flock_id
+   user_schedule_blocks.user_schedule_block_id + user_id + member_id + flock_id
+   activity_events.activity_event_id + user_id + member_id + flock_id + gathering_id
+   bring_list_items.bring_item_id + gathering_id + flock_id
+   bring_item_assignments.bring_item_assignment_id + bring_item_id + user_id + member_id + flock_id
+*/
 /*
 Data table backing Add To Your Schedule
 Table name: user_schedule_blocks
@@ -18977,3 +19222,179 @@ activity_events
 ```
 
 This keeps the app simple: `user_id` answers “who is the person?”, `member_id` answers “who are they inside this flock?”, and `flock_id` answers “which family/group does this row belong to?”
+
+
+<script>
+/* ── SPRINT 43.4 — AVAILABILITY LOADING FINAL FIX ───────────────────────
+   Prevents Availability from ever getting stuck on the static
+   "Loading availability…" placeholder. This patch is intentionally isolated
+   from Admin exports and Home updates. It directly renders a minimal,
+   data-bound Availability dashboard from user_schedule_blocks when the normal
+   renderer does not resolve.
+*/
+(function(){
+  if (window.__kinverlyAvailabilityLoadingFinalFix) return;
+  window.__kinverlyAvailabilityLoadingFinalFix = true;
+
+  function esc(v){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(v == null ? '' : v); } catch(e) {}
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; });
+  }
+  function iso(v){ return String(v || '').slice(0,10); }
+  function isLoadingText(el){ return !!(el && /Loading availability|Availability had trouble loading/i.test(el.textContent || '')); }
+  function availabilityEl(){ return document.getElementById('availability-content') || document.getElementById('myworld-content'); }
+  function activeAvailability(){
+    var p = document.getElementById('page-availability') || document.getElementById('page-myworld');
+    return !p || p.classList.contains('active') || (window.currentPage === 'availability') || (window.currentPage === 'myworld');
+  }
+  function currentIds(){
+    var out = { user: [], member: [] };
+    try { if (window.DATA && DATA.me) {
+      ['id','user_id','numeric_user_id'].forEach(function(k){ if (DATA.me[k] != null) out.user.push(String(DATA.me[k])); });
+      ['member_id','numeric_member_id'].forEach(function(k){ if (DATA.me[k] != null) out.member.push(String(DATA.me[k])); });
+    }} catch(e) {}
+    try { if (typeof getCurrentUserId === 'function') out.user.push(String(getCurrentUserId())); } catch(e) {}
+    try { if (typeof getCurrentMemberNumericId === 'function') out.member.push(String(getCurrentMemberNumericId())); } catch(e) {}
+    out.user = out.user.filter(Boolean).filter(function(v,i,a){ return a.indexOf(v) === i; });
+    out.member = out.member.filter(Boolean).filter(function(v,i,a){ return a.indexOf(v) === i; });
+    return out;
+  }
+  function getFlocks(){
+    try { if (window.FLOCKS) return window.FLOCKS; } catch(e) {}
+    try { if (window.DATA && DATA.flocks) return DATA.flocks; } catch(e) {}
+    return {};
+  }
+  function belongsToMe(row){
+    if (!row) return false;
+    var ids = currentIds();
+    var userVals = [row.user_id,row.created_by_user_id,row.updated_by_user_id,row.member_key].filter(function(v){ return v != null && v !== ''; }).map(String);
+    var memberVals = [row.member_id,row.user_member_id].filter(function(v){ return v != null && v !== ''; }).map(String);
+    if (!userVals.length && !memberVals.length) return true;
+    return userVals.some(function(v){ return ids.user.indexOf(v) >= 0; }) || memberVals.some(function(v){ return ids.member.indexOf(v) >= 0; });
+  }
+  function collectRows(){
+    var rows = [];
+    var seen = {};
+    var flocks = getFlocks();
+    Object.keys(flocks || {}).forEach(function(fid){
+      var flock = flocks[fid] || {};
+      var arrays = [flock.user_schedule_blocks, flock.personal_calendar, flock.calendar_events].filter(Array.isArray);
+      arrays.forEach(function(arr){
+        arr.forEach(function(r){
+          if (!r || r.deleted_at) return;
+          if (!belongsToMe(r)) return;
+          var id = r.id || r.user_schedule_block_id || r.calendar_event_id || [fid,r.schedule_name||r.title,r.start_date||r.start_at,r.end_date||r.end_at].join('|');
+          var key = String(fid) + '|' + String(id);
+          if (seen[key]) return;
+          seen[key] = true;
+          rows.push(Object.assign({ flock_id: r.flock_id || fid, fid: fid, flock_name: flock.name || flock.flock_name || 'Flock' }, r));
+        });
+      });
+    });
+    try {
+      if (window.DATA && Array.isArray(DATA.user_schedule_blocks)) {
+        DATA.user_schedule_blocks.forEach(function(r){
+          if (!r || r.deleted_at || !belongsToMe(r)) return;
+          var key = 'DATA|' + String(r.id || r.user_schedule_block_id || [r.flock_id,r.schedule_name,r.start_date].join('|'));
+          if (seen[key]) return;
+          seen[key] = true;
+          rows.push(Object.assign({ fid: r.flock_id, flock_name: 'Flock' }, r));
+        });
+      }
+    } catch(e) {}
+    var today = new Date().toISOString().slice(0,10);
+    rows = rows.filter(function(r){
+      var end = iso(r.end_date || r.end_at || r.start_date || r.start_at);
+      return !end || end >= today;
+    });
+    rows.sort(function(a,b){ return String(a.start_date || a.start_at || '').localeCompare(String(b.start_date || b.start_at || '')); });
+    return rows;
+  }
+  function scheduleCards(rows){
+    if (!rows.length) return '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, busy weekends, or dates you want the family to plan around.</div>';
+    return rows.map(function(r){
+      var title = r.schedule_name || r.title || r.name || 'Schedule item';
+      var s = iso(r.start_date || r.start_at);
+      var e = iso(r.end_date || r.end_at || s);
+      var range = s && e && s !== e ? s + ' → ' + e : (s || e || 'Date not set');
+      var id = r.id || r.user_schedule_block_id || r.calendar_event_id || '';
+      return '<div class="xflock-card availability-edit-card" data-fid="' + esc(r.fid || r.flock_id || '') + '" data-event-id="' + esc(id) + '">' +
+        '<div class="xflock-top"><div class="xflock-icon">📅</div><div class="xflock-body">' +
+        '<div class="xflock-title">' + esc(title) + '</div>' +
+        '<div class="xflock-meta">' + esc(range) + (r.flock_name ? ' · ' + esc(r.flock_name) : '') + '</div>' +
+        '<div class="xflock-link">Tap to edit →</div></div></div></div>';
+    }).join('');
+  }
+  function renderAvailabilityResolved(reason){
+    var el = availabilityEl();
+    if (!el) return false;
+    var rows = collectRows();
+    el.innerHTML =
+      '<div class="decision-card">' +
+        '<div class="decision-top"><div class="decision-icon">🗓️</div><div><div class="decision-eyebrow">Availability</div><div class="decision-title">My Availability</div><div class="decision-sub">Add your schedule, respond to gathering requests, and help Kinverly find the best days for everyone.</div></div></div>' +
+        (reason ? '<div class="avail-review-note">' + esc(reason) + '</div>' : '') +
+        '<div class="avail-review-section-title" style="margin-top:10px">General availability</div>' +
+        '<div class="chip-group" id="availability-pattern-chips"><button class="chip selected" data-pattern="flexible">Mostly flexible</button><button class="chip" data-pattern="weekends">Weekends best</button><button class="chip" data-pattern="evenings">Weekday evenings</button><button class="chip" data-pattern="rarely">Rarely available</button></div>' +
+      '</div>' +
+      '<div class="section-title">Your schedule</div>' + scheduleCards(rows) +
+      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add To Your Schedule</button>' +
+      '<div class="section-title">Needs your response</div><div class="xflock-empty">No availability or RSVP requests right now.</div>' +
+      '<div class="section-title">Upcoming commitments</div><div class="xflock-empty">Gatherings you RSVP to will appear here.</div>' +
+      '<div class="section-title">Family scheduler insights</div><div class="avail-review-card"><div class="avail-review-title">' + rows.length + ' schedule item' + (rows.length === 1 ? '' : 's') + ' saved</div><div class="avail-review-sub" style="margin-bottom:0">Kinverly compares schedule rows, RSVP status, and general availability to recommend stronger gathering dates.</div></div>';
+
+    var add = el.querySelector('#availability-add-unavailable');
+    if (add) add.addEventListener('click', function(){
+      if (typeof openAvailabilityConflictSheet === 'function') openAvailabilityConflictSheet({ mode:'add', date:new Date().toISOString().slice(0,10) });
+      else if (typeof toast === 'function') toast('Schedule editor unavailable');
+    });
+    el.querySelectorAll('.availability-edit-card').forEach(function(card){
+      card.addEventListener('click', function(){
+        if (typeof openAvailabilityConflictSheet === 'function') openAvailabilityConflictSheet({ mode:'edit', fid:card.dataset.fid, eventId:card.dataset.eventId });
+      });
+    });
+    return true;
+  }
+  function rescueIfStuck(){
+    var el = availabilityEl();
+    if (!el || !activeAvailability()) return;
+    if (isLoadingText(el)) renderAvailabilityResolved('Availability finished loading using the saved schedule table.');
+  }
+
+  var previousRenderAvailability = window.renderAvailability;
+  window.renderAvailability = function(){
+    var el = availabilityEl();
+    try {
+      if (typeof previousRenderAvailability === 'function') previousRenderAvailability.apply(this, arguments);
+    } catch(e) {
+      console.warn('[Kinverly] renderAvailability failed; using final fallback', e);
+      renderAvailabilityResolved('Availability recovered after a render issue.');
+      return;
+    }
+    setTimeout(rescueIfStuck, 50);
+    setTimeout(rescueIfStuck, 400);
+    setTimeout(rescueIfStuck, 1200);
+    if (el && isLoadingText(el)) rescueIfStuck();
+  };
+
+  var previousRenderPage = window.renderPage;
+  if (typeof previousRenderPage === 'function') {
+    window.renderPage = function(name){
+      previousRenderPage.apply(this, arguments);
+      if (name === 'availability' || name === 'myworld') setTimeout(rescueIfStuck, 100);
+    };
+  }
+  var previousShowPage = window.showPage;
+  if (typeof previousShowPage === 'function') {
+    window.showPage = function(name){
+      previousShowPage.apply(this, arguments);
+      if (name === 'availability' || name === 'myworld') setTimeout(rescueIfStuck, 150);
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(rescueIfStuck, 250);
+    setTimeout(rescueIfStuck, 1000);
+  });
+  setInterval(rescueIfStuck, 1000);
+})();
+</script>
