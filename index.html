@@ -19484,6 +19484,176 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 .acct-primary,.acct-secondary,.acct-link{width:100%;border:none;border-radius:16px;padding:14px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:900;cursor:pointer}.acct-primary{background:#F0C030;color:#2A1B52;margin-top:6px}.acct-secondary{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.20)}.acct-link{background:transparent;color:#F0C030;text-decoration:underline;text-underline-offset:4px;padding:10px}.acct-error{background:rgba(216,90,48,.18);border:1px solid rgba(216,90,48,.35);color:#FFD6C8;border-radius:12px;padding:10px 12px;font-size:12px;font-weight:800;text-align:center}
 </style>
 
+
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 50.2 — ADMIN DIRECTORY DEDUPE + POLISH
+   Fixes admin screen rendering the same flock multiple times.
+   Admin directory now reads unique flocks only and removes technical ID language.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinverlySprint502AdminDirectoryDedupe) return;
+  window.__kinverlySprint502AdminDirectoryDedupe = true;
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+  function isAdmin(){
+    var u = (window.DATA && DATA.me) || {};
+    return String(u.global_role || '').toLowerCase() === 'admin';
+  }
+  function numericId(v){
+    var n = Number(v);
+    return Number.isFinite(n) && n > 0 ? String(n) : '';
+  }
+  function rawFlockEntries(){
+    return Object.keys(window.FLOCKS || {}).map(function(key){
+      return { key:key, flock:FLOCKS[key] };
+    }).filter(function(x){ return x.flock && !x.flock.deleted_at; });
+  }
+  function stableFlockKey(entry){
+    var f = entry.flock || {};
+    return numericId(f.flock_id || f.id) || String(f.firestore_id || f.storage_key || entry.key || '').trim();
+  }
+  function uniqueFlockEntries(entries){
+    var seen = Object.create(null);
+    var out = [];
+    (entries || []).forEach(function(entry){
+      if (!entry || !entry.flock) return;
+      var f = entry.flock;
+      var key = stableFlockKey(entry);
+      if (!key) key = String(out.length + 1);
+
+      // If the same flock appears under multiple storage keys, keep the richer row
+      // and do not render duplicate cards.
+      if (seen[key]) {
+        var existing = seen[key];
+        var existingMembers = Object.keys((existing.flock && existing.flock.members) || {}).length;
+        var newMembers = Object.keys((f && f.members) || {}).length;
+        if (newMembers > existingMembers) {
+          var idx = out.indexOf(existing);
+          seen[key] = entry;
+          if (idx >= 0) out[idx] = entry;
+        }
+        return;
+      }
+      seen[key] = entry;
+      out.push(entry);
+    });
+    return out;
+  }
+  function allUniqueFlocks(){
+    return uniqueFlockEntries(rawFlockEntries());
+  }
+  function currentUserId(){
+    var u = (window.DATA && DATA.me) || {};
+    var n = Number(u.user_id || u.id);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  function memberBelongsToUser(member, uid){
+    if (!member || member.deleted_at) return false;
+    return Number(member.user_id || member.id) === Number(uid);
+  }
+
+  // Override visible flocks everywhere after the admin patch.
+  window.getVisibleFlocksForCurrentUser = function(){
+    var all = allUniqueFlocks();
+    if (isAdmin()) return all;
+    var uid = currentUserId();
+    if (!uid) return [];
+    return all.filter(function(entry){
+      return Object.values((entry.flock && entry.flock.members) || {}).some(function(m){ return memberBelongsToUser(m, uid); });
+    });
+  };
+
+  function openFlock(entry){
+    if (!entry || !entry.flock) return;
+    var f = entry.flock;
+    var fid = numericId(f.flock_id || f.id) || String(entry.key);
+    window.currentFlockId = fid;
+    try {
+      localStorage.setItem('kinverly_current_flock', fid);
+      if (currentUserId()) localStorage.setItem('kinverly_last_active_flock_id_' + currentUserId(), fid);
+    } catch(e) {}
+    var overlay = document.getElementById('flock-overlay');
+    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = 'none'; }
+    var app = document.getElementById('app');
+    if (app) app.style.display = '';
+    if (typeof renderAll === 'function') renderAll();
+  }
+
+  window.renderAdminDirectory = function(){
+    var root = document.getElementById('flock-inner');
+    if (!root) return;
+    var overlay = document.getElementById('flock-overlay');
+    if (overlay) { overlay.classList.remove('hidden'); overlay.style.display = 'flex'; }
+    var app = document.getElementById('app');
+    if (app) app.style.display = 'none';
+
+    var flocks = allUniqueFlocks();
+    var adminName = esc((window.DATA && DATA.me && (DATA.me.display_name || DATA.me.name || DATA.me.username)) || 'Admin');
+    root.innerHTML = ''+
+      '<div class="flock-onboard-card">'+
+        '<div class="flock-onboard-logo">Kinverly.</div>'+
+        '<div class="flock-onboard-tag">Administrator</div>'+
+        '<div class="flock-onboard-mascot" aria-hidden="true">🛡️</div>'+
+        '<div class="flock-onboard-title">Flock Directory</div>'+
+        '<div class="flock-onboard-copy">Welcome, <strong>'+adminName+'</strong>. Choose a family flock to view or manage.</div>'+ 
+        '<div id="admin-directory-list" style="display:flex;flex-direction:column;gap:10px;max-height:360px;overflow-y:auto;margin-top:16px"></div>'+ 
+        '<button type="button" class="flock-onboard-action secondary" id="admin-directory-create" style="width:100%;margin-top:14px">'+
+          '<span class="flock-onboard-action-icon">🏡</span><span><span class="flock-onboard-action-title">Create a Family</span><span class="flock-onboard-action-sub">Start a new family group.</span></span>'+ 
+        '</button>'+ 
+        '<button type="button" class="flock-recovery-link" id="admin-directory-switch">Use a different account</button>'+ 
+      '</div>';
+
+    var list = document.getElementById('admin-directory-list');
+    if (list) {
+      if (!flocks.length) {
+        list.innerHTML = '<div class="planning-empty">No family flocks exist yet.</div>';
+      } else {
+        flocks.forEach(function(entry, idx){
+          var f = entry.flock || {};
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'flock-onboard-action primary';
+          btn.style.width = '100%';
+          btn.setAttribute('data-admin-open-flock', String(stableFlockKey(entry) || idx));
+          btn.innerHTML = ''+
+            '<span class="flock-onboard-action-icon">'+esc(f.emoji || '🏡')+'</span>'+ 
+            '<span><span class="flock-onboard-action-title">Open '+esc(f.name || 'Family flock')+'</span>'+ 
+            '<span class="flock-onboard-action-sub">'+esc(Object.keys(f.members || {}).length)+' member'+(Object.keys(f.members || {}).length === 1 ? '' : 's')+'</span></span>';
+          btn.addEventListener('click', function(){ openFlock(entry); });
+          list.appendChild(btn);
+        });
+      }
+    }
+    var createBtn = document.getElementById('admin-directory-create');
+    if (createBtn) createBtn.onclick = function(){ if (typeof renderFlockCreate === 'function') renderFlockCreate(); };
+    var switchBtn = document.getElementById('admin-directory-switch');
+    if (switchBtn) switchBtn.onclick = function(){
+      if (typeof logoutKinverly === 'function') logoutKinverly();
+      else if (typeof renderAccountGate === 'function') renderAccountGate('join');
+    };
+  };
+
+  // Some older patches call renderAdminFlockDirectory. Point it at the final directory.
+  window.renderAdminFlockDirectory = window.renderAdminDirectory;
+
+  // If the admin screen is currently visible with duplicates, repaint it now.
+  setTimeout(function(){
+    try {
+      var text = ((document.getElementById('flock-inner') || {}).textContent || '');
+      if (isAdmin() && /Admin access ready|Flock Directory|fake membership|flock_id/i.test(text)) {
+        window.renderAdminDirectory();
+      }
+    } catch(e) {}
+  }, 100);
+})();
+</script>
+
 </body>
 </html>
 
@@ -21854,3 +22024,299 @@ signInKinverlyAccount = function(username, password) {
 })();
 </script>
 
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 50.2 — JOIN CODE / MEMBERSHIP PERSISTENCE FIX
+
+   Fixes the bug where joining a flock with an invite code succeeds briefly,
+   then the app immediately routes back to onboarding and says the user was
+   removed from the flock.
+
+   Rules:
+   - Join code must create/restore a numeric flock_members row.
+   - The membership is keyed by numeric user_id inside the flock.
+   - The app verifies the membership before routing.
+   - A fresh join is protected from stale Firestore snapshots while the member
+     write lands.
+   - Normal onboarding only appears when the signed-in user truly has no valid
+     memberships.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinverlySprint502JoinFix) return;
+  window.__kinverlySprint502JoinFix = true;
+
+  function now(){ return (typeof nowISO === 'function') ? nowISO() : new Date().toISOString(); }
+  function num(v){ var n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; }
+  function safe(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  function cleanCode(code){ return String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g,''); }
+  function currentUid(){ return num(window.DATA && DATA.me && (DATA.me.user_id || DATA.me.id)) || num(localStorage.getItem('kinverly_current_user_id')); }
+  function isAdmin(){ return String(window.DATA && DATA.me && DATA.me.global_role || '').toLowerCase() === 'admin'; }
+
+  function maxId(list){
+    var max = 0;
+    (list || []).forEach(function(v){ var x = num(v); if (x && x > max) max = x; });
+    return max;
+  }
+
+  function allFlockEntries(){
+    return Object.keys(window.FLOCKS || {}).map(function(key){ return { key:key, flock:window.FLOCKS[key] }; }).filter(function(x){ return !!x.flock && !x.flock.deleted_at; });
+  }
+
+  function nextFlockId(){
+    return maxId(allFlockEntries().map(function(e){ return e.flock.flock_id || e.flock.id; })) + 1;
+  }
+
+  function nextMemberId(flock){
+    var vals = [];
+    Object.keys((flock && flock.members) || {}).forEach(function(k){ var m = flock.members[k] || {}; vals.push(m.member_id); });
+    return maxId(vals) + 1;
+  }
+
+  function canonicalFlockKey(flockRef, flock){
+    var fid = num(flock && (flock.flock_id || flock.id));
+    if (fid) return String(fid);
+    if (flockRef && /^\d+$/.test(String(flockRef))) return String(flockRef);
+    return String(flockRef || (flock && (flock.firestore_id || flock.storage_key || flock.uid)) || ('flock_' + Date.now().toString(36)));
+  }
+
+  function normalizeJoinedFlock(flockRef, flock){
+    if (!window.FLOCKS) window.FLOCKS = {};
+    flock = flock || {};
+    var fid = num(flock.flock_id || flock.id);
+    if (!fid) fid = nextFlockId();
+    var legacyKey = String(flockRef || flock.firestore_id || flock.storage_key || flock.uid || ('flock_' + fid));
+    flock.flock_id = fid;
+    flock.id = fid;
+    flock.firestore_id = flock.firestore_id || (/^\d+$/.test(legacyKey) ? null : legacyKey);
+    flock.storage_key = flock.storage_key || legacyKey;
+    flock.uid = flock.uid || flock.firestore_id || flock.storage_key || ('flock_' + fid);
+    flock.name = flock.name || ('Family ' + fid);
+    flock.emoji = flock.emoji || '🏠';
+    flock.members = flock.members || {};
+    flock.memberIds = Array.isArray(flock.memberIds) ? flock.memberIds : [];
+    window.FLOCKS[String(fid)] = flock;
+    if (legacyKey) window.FLOCKS[legacyKey] = flock;
+    return flock;
+  }
+
+  function removeMyRemovalTombstones(flock, uid){
+    if (!flock || !uid) return;
+    var aliases = [String(uid)];
+    var me = window.DATA && DATA.me || {};
+    [me.id, me.user_id, me.username, me.firestore_id, me.name, me.display_name].forEach(function(v){ if (v != null && v !== '') aliases.push(String(v)); });
+    if (flock.removedMembers) {
+      aliases.forEach(function(a){ delete flock.removedMembers[a]; });
+      Object.keys(flock.removedMembers).forEach(function(k){
+        var r = flock.removedMembers[k] || {};
+        if (aliases.indexOf(String(r.id)) >= 0 || aliases.indexOf(String(r.user_id)) >= 0 || aliases.indexOf(String(r.name)) >= 0) delete flock.removedMembers[k];
+      });
+    }
+  }
+
+  function createOrRestoreMembership(flock, role){
+    var uid = currentUid();
+    if (!uid || !flock) return null;
+    flock = normalizeJoinedFlock(flock.storage_key || flock.firestore_id || flock.uid || flock.flock_id, flock);
+    removeMyRemovalTombstones(flock, uid);
+    var existing = flock.members[String(uid)] || Object.values(flock.members || {}).find(function(m){ return m && num(m.user_id || m.id) === uid; }) || {};
+    var memberId = num(existing.member_id) || nextMemberId(flock);
+    var displayName = (DATA.me && (DATA.me.display_name || DATA.me.name || DATA.me.username)) || ('User ' + uid);
+    var member = Object.assign({}, existing, {
+      id: uid,
+      user_id: uid,
+      flock_id: num(flock.flock_id || flock.id),
+      member_id: memberId,
+      name: displayName,
+      display_name: displayName,
+      username: DATA.me && DATA.me.username || existing.username || '',
+      animal: DATA.me && DATA.me.animal || existing.animal || 'bear',
+      role: existing.role || role || 'member',
+      status: 'active',
+      membership_status: 'active',
+      created_at: existing.created_at || now(),
+      joined_at: existing.joined_at || existing.created_at || now(),
+      updated_at: now(),
+      deleted_at: null,
+      removed_at: null,
+      deleted_by: null,
+      removed_by: null,
+      deleted_reason: null
+    });
+    flock.members[String(uid)] = member;
+    flock.memberIds = Object.keys(flock.members).filter(function(k){
+      var m = flock.members[k] || {};
+      return !m.deleted_at && !m.removed_at && String(m.status || '').toLowerCase() !== 'removed';
+    }).map(function(k){ return num(k); }).filter(Boolean);
+    return member;
+  }
+
+  function membershipExists(flock, uid){
+    uid = num(uid || currentUid());
+    if (!uid || !flock || !flock.members) return false;
+    var m = flock.members[String(uid)] || Object.values(flock.members).find(function(x){ return x && num(x.user_id || x.id) === uid; });
+    if (!m) return false;
+    var status = String(m.status || m.membership_status || '').toLowerCase();
+    return !m.deleted_at && !m.removed_at && status !== 'removed' && status !== 'archived' && status !== 'inactive';
+  }
+
+  function persistJoinedFlock(flock){
+    if (!flock) return;
+    var fid = String(flock.flock_id || flock.id);
+    window.FLOCKS[fid] = flock;
+    if (flock.firestore_id) window.FLOCKS[flock.firestore_id] = flock;
+    if (flock.storage_key) window.FLOCKS[flock.storage_key] = flock;
+    window.currentFlockId = fid;
+    try {
+      localStorage.setItem('kinverly_current_flock', fid);
+      localStorage.setItem('kinverly_last_active_flock_id_' + currentUid(), fid);
+      localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS));
+    } catch(e){}
+  }
+
+  function enterJoinedFlock(flock){
+    var uid = currentUid();
+    if (!membershipExists(flock, uid)) return false;
+    window._kickedFromFlock = false;
+    window._kinverlySuppressRemovalUntil = Date.now() + 20000;
+    persistJoinedFlock(flock);
+    try {
+      DATA.members = Object.values(flock.members || {}).filter(function(m){ return m && num(m.user_id || m.id) !== uid && !m.deleted_at && !m.removed_at && String(m.status || '').toLowerCase() !== 'removed'; });
+      DATA.gatherings = typeof getActiveGatheringsForUi === 'function' ? getActiveGatheringsForUi(flock.gatherings || []) : (flock.gatherings || []);
+      DATA.ideas = flock.ideas || [];
+      DATA.activity = flock.activity || [];
+    } catch(e){}
+    var overlay = document.getElementById('flock-overlay');
+    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = 'none'; }
+    var app = document.getElementById('app'); if (app) app.style.display = '';
+    try { if (typeof saveFlockState === 'function') saveFlockState(); } catch(e){}
+    try { if (typeof persistMyProfile === 'function') persistMyProfile(); } catch(e){}
+    try { if (typeof renderAll === 'function') renderAll(); else { renderHome(); renderGatherings(); renderIdeas(); renderFlockPage(); renderProfile(); } } catch(e){}
+    try { if (typeof showPage === 'function') showPage('home'); } catch(e){}
+    return true;
+  }
+
+  async function saveJoinedMember(flock, member){
+    if (!flock || !member) return;
+    try {
+      if (window._currentFlockListener) { window._currentFlockListener(); window._currentFlockListener = null; }
+    } catch(e){}
+    try {
+      if (window.__saveMemberToFlock) await window.__saveMemberToFlock(flock.firestore_id || flock.storage_key || flock.flock_id, member);
+      else if (typeof saveFlockToFirebase === 'function') await saveFlockToFirebase(flock, member);
+    } catch(e) {
+      console.warn('[Kinverly] Joined locally; member sync will retry.', e);
+    }
+    setTimeout(function(){
+      try {
+        window._kickedFromFlock = false;
+        if (window.__attachFlockListener) window.__attachFlockListener(flock.firestore_id || flock.storage_key || flock.flock_id);
+      } catch(e){}
+    }, 1200);
+  }
+
+  function findLocalFlockByCode(code){
+    var norm = cleanCode(code);
+    var seen = {};
+    var entries = allFlockEntries();
+    for (var i=0;i<entries.length;i++) {
+      var f = entries[i].flock || {};
+      var fid = String(f.flock_id || f.id || entries[i].key);
+      if (seen[fid]) continue;
+      seen[fid] = true;
+      if (cleanCode(f.inviteCode) === norm) return entries[i];
+    }
+    return null;
+  }
+
+  function joinResolvedFlock(ref, flock, callback){
+    if (!currentUid()) {
+      if (typeof renderAccountGate === 'function') renderAccountGate('join');
+      if (callback) callback('Please sign in before joining a family.');
+      return null;
+    }
+    window._kickedFromFlock = false;
+    window._kinverlySuppressRemovalUntil = Date.now() + 20000;
+    var normalized = normalizeJoinedFlock(ref, flock);
+    var member = createOrRestoreMembership(normalized, 'member');
+    if (!membershipExists(normalized, currentUid())) {
+      if (callback) callback('Membership was not created correctly. Please try again.');
+      return null;
+    }
+    persistJoinedFlock(normalized);
+    saveJoinedMember(normalized, member);
+    enterJoinedFlock(normalized);
+    if (typeof toast === 'function') toast('Joined ' + (normalized.name || 'family') + '!');
+    if (callback) callback(null, normalized);
+    return normalized;
+  }
+
+  var previousJoinFlockByCode = window.joinFlockByCode;
+  window.joinFlockByCode = function(code, callback){
+    var norm = cleanCode(code);
+    if (!norm) { if (callback) callback('Enter an invite code.'); return; }
+    var local = findLocalFlockByCode(norm);
+    if (local) { joinResolvedFlock(local.key, local.flock, callback); return; }
+    if (window.__db && window.__firestoreHelpers) {
+      var h = window.__firestoreHelpers;
+      if (h.getDocs && h.query && h.where && h.collection) {
+        var q = h.query(h.collection(window.__db, 'flocks'), h.where('inviteCode', '==', norm));
+        h.getDocs(q).then(function(snap){
+          if (!snap || snap.empty) { if (callback) callback('Code not found. Double-check and try again.'); return; }
+          var docSnap = snap.docs[0];
+          var d = docSnap.data() || {};
+          d.firestore_id = docSnap.id;
+          d.storage_key = docSnap.id;
+          d.uid = d.uid || docSnap.id;
+          joinResolvedFlock(docSnap.id, d, callback);
+        }).catch(function(){
+          if (callback) callback('Could not connect. Check your internet.');
+        });
+        return;
+      }
+    }
+    // Last resort: preserve old behavior, but recover immediately after if it wrote a membership.
+    if (previousJoinFlockByCode) {
+      try { return previousJoinFlockByCode(code, function(err, flock){
+        if (err) { if (callback) callback(err); return; }
+        if (flock) joinResolvedFlock(flock.firestore_id || flock.storage_key || flock.flock_id || flock.id, flock, callback);
+      }); } catch(e) {}
+    }
+    if (callback) callback('Code not found. Double-check and try again.');
+  };
+
+  window.addMeToFlock = function(flockRef){
+    var entry = null;
+    if (typeof flockRef === 'object' && flockRef) entry = { key: flockRef.firestore_id || flockRef.storage_key || flockRef.flock_id || flockRef.id, flock: flockRef };
+    else {
+      var target = String(flockRef || '');
+      entry = allFlockEntries().find(function(e){
+        var f = e.flock || {};
+        return String(e.key) === target || String(f.flock_id) === target || String(f.id) === target || String(f.firestore_id) === target || String(f.storage_key) === target;
+      });
+    }
+    if (!entry) return null;
+    return joinResolvedFlock(entry.key, entry.flock, function(){});
+  };
+
+  // Do not let stale remote snapshots force onboarding immediately after a valid join.
+  var previousShowOnboarding = window.showFlockOnboarding;
+  window.showFlockOnboarding = function(){
+    if (Date.now() < (window._kinverlySuppressRemovalUntil || 0)) {
+      var uid = currentUid();
+      var f = window.currentFlockId && window.FLOCKS && (FLOCKS[window.currentFlockId] || FLOCKS[String(window.currentFlockId)]);
+      if (uid && f && membershipExists(f, uid)) { enterJoinedFlock(f); return false; }
+    }
+    if (typeof window.kinverlyAuthRouteDecision === 'function') return window.kinverlyAuthRouteDecision('show_onboarding_guard');
+    return previousShowOnboarding ? previousShowOnboarding() : null;
+  };
+
+  // Hide the admin setup from normal onboarding. Admin can still be exposed with ?admin=1.
+  var style = document.createElement('style');
+  style.textContent = '#auth-admin{display:none!important;} body.kinverly-admin-entry #auth-admin{display:flex!important;}';
+  document.head.appendChild(style);
+  if (new URLSearchParams(location.search).get('admin') === '1') document.body.classList.add('kinverly-admin-entry');
+
+  console.info('[Kinverly] Sprint 50.2 join-code membership persistence fix loaded');
+})();
+</script>
