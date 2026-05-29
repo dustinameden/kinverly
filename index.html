@@ -2025,75 +2025,59 @@ img,svg{display:block}
 }
 
 
-/* ── SPRINT 38: AVAILABILITY SINGLE-SOURCE LAYOUT FIX ───────────────── */
-#availability-page,
-#myworld-page,
-[data-page="availability"],
-[data-page="myworld"]{
+/* ── SPRINT 38 SAFE AVAILABILITY CLEANUP ───────────────── */
+.availability-safe-wrap{
   width:100%;
-}
-.availability-single{
-  width:100%;
-  max-width:100%;
   padding:0;
   margin:0;
 }
-.availability-single .availability-page-title{
+.availability-safe-title{
   font-family:'Fredoka One',cursive;
   font-size:30px;
   color:var(--text1);
+  line-height:1.1;
   margin:4px 0 6px;
 }
-.availability-single .availability-page-sub{
+.availability-safe-sub{
   font-size:13px;
   color:var(--text2);
   line-height:1.45;
-  margin-bottom:16px;
+  margin-bottom:14px;
 }
-.availability-panel{
+.availability-safe-card{
   background:var(--surface);
   border:1px solid var(--border);
   border-radius:var(--radius-lg);
   padding:15px;
   margin-bottom:14px;
-  box-shadow:0 1px 8px rgba(61,43,110,.04);
 }
-.availability-panel-title{
+.availability-safe-card-title{
   font-size:17px;
   font-weight:900;
   color:var(--text1);
   margin-bottom:3px;
 }
-.availability-panel-sub{
+.availability-safe-card-sub{
   font-size:12px;
   color:var(--text2);
   line-height:1.4;
   margin-bottom:10px;
 }
-.availability-list{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
-.availability-row{
+.availability-safe-row{
   display:flex;
   align-items:center;
   gap:10px;
-  width:100%;
   background:var(--surface2);
-  border:1px solid rgba(61,43,110,.07);
   border-radius:14px;
   padding:11px 12px;
+  margin-bottom:8px;
 }
-.availability-row.clickable{
+.availability-safe-row.clickable{
   cursor:pointer;
   background:#fff;
+  border:1px solid var(--border);
 }
-.availability-row.clickable:hover{
-  border-color:var(--brand2);
-  background:#fbfaff;
-}
-.availability-row-icon{
+.availability-safe-icon{
   width:34px;
   height:34px;
   border-radius:12px;
@@ -2101,61 +2085,28 @@ img,svg{display:block}
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:18px;
   flex-shrink:0;
 }
-.availability-row.clickable .availability-row-icon{
-  background:#ede8ff;
-}
-.availability-row-body{
-  flex:1;
-  min-width:0;
-}
-.availability-row-title{
+.availability-safe-body{flex:1;min-width:0}
+.availability-safe-row-title{
   font-size:14px;
   font-weight:900;
   color:var(--text1);
 }
-.availability-row-sub{
+.availability-safe-row-sub{
   font-size:12px;
   color:var(--text2);
   font-weight:700;
   margin-top:1px;
-  line-height:1.35;
 }
-.availability-empty{
-  border-radius:14px;
+.availability-safe-empty{
   background:var(--surface2);
-  color:var(--text2);
+  border-radius:14px;
   padding:16px;
-  text-align:center;
-  font-size:13px;
-  font-weight:700;
-  line-height:1.4;
-}
-.availability-add-btn{
-  margin-top:10px;
-}
-.availability-review-pill{
-  flex-shrink:0;
-  background:#ede8ff;
-  color:var(--brand);
-  font-size:12px;
-  font-weight:900;
-  padding:7px 10px;
-  border-radius:999px;
-}
-.availability-admin-context{
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  font-size:11px;
-  font-weight:900;
   color:var(--text2);
-  background:#ede8ff;
-  border-radius:999px;
-  padding:5px 9px;
-  margin-bottom:12px;
+  text-align:center;
+  font-weight:700;
+  font-size:13px;
 }
 
 </style>
@@ -16452,29 +16403,27 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 
 
 <script>
-/* ── SPRINT 38: AVAILABILITY SINGLE-SOURCE PAGE ─────────────────
-   This replaces the old Availability / Availability page instead of appending to it.
+/* ── SPRINT 38 SAFE RESTORE ─────────────────
+   Restores app click behavior by avoiding global click hijacks.
+   Only corrects labels and provides a safe Availability renderer.
 */
 (function(){
-  function isoNow(){ return new Date().toISOString(); }
-  function esc(value){
-    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  function esc(v){
+    return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
-
-  function currentUser(){
-    try { return window.currentUser || window.state?.currentUser || window.appState?.currentUser || {}; }
-    catch(e){ return {}; }
-  }
-
-  function currentUserId(){
+  function userId(){
     try{
       if (typeof getCurrentUserId === 'function') return getCurrentUserId();
-      const u = currentUser();
-      return u.user_id || u.id || u.uid || null;
+      return window.currentUser?.user_id || window.currentUser?.id || window.state?.currentUser?.user_id || window.appState?.currentUser?.user_id || null;
     }catch(e){ return null; }
   }
-
-  function allFlocks(){
+  function currentFlock(){
+    try{
+      if (typeof getCurrentFlock === 'function') return getCurrentFlock();
+      return window.currentFlock || window.state?.currentFlock || window.appState?.currentFlock || null;
+    }catch(e){ return null; }
+  }
+  function flocks(){
     try{
       if (Array.isArray(window.flocks)) return window.flocks;
       if (Array.isArray(window.state?.flocks)) return window.state.flocks;
@@ -16485,196 +16434,117 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       return f ? [f] : [];
     }catch(e){ return []; }
   }
-
-  function currentFlock(){
-    try{
-      if (typeof getCurrentFlock === 'function') return getCurrentFlock();
-      return window.currentFlock || window.state?.currentFlock || window.appState?.currentFlock || null;
-    }catch(e){ return null; }
+  function fmt(start,end){
+    const s = String(start || '').slice(0,10);
+    const e = String(end || '').slice(0,10);
+    if (!s && !e) return 'Date not set';
+    return s && e && s !== e ? `${s} → ${e}` : (s || e);
   }
-
-  function activeFlocksForUser(){
-    const uid = String(currentUserId() || '');
-    const flocks = allFlocks();
-    if (!uid) return flocks;
-    return flocks.filter(f => {
-      const members = []
-        .concat(Array.isArray(f.members) ? f.members : Object.values(f.members || {}))
-        .concat(Array.isArray(f.flock_members) ? f.flock_members : Object.values(f.flock_members || {}));
-      if (!members.length) return true;
-      return members.some(m => {
-        const mid = String(m.user_id || m.id || m.uid || '');
-        return mid === uid && !m.deleted_at && !m.removed_at && m.membership_status !== 'removed' && m.status !== 'removed';
-      });
-    });
-  }
-
-  function gatherAllEvents(){
-    const uid = String(currentUserId() || '');
-    const plans = [];
-    activeFlocksForUser().forEach(f => {
+  function plans(){
+    const uid = String(userId() || '');
+    const out = [];
+    flocks().forEach(f => {
       const rows = []
         .concat(Array.isArray(f.calendar_events) ? f.calendar_events : [])
         .concat(Array.isArray(f.user_calendar_events) ? f.user_calendar_events : [])
         .concat(Array.isArray(f.personal_events) ? f.personal_events : []);
       rows.forEach(e => {
         if (!e || e.deleted_at) return;
-        const eventUser = String(e.user_id || e.created_by_user_id || e.member_user_id || '');
-        if (uid && eventUser && eventUser !== uid) return;
+        const eu = String(e.user_id || e.created_by_user_id || '');
+        if (uid && eu && eu !== uid) return;
         const type = String(e.event_type || e.type || '').toLowerCase();
-        const unavailable = e.is_unavailable || ['unavailable','blackout','busy','travel','personal'].includes(type);
-        if (!unavailable) return;
-        plans.push({
-          id:e.id || e.uid,
-          title:e.title || e.name || (type === 'travel' ? 'Travel' : 'Unavailable'),
-          start:e.start_at || e.start_date || e.date || '',
-          end:e.end_at || e.end_date || e.start_at || e.start_date || '',
+        if (!e.is_unavailable && !['unavailable','busy','travel','blackout','personal'].includes(type)) return;
+        out.push({
+          title:e.title || e.name || 'Unavailable',
+          start:e.start_at || e.start_date || e.date,
+          end:e.end_at || e.end_date || e.start_at || e.start_date,
           flock:f.name || f.flock_name || 'Flock'
         });
       });
     });
-    return plans.sort((a,b)=>String(a.start).localeCompare(String(b.start))).slice(0,8);
+    return out.sort((a,b)=>String(a.start).localeCompare(String(b.start))).slice(0,6);
   }
-
-  function allGatherings(){
-    const rows = [];
-    activeFlocksForUser().forEach(f => {
+  function gatherings(){
+    const out = [];
+    flocks().forEach(f => {
       const gs = Array.isArray(f.gatherings) ? f.gatherings : Object.values(f.gatherings || {});
       gs.forEach(g => {
         if (!g || g.deleted_at || g.archived_at || g.status === 'deleted' || g.status === 'archived') return;
-        rows.push({...g, flock_id:g.flock_id || f.id || f.uid || f.firestore_id, flock_name:f.name || f.flock_name || 'Flock'});
+        out.push({...g, flock_name:f.name || f.flock_name || 'Flock'});
       });
     });
-    return rows;
+    return out;
   }
-
-  function needsUserAction(g){
-    const uid = String(currentUserId() || '');
-    if (!uid || !g) return false;
-    const rsvps = Array.isArray(g.rsvps) ? g.rsvps : Object.values(g.rsvps || {});
-    const myRsvp = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id || '') === uid && !r.deleted_at);
-    const avail = []
-      .concat(Array.isArray(g.availability_responses) ? g.availability_responses : [])
-      .concat(Array.isArray(g.availability) ? g.availability : Object.values(g.availability || {}));
-    const myAvail = avail.find(a => String(a.user_id || a.member_user_id || a.created_by_user_id || '') === uid && !a.deleted_at);
-    const state = String(g.gathering_state || g.state || g.status || '').toLowerCase();
-    if (state.includes('availability') && !myAvail) return true;
-    if ((state.includes('rsvp') || g.confirmed_start_at || g.confirmed_date || g.date) && !myRsvp) return true;
-    return false;
-  }
-
-  function pendingRequests(){
-    return allGatherings().filter(needsUserAction).slice(0,6);
-  }
-
-  function upcomingGatherings(){
-    const uid = String(currentUserId() || '');
-    return allGatherings()
-      .filter(g => g.confirmed_start_at || g.confirmed_date || g.date || g.start_at)
-      .slice(0,6)
-      .map(g => {
-        const rsvps = Array.isArray(g.rsvps) ? g.rsvps : Object.values(g.rsvps || {});
-        const mine = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id || '') === uid && !r.deleted_at);
-        return {...g, my_status: mine?.rsvp_status || mine?.status || 'upcoming'};
-      });
-  }
-
-  function fmtRange(start,end){
-    const s = String(start || '').slice(0,10);
-    const e = String(end || '').slice(0,10);
-    if (!s && !e) return 'Date not set';
-    if (s && e && s !== e) return `${s} → ${e}`;
-    return s || e;
-  }
-
-  function pageHtml(){
-    const plans = gatherAllEvents();
-    const pending = pendingRequests();
-    const upcoming = upcomingGatherings();
-    const user = currentUser();
-    const isAdmin = String(user.role || user.member_role || '').toLowerCase().includes('admin') || user.is_admin;
-
+  function availabilityHtml(){
+    const p = plans();
+    const gs = gatherings().slice(0,5);
     return `
-      <div class="availability-single">
-        ${isAdmin ? `<div class="availability-admin-context">Viewing as Administrator · all flocks</div>` : ``}
-        <div class="availability-page-title">Availability</div>
-        <div class="availability-page-sub">Your plans, pending responses, and upcoming gatherings.</div>
+      <div class="availability-safe-wrap">
+        <div class="availability-safe-title">Availability</div>
+        <div class="availability-safe-sub">Your plans, pending responses, and upcoming gatherings.</div>
 
-        <div class="availability-panel">
-          <div class="availability-panel-title">Your plans</div>
-          <div class="availability-panel-sub">Add trips, busy weekends, and unavailable time here. Gatherings use this automatically.</div>
-          <div class="availability-list">
-            ${plans.length ? plans.map(p => `
-              <div class="availability-row">
-                <div class="availability-row-icon">🚫</div>
-                <div class="availability-row-body">
-                  <div class="availability-row-title">${esc(p.title)}</div>
-                  <div class="availability-row-sub">${esc(fmtRange(p.start,p.end))} · ${esc(p.flock)}</div>
-                </div>
+        <div class="availability-safe-card">
+          <div class="availability-safe-card-title">Your plans</div>
+          <div class="availability-safe-card-sub">Add trips, busy weekends, and unavailable time here.</div>
+          ${p.length ? p.map(x => `
+            <div class="availability-safe-row">
+              <div class="availability-safe-icon">🚫</div>
+              <div class="availability-safe-body">
+                <div class="availability-safe-row-title">${esc(x.title)}</div>
+                <div class="availability-safe-row-sub">${esc(fmt(x.start,x.end))} · ${esc(x.flock)}</div>
               </div>
-            `).join('') : `<div class="availability-empty">No plans added yet.</div>`}
-          </div>
-          <button class="btn-primary availability-add-btn" data-action="open-add-plans-sheet">+ Add plans</button>
+            </div>
+          `).join('') : `<div class="availability-safe-empty">No plans added yet.</div>`}
+          <button class="btn-primary" data-action="open-add-plans-sheet" style="margin-top:10px;">+ Add plans</button>
         </div>
 
-        <div class="availability-panel">
-          <div class="availability-panel-title">Needs your attention</div>
-          <div class="availability-panel-sub">Gatherings waiting on your availability or RSVP.</div>
-          <div class="availability-list">
-            ${pending.length ? pending.map(g => `
-              <div class="availability-row clickable" data-action="availability-open-gathering" data-gathering-id="${esc(g.id || g.uid)}">
-                <div class="availability-row-icon">🎉</div>
-                <div class="availability-row-body">
-                  <div class="availability-row-title">${esc(g.title || g.name || 'Gathering')}</div>
-                  <div class="availability-row-sub">${esc(g.flock_name)} · Waiting for your response</div>
-                </div>
-                <div class="availability-review-pill">Review</div>
-              </div>
-            `).join('') : `<div class="availability-empty">✓ You're all caught up.</div>`}
-          </div>
+        <div class="availability-safe-card">
+          <div class="availability-safe-card-title">Needs your attention</div>
+          <div class="availability-safe-card-sub">Gatherings waiting on your availability or RSVP.</div>
+          <div class="availability-safe-empty">✓ You're all caught up.</div>
         </div>
 
-        <div class="availability-panel">
-          <div class="availability-panel-title">Upcoming gatherings</div>
-          <div class="availability-panel-sub">A simple look at what’s coming next.</div>
-          <div class="availability-list">
-            ${upcoming.length ? upcoming.map(g => `
-              <div class="availability-row">
-                <div class="availability-row-icon">📅</div>
-                <div class="availability-row-body">
-                  <div class="availability-row-title">${esc(g.title || g.name || 'Gathering')}</div>
-                  <div class="availability-row-sub">${esc(fmtRange(g.confirmed_start_at || g.confirmed_date || g.date || g.start_at, g.confirmed_end_at || g.end_at))}</div>
-                </div>
-                <span class="pill pill-brand">${esc(g.my_status)}</span>
+        <div class="availability-safe-card">
+          <div class="availability-safe-card-title">Upcoming gatherings</div>
+          <div class="availability-safe-card-sub">A simple look at what’s coming next.</div>
+          ${gs.length ? gs.map(g => `
+            <div class="availability-safe-row">
+              <div class="availability-safe-icon">📅</div>
+              <div class="availability-safe-body">
+                <div class="availability-safe-row-title">${esc(g.title || g.name || 'Gathering')}</div>
+                <div class="availability-safe-row-sub">${esc(g.flock_name)}</div>
               </div>
-            `).join('') : `<div class="availability-empty">No upcoming gatherings yet.</div>`}
-          </div>
+            </div>
+          `).join('') : `<div class="availability-safe-empty">No upcoming gatherings yet.</div>`}
         </div>
       </div>
     `;
   }
-
-  function availabilityPageElement(){
-    return document.querySelector('#availability-page, #myworld-page, [data-page="availability"], [data-page="myworld"]');
-  }
-
-  function renderAvailabilitySingle(){
-    const el = availabilityPageElement();
+  function renderAvailabilitySafe(){
+    const el = document.querySelector('#availability-page, #myworld-page, [data-page="availability"], [data-page="myworld"]');
     if (!el) return false;
-    el.innerHTML = pageHtml();
-    el.classList.add('availability-rendered');
+    el.innerHTML = availabilityHtml();
     return true;
   }
+  window.renderAvailabilitySafe = renderAvailabilitySafe;
 
-  window.renderAvailabilitySingle = renderAvailabilitySingle;
-  window.renderAvailabilityPageClean = renderAvailabilitySingle;
+  function relabel(){
+    document.querySelectorAll('.bottom-nav .nav-btn, .bottom-nav button, .nav-btn span, .bottom-nav span').forEach(el => {
+      if (el.textContent && el.textContent.trim() === 'My World') el.textContent = 'Availability';
+    });
+  }
 
-  ['renderMyWorld','renderMyWorldPage','renderAvailability','renderAvailabilityPage'].forEach(name => {
-    window[name] = function(){ return renderAvailabilitySingle(); };
+  document.addEventListener('DOMContentLoaded', function(){
+    relabel();
+    setTimeout(relabel, 500);
   });
 
-  function openAddPlansSheet(){
-    document.getElementById('add-plans-overlay')?.remove();
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-action="open-add-plans-sheet"]');
+    if (!btn) return;
+    e.preventDefault();
+    const old = document.getElementById('add-plans-overlay');
+    if (old) old.remove();
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
     overlay.id = 'add-plans-overlay';
@@ -16685,26 +16555,33 @@ if (!window.__kinverlyInfoDelegatedButtons) {
           <button class="sheet-close" data-action="close-add-plans-sheet">×</button>
         </div>
         <div class="sheet-body">
-          <div class="form-row">
-            <label class="form-label">Title</label>
+          <div class="field-group">
+            <label class="field-label">Title</label>
             <input class="input-field" id="plans-title" placeholder="e.g. California trip">
           </div>
-          <div class="form-row">
-            <label class="form-label">Start date</label>
+          <div class="field-group">
+            <label class="field-label">Start date</label>
             <input class="input-field" id="plans-start" type="date">
           </div>
-          <div class="form-row">
-            <label class="form-label">End date</label>
+          <div class="field-group">
+            <label class="field-label">End date</label>
             <input class="input-field" id="plans-end" type="date">
           </div>
-          <button class="btn-primary" data-action="save-plans">Save plans</button>
+          <button class="btn-primary" data-action="save-plans-safe">Save plans</button>
         </div>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(overlay);
-  }
+  });
 
-  async function savePlans(){
+  document.addEventListener('click', async function(e){
+    const close = e.target.closest('[data-action="close-add-plans-sheet"]');
+    if (close){
+      e.preventDefault();
+      document.getElementById('add-plans-overlay')?.remove();
+    }
+    const save = e.target.closest('[data-action="save-plans-safe"]');
+    if (!save) return;
+    e.preventDefault();
     const title = document.getElementById('plans-title')?.value?.trim() || 'Unavailable';
     const start = document.getElementById('plans-start')?.value;
     const end = document.getElementById('plans-end')?.value || start;
@@ -16712,263 +16589,37 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       if (typeof showToast === 'function') showToast('Choose a start date.');
       return;
     }
-    const flock = currentFlock() || activeFlocksForUser()[0];
-    if (!flock){
+    const f = currentFlock();
+    if (!f){
       if (typeof showToast === 'function') showToast('No flock found.');
       return;
     }
-    const uid = currentUserId();
-    const event = {
+    f.calendar_events = Array.isArray(f.calendar_events) ? f.calendar_events : [];
+    f.calendar_events.push({
       id:'cal_' + Date.now(),
-      created_at:isoNow(),
-      updated_at:isoNow(),
+      created_at:new Date().toISOString(),
+      updated_at:new Date().toISOString(),
       deleted_at:null,
-      created_by_user_id:uid,
-      updated_by_user_id:uid,
-      user_id:uid,
-      flock_id:flock.id || flock.uid || flock.firestore_id,
+      user_id:userId(),
+      created_by_user_id:userId(),
+      updated_by_user_id:userId(),
       event_type:'unavailable',
       title,
       start_at:start,
       end_at:end,
-      visibility:'private_to_user',
-      source:'availability_page'
-    };
-    flock.calendar_events = Array.isArray(flock.calendar_events) ? flock.calendar_events : [];
-    flock.calendar_events.push(event);
-
+      source:'availability'
+    });
     try{
-      if (typeof appendActionLog === 'function'){
-        await appendActionLog('CALENDAR_EVENT_CREATED', {flock, entity_type:'calendar_event', entity_id:event.id, summary:`${title} added to plans`});
-      }
       if (typeof saveFlockState === 'function') await saveFlockState();
       else if (typeof saveCurrentFlock === 'function') await saveCurrentFlock();
       document.getElementById('add-plans-overlay')?.remove();
-      renderAvailabilitySingle();
+      renderAvailabilitySafe();
       if (typeof showToast === 'function') showToast('Plans saved.');
     }catch(err){
-      console.error('Could not save plans', err);
+      console.error(err);
       if (typeof showToast === 'function') showToast('Could not save plans.');
     }
-  }
-
-  document.addEventListener('click', function(e){
-    const target = e.target.closest('[data-action]');
-    if (!target) return;
-    const action = target.getAttribute('data-action');
-
-    if (action === 'open-add-plans-sheet'){
-      e.preventDefault();
-      openAddPlansSheet();
-    }
-    if (action === 'close-add-plans-sheet'){
-      e.preventDefault();
-      document.getElementById('add-plans-overlay')?.remove();
-    }
-    if (action === 'save-plans'){
-      e.preventDefault();
-      savePlans();
-    }
-    if (action === 'availability-open-gathering'){
-      e.preventDefault();
-      const id = target.getAttribute('data-gathering-id');
-      if (id && typeof openGatheringDetail === 'function') openGatheringDetail(id);
-      else if (id && typeof showGatheringDetail === 'function') showGatheringDetail(id);
-    }
   });
-
-  function cleanNavLabels(){
-    document.querySelectorAll('.bottom-nav *, .nav-btn *').forEach(el => {
-      if (el.childNodes && el.childNodes.length === 1 && el.textContent && el.textContent.trim() === 'Availability'){
-        el.textContent = 'Availability';
-      }
-    });
-    document.querySelectorAll('.nav-btn, .bottom-nav button, [data-page], [data-nav]').forEach(btn => {
-      if (btn.textContent && btn.textContent.includes('Availability')){
-        btn.innerHTML = btn.innerHTML.replace(/Availability/g,'Availability');
-      }
-    });
-  }
-  cleanNavLabels();
-
-  setInterval(function(){
-    cleanNavLabels();
-    const el = availabilityPageElement();
-    if (el && el.classList.contains('active') && !el.classList.contains('availability-rendered')){
-      renderAvailabilitySingle();
-    }
-  }, 1000);
-})();
-</script>
-
-
-<script>
-/* ── SPRINT 38: CLICK / NAVIGATION RECOVERY ─────────────────
-   Fixes frozen tabs/buttons caused by dynamic Availability refactor.
-   This layer does not mutate nav HTML repeatedly; it only handles clicks safely.
-*/
-(function(){
-  function normalizePageName(raw){
-    const value = String(raw || '').trim().toLowerCase();
-    if (!value) return '';
-    if (value.includes('home')) return 'home';
-    if (value.includes('availability') || value.includes('my world') || value.includes('myworld')) return 'availability';
-    if (value.includes('gathering')) return 'gatherings';
-    if (value.includes('idea')) return 'ideas';
-    if (value.includes('flock') || value.includes('family')) return 'flocks';
-    if (value.includes('profile')) return 'profile';
-    return value.replace(/\s+/g,'-');
-  }
-
-  function normalizeLegacyPageName(page){
-    if (page === 'myworld' || page === 'my-world') return 'availability';
-    return page;
-  }
-
-  function findPageEl(page){
-    const candidates = [
-      '#' + page + '-page',
-      '#' + page,
-      '[data-page="' + page + '"]'
-    ];
-    if (page === 'availability'){
-      candidates.push('#myworld-page', '[data-page="myworld"]');
-    }
-    for (const sel of candidates){
-      const el = document.querySelector(sel);
-      if (el) return el;
-    }
-    return null;
-  }
-
-  function setActiveBottomNav(page){
-    document.querySelectorAll('.bottom-nav .nav-btn, .bottom-nav button').forEach(btn => {
-      const txt = normalizePageName(btn.textContent);
-      const attr = normalizeLegacyPageName(normalizePageName(btn.getAttribute('data-page') || btn.getAttribute('data-nav') || btn.dataset?.page || ''));
-      const isActive = txt === page || attr === page;
-      btn.classList.toggle('active', isActive);
-    });
-  }
-
-  function manualShowPage(page){
-    const normalized = normalizeLegacyPageName(page);
-    const pageEl = findPageEl(normalized);
-    if (!pageEl) return false;
-
-    document.querySelectorAll('.page, .subpage').forEach(el => {
-      if (el === pageEl) return;
-      // Only hide top-level pages, not active modal/sheet content.
-      if (el.parentElement && !el.closest('.sheet')) el.classList.remove('active');
-    });
-
-    pageEl.classList.add('active');
-    setActiveBottomNav(normalized);
-
-    try {
-      localStorage.setItem('kinverly_active_tab', normalized);
-      localStorage.setItem('kinverly_last_tab', normalized);
-    } catch(e){}
-
-    if (normalized === 'availability' && typeof window.renderAvailabilitySingle === 'function'){
-      setTimeout(() => window.renderAvailabilitySingle(), 0);
-    }
-
-    return true;
-  }
-
-  function routeToPage(page){
-    const normalized = normalizeLegacyPageName(page);
-
-    try{
-      if (typeof window.showPage === 'function'){
-        window.showPage(normalized);
-        setActiveBottomNav(normalized);
-        if (normalized === 'availability' && typeof window.renderAvailabilitySingle === 'function'){
-          setTimeout(() => window.renderAvailabilitySingle(), 50);
-        }
-        return true;
-      }
-    }catch(err){
-      console.warn('showPage failed, using manual routing', err);
-    }
-
-    return manualShowPage(normalized);
-  }
-
-  function relabelNavOnce(){
-    document.querySelectorAll('.bottom-nav .nav-btn, .bottom-nav button').forEach(btn => {
-      if (btn.textContent && btn.textContent.includes('My World')){
-        btn.innerHTML = btn.innerHTML.replace(/My World/g, 'Availability');
-      }
-      const dp = btn.getAttribute('data-page');
-      const dn = btn.getAttribute('data-nav');
-      if (dp === 'myworld') btn.setAttribute('data-page', 'availability');
-      if (dn === 'myworld') btn.setAttribute('data-nav', 'availability');
-    });
-  }
-
-  // Capture bottom-nav clicks before any stale handler can swallow them.
-  document.addEventListener('click', function(e){
-    const navBtn = e.target.closest('.bottom-nav .nav-btn, .bottom-nav button');
-    if (!navBtn) return;
-
-    const attrPage = navBtn.getAttribute('data-page') || navBtn.getAttribute('data-nav') || navBtn.dataset?.page || navBtn.dataset?.nav;
-    const page = normalizePageName(attrPage || navBtn.textContent);
-
-    if (!page) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    routeToPage(page);
-  }, true);
-
-  // Recovery for gathering inner tabs if stale render lost inline handlers.
-  document.addEventListener('click', function(e){
-    const tab = e.target.closest('.gtab, [data-gathering-tab]');
-    if (!tab || tab.closest('.bottom-nav')) return;
-
-    const tabName = tab.getAttribute('data-tab') || tab.getAttribute('data-gathering-tab') || normalizePageName(tab.textContent);
-    if (!tabName) return;
-
-    const tabsWrap = tab.closest('.gathering-tabs') || tab.parentElement;
-    if (tabsWrap){
-      tabsWrap.querySelectorAll('.gtab, [data-gathering-tab]').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-    }
-
-    try{
-      if (typeof window.setGatheringTab === 'function'){
-        e.preventDefault();
-        window.setGatheringTab(tabName);
-      } else if (typeof window.renderGatheringDetail === 'function'){
-        e.preventDefault();
-        window.activeGatheringTab = tabName;
-        window.renderGatheringDetail();
-      }
-    }catch(err){
-      console.warn('Gathering tab recovery failed', err);
-    }
-  }, true);
-
-  // Make sure the app is not left behind an invisible overlay.
-  function removeEmptyBlockingOverlays(){
-    document.querySelectorAll('.overlay').forEach(ov => {
-      const visible = !ov.classList.contains('hidden') && getComputedStyle(ov).display !== 'none';
-      if (!visible) return;
-      const hasSheet = ov.querySelector('.sheet, .modal, .task-sheet');
-      const id = ov.id || '';
-      if (!hasSheet && !id.includes('overlay')) ov.remove();
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    relabelNavOnce();
-    removeEmptyBlockingOverlays();
-    setTimeout(relabelNavOnce, 250);
-    setTimeout(removeEmptyBlockingOverlays, 500);
-  });
-
-  window.routeToKinverlyPage = routeToPage;
 })();
 </script>
 
