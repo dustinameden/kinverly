@@ -24705,4 +24705,311 @@ signInKinverlyAccount = function(username, password) {
   console.info('[Kinverly] Sprint 52.2 flock switcher + membership integrity patch loaded');
 })();
 
+
+
+/* ═══════════════════════════════════════════════
+   SPRINT 52.4 — GLOBAL ADMIN PANEL + RESTORE MEMBERS FIX
+   Purpose:
+   - Make Global Admin authority come from the signed-in users row only.
+   - Make Admin Panel open even if the admin is not a flock member/organizer.
+   - Add Restore/Reactivate action for removed flock members.
+   - Keep full export access available for Global Admin.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__sprint524AdminPanelRestorePatch) return;
+  window.__sprint524AdminPanelRestorePatch = true;
+
+  function kvNow(){
+    try { if (typeof nowISO === 'function') return nowISO(); } catch(e) {}
+    return new Date().toISOString();
+  }
+  function kvEsc(v){
+    try { if (typeof escapeHtml === 'function') return escapeHtml(v == null ? '' : String(v)); } catch(e) {}
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); });
+  }
+  function kvToast(msg){
+    try { if (typeof toast === 'function') return toast(msg); } catch(e) {}
+    console.info('[Kinverly]', msg);
+  }
+  function kvUserId(x){
+    try { if (typeof getCanonicalUserId === 'function') return getCanonicalUserId(x); } catch(e) {}
+    if (!x) return '';
+    return x.user_id || x.id || x.uid || '';
+  }
+  function kvMemberId(x, fallback){
+    if (!x) return fallback || '';
+    return x.member_id || x.id || fallback || '';
+  }
+  function kvActive(m){
+    try { if (typeof isActiveMemberRecord === 'function') return isActiveMemberRecord(m); } catch(e) {}
+    var s = String((m && (m.status || m.membership_status)) || '').toLowerCase();
+    return !!m && !m.deleted_at && !m.removed_at && s !== 'removed' && s !== 'archived' && s !== 'inactive';
+  }
+  function kvRemoved(m){
+    try { if (typeof isRemovedMemberRecord === 'function') return isRemovedMemberRecord(m); } catch(e) {}
+    var s = String((m && (m.status || m.membership_status)) || '').toLowerCase();
+    return !!m && (!!m.deleted_at || !!m.removed_at || s === 'removed' || s === 'archived' || s === 'inactive');
+  }
+  function kvGlobalAdmin(){
+    var me = (window.DATA && DATA.me) || window.currentUser || window.current_user || null;
+    if (me && String(me.global_role || me.role || '').toLowerCase() === 'admin') return true;
+    if (me && (me.is_global_admin || me.globalAdmin || me.admin === true)) return true;
+    var username = me && (me.username || me.login_username || me.handle || me.name);
+    try {
+      var users = JSON.parse(localStorage.getItem('kinverly_users') || localStorage.getItem('users') || '[]');
+      if (!Array.isArray(users) && users && typeof users === 'object') users = Object.values(users);
+      var uid = kvUserId(me);
+      var row = (users || []).find(function(u){
+        return (uid && String(kvUserId(u)) === String(uid)) || (username && String(u.username || u.login_username || u.name || '').toLowerCase() === String(username).toLowerCase());
+      });
+      if (row && String(row.global_role || row.role || '').toLowerCase() === 'admin') return true;
+    } catch(e) {}
+    return false;
+  }
+  window.isGlobalAdmin = kvGlobalAdmin;
+  window.kinverlyIsGlobalAdmin = kvGlobalAdmin;
+
+  // Make permission checks authoritative for global admin.
+  var priorCan = window.can;
+  window.can = function(permission){
+    if (kvGlobalAdmin()) return true;
+    if (typeof priorCan === 'function') return priorCan.apply(this, arguments);
+    return false;
+  };
+  try { can = window.can; } catch(e) {}
+
+  function currentFlock(){
+    try { if (window.FLOCKS && window.currentFlockId != null && FLOCKS[currentFlockId]) return FLOCKS[currentFlockId]; } catch(e) {}
+    try { if (window.FLOCKS && typeof currentFlockId !== 'undefined' && FLOCKS[currentFlockId]) return FLOCKS[currentFlockId]; } catch(e) {}
+    try { var keys = Object.keys(window.FLOCKS || {}); return keys.length ? FLOCKS[keys[0]] : null; } catch(e) {}
+    return null;
+  }
+  function memberName(m){ return (m && (m.display_name || m.name || m.username || m.login_username)) || 'Member'; }
+  function memberKeyAliases(m, key){
+    var out = {};
+    [key, m && m.id, m && m.member_id, m && m.user_id, m && m.firestore_id, m && m.username, m && m.login_username].forEach(function(v){ if (v !== undefined && v !== null && String(v) !== '') out[String(v)] = true; });
+    return out;
+  }
+  function ensureMemberIdentities(flock){
+    if (!flock) return;
+    flock.members = flock.members || {};
+    Object.keys(flock.members).forEach(function(k){
+      var m = flock.members[k] || {};
+      try { if (typeof ensureMemberUserIdentity === 'function') ensureMemberUserIdentity(m, k); } catch(e) {}
+      if (m.member_id == null) m.member_id = kvMemberId(m, k);
+      if (m.id == null) m.id = m.member_id || k;
+      flock.members[k] = m;
+    });
+  }
+  function getDisplayMembers(flock){
+    ensureMemberIdentities(flock);
+    var rows = [];
+    Object.keys((flock && flock.members) || {}).forEach(function(k){
+      var m = Object.assign({_member_key:k}, flock.members[k] || {});
+      rows.push(m);
+    });
+    // Include tombstones that may only live in removedMembers.
+    Object.keys((flock && flock.removedMembers) || {}).forEach(function(k){
+      var r = Object.assign({_member_key:k}, flock.removedMembers[k] || {});
+      var exists = rows.some(function(m){
+        var uid1 = kvUserId(m), uid2 = kvUserId(r);
+        return (uid1 && uid2 && String(uid1) === String(uid2)) || String(kvMemberId(m,m._member_key)) === String(kvMemberId(r,k));
+      });
+      if (!exists) rows.push(r);
+    });
+    // Dedupe by user_id first. If an active row exists, prefer it over removed tombstones.
+    var by = {};
+    rows.forEach(function(m){
+      var key = kvUserId(m) ? ('u:' + kvUserId(m)) : ('m:' + kvMemberId(m, m._member_key));
+      var old = by[key];
+      if (!old) { by[key] = m; return; }
+      if (kvActive(m) && !kvActive(old)) { by[key] = m; return; }
+      var mt = Date.parse(m.updated_at || m.created_at || m.removed_at || m.deleted_at || 0) || 0;
+      var ot = Date.parse(old.updated_at || old.created_at || old.removed_at || old.deleted_at || 0) || 0;
+      if (mt >= ot && kvActive(m) === kvActive(old)) by[key] = m;
+    });
+    return Object.values(by).sort(function(a,b){
+      var ar = kvRemoved(a) ? 1 : 0, br = kvRemoved(b) ? 1 : 0;
+      if (ar !== br) return ar - br;
+      return memberName(a).localeCompare(memberName(b));
+    });
+  }
+
+  function purgeRemovedTombstonesForMember(flock, target){
+    if (!flock || !target) return;
+    var aliases = memberKeyAliases(target, target._member_key);
+    Object.keys(flock.removedMembers || {}).forEach(function(k){
+      var r = flock.removedMembers[k] || {};
+      var rAliases = memberKeyAliases(r, k);
+      var match = Object.keys(aliases).some(function(a){ return rAliases[a]; });
+      if (match) delete flock.removedMembers[k];
+    });
+  }
+
+  window.restoreRemovedMemberAsAdmin = async function(memberKeyOrId){
+    var flock = currentFlock();
+    if (!flock) { kvToast('No active flock found'); return null; }
+    if (!kvGlobalAdmin() && !(typeof priorCan === 'function' && priorCan('remove_member'))) { kvToast('Only global admins or organizers can restore members'); return null; }
+    ensureMemberIdentities(flock);
+    var targetKey = null, target = null;
+    Object.keys(flock.members || {}).some(function(k){
+      var m = flock.members[k];
+      if (String(k) === String(memberKeyOrId) || String(kvMemberId(m,k)) === String(memberKeyOrId) || String(kvUserId(m)) === String(memberKeyOrId)) {
+        targetKey = k; target = m; return true;
+      }
+      return false;
+    });
+    if (!target) {
+      Object.keys(flock.removedMembers || {}).some(function(k){
+        var r = flock.removedMembers[k];
+        if (String(k) === String(memberKeyOrId) || String(kvMemberId(r,k)) === String(memberKeyOrId) || String(kvUserId(r)) === String(memberKeyOrId)) {
+          targetKey = k; target = Object.assign({}, r); return true;
+        }
+        return false;
+      });
+    }
+    if (!target) { kvToast('Member not found'); return null; }
+
+    var ts = kvNow();
+    delete target.deleted_at; delete target.removed_at; delete target.deleted_by; delete target.removed_by; delete target.deleted_reason; delete target.removal_updated_at;
+    target.status = 'active';
+    target.membership_status = 'active';
+    target.updated_at = ts;
+    target.restored_at = ts;
+    target.restored_by = kvUserId((window.DATA && DATA.me) || {}) || '';
+    if (!target.role || String(target.role).toLowerCase() === 'removed') target.role = 'member';
+    target.member_id = kvMemberId(target, targetKey);
+    target.id = target.member_id || target.id || targetKey;
+    if (!targetKey) targetKey = String(target.member_id || target.id || kvUserId(target) || Date.now());
+    flock.members[String(targetKey)] = target;
+    purgeRemovedTombstonesForMember(flock, Object.assign({_member_key:targetKey}, target));
+    flock.memberIds = Object.keys(flock.members || {}).filter(function(k){ return kvActive(flock.members[k]); });
+    window._pendingRemovedMembers = window._pendingRemovedMembers || {};
+    Object.keys(memberKeyAliases(target, targetKey)).forEach(function(a){ delete window._pendingRemovedMembers[a]; });
+
+    try { if (typeof recordEvent === 'function') recordEvent('member.restored', 'member', target.member_id || targetKey, null, target, memberName(target) + ' was restored to the flock', '♻️'); } catch(e) {}
+    try { if (typeof logActivity === 'function' && window.DATA && DATA.me) logActivity(DATA.me.id, 'restored <strong>' + kvEsc(memberName(target)) + '</strong> to the flock', '♻️'); } catch(e) {}
+    try { if (typeof saveLocal === 'function') saveLocal(); else localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS || {})); } catch(e) {}
+    try { if (typeof syncFlockToFirebase === 'function') await syncFlockToFirebase(); } catch(e) { console.warn('[Kinverly] restore sync failed', e); }
+    try { if (typeof renderFlockPage === 'function') renderFlockPage(); } catch(e) {}
+    try { if (typeof renderHome === 'function') renderHome(); } catch(e) {}
+    kvToast(memberName(target) + ' restored');
+    return target;
+  };
+
+  function exportButtonsHtml(){
+    var cards = '';
+    try { if (typeof buildAdminExportCardsHtml === 'function') cards = buildAdminExportCardsHtml(); } catch(e) {}
+    return ''+
+      '<div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px">'+
+        '<div style="font-size:11px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Global Admin Exports</div>'+
+        '<div style="font-size:11px;color:var(--text2);line-height:1.4;margin-bottom:10px">Export every table across the system. Passwords and password hashes are never exported.</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
+          '<button class="kv-admin-export-all-csv" style="padding:11px;border-radius:12px;border:none;background:#2A1B52;color:#fff;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer">Export All CSV</button>'+
+          '<button class="kv-admin-export-all-json" style="padding:11px;border-radius:12px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:12px;font-weight:900;font-family:inherit;cursor:pointer">Export All JSON</button>'+
+        '</div>'+
+        '<div style="max-height:230px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px">'+cards+'</div>'+
+      '</div>';
+  }
+
+  function memberRowHtml(m){
+    var removed = kvRemoved(m);
+    var mid = kvMemberId(m, m._member_key);
+    var nm = kvEsc(memberName(m));
+    var uname = kvEsc(m.username || m.login_username || '');
+    var role = kvEsc(m.global_role === 'admin' ? 'Global Admin' : (m.role || 'member'));
+    var status = removed ? 'Removed' : 'Active';
+    var badgeBg = removed ? 'var(--red-bg)' : (m.global_role === 'admin' ? '#ede8ff' : 'var(--green-bg)');
+    var badgeColor = removed ? 'var(--red)' : (m.global_role === 'admin' ? 'var(--brand)' : 'var(--green)');
+    var actions = removed
+      ? '<button class="kv-admin-restore-member" data-mid="'+kvEsc(mid)+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:9px;border:none;background:var(--green);color:#fff;cursor:pointer;font-family:inherit">Restore</button>'
+      : '<button class="kv-admin-edit-member" data-mid="'+kvEsc(mid)+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:9px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);cursor:pointer;font-family:inherit">Edit</button>'+ 
+        '<button class="kv-admin-reset-pw" data-mid="'+kvEsc(mid)+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:9px;border:1.5px solid var(--amber);background:#fff;color:var(--amber);cursor:pointer;font-family:inherit">Reset</button>'+ 
+        '<button class="kv-admin-remove-member" data-mid="'+kvEsc(mid)+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:9px;border:1.5px solid var(--red);background:#fff;color:var(--red);cursor:pointer;font-family:inherit">Remove</button>';
+    return '<div class="kv-admin-member-row" data-mid="'+kvEsc(mid)+'" style="display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);'+(removed?'opacity:.82;':'')+'">'+
+      (typeof makeAv === 'function' ? makeAv(m.animal || 'bear', 38) : '<div style="width:38px;height:38px;border-radius:50%;background:#ede8ff"></div>')+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="font-size:13px;font-weight:900;color:var(--text1)">'+nm+'</span><span style="font-size:10px;font-weight:900;padding:3px 8px;border-radius:20px;background:'+badgeBg+';color:'+badgeColor+'">'+status+'</span></div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+(uname ? '@'+uname+' &middot; ' : '')+role+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:190px">'+actions+'</div>'+
+    '</div>';
+  }
+
+  var priorOpenAdminPanel = window.openAdminPanel;
+  window.openAdminPanel = function(){
+    if (!kvGlobalAdmin() && typeof priorOpenAdminPanel === 'function') return priorOpenAdminPanel.apply(this, arguments);
+    var flock = currentFlock();
+    if (!flock) { kvToast('No flock selected'); return; }
+    var overlay = document.getElementById('edit-overlay');
+    var body = document.getElementById('edit-body');
+    if (!overlay || !body) { kvToast('Admin panel unavailable'); return; }
+    var titleEl = overlay.querySelector('.sheet-title');
+    if (titleEl) titleEl.textContent = 'Global Admin Panel';
+    var rows = getDisplayMembers(flock);
+    var activeCount = rows.filter(kvActive).length;
+    var removedCount = rows.filter(kvRemoved).length;
+    body.innerHTML = ''+
+      '<div style="background:#2A1B52;color:#fff;border-radius:16px;padding:14px;margin-bottom:14px">'+
+        '<div style="font-size:10px;font-weight:900;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Global Admin Mode</div>'+
+        '<div style="font-size:17px;font-weight:900">'+kvEsc((flock.name || flock.flock_name || 'Current Family'))+'</div>'+
+        '<div style="font-size:12px;color:rgba(255,255,255,.68);margin-top:3px">You can edit accounts, reset passwords, restore removed members, and export all data.</div>'+
+      '</div>'+
+      exportButtonsHtml()+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 8px">'+
+        '<div><div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Member Accounts</div><div style="font-size:11px;color:var(--text2);margin-top:2px">'+activeCount+' active &middot; '+removedCount+' removed</div></div>'+
+      '</div>'+
+      '<div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:0 12px;max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch">'+
+        (rows.length ? rows.map(memberRowHtml).join('') : '<div style="font-size:12px;color:var(--text2);padding:16px;text-align:center">No member accounts found.</div>')+
+      '</div>';
+    overlay.classList.remove('hidden');
+
+    body.querySelectorAll('.kv-admin-export-all-csv').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); try { downloadExportTableCsvs('all', null); } catch(err){ kvToast('CSV export unavailable'); } }); });
+    body.querySelectorAll('.kv-admin-export-all-json').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); try { exportDataTablesJson('all', null); } catch(err){ kvToast('JSON export unavailable'); } }); });
+    body.querySelectorAll('.admin-export-single-table').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); try { downloadSingleExportTableCsv(btn.dataset.table || 'members'); } catch(err){ kvToast('Table export unavailable'); } }); });
+    body.querySelectorAll('.admin-export-single-table-json').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); try { downloadSingleExportTableJson(btn.dataset.table || 'members'); } catch(err){ kvToast('Table JSON unavailable'); } }); });
+    body.querySelectorAll('.kv-admin-restore-member').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); window.restoreRemovedMemberAsAdmin(btn.dataset.mid).then(function(){ window.openAdminPanel(); }); }); });
+    body.querySelectorAll('.kv-admin-reset-pw').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); try { openAdminResetPassword(btn.dataset.mid); } catch(err){ kvToast('Password reset unavailable'); } }); });
+    body.querySelectorAll('.kv-admin-edit-member').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); try { if (typeof openAdminEditMember === 'function') openAdminEditMember(btn.dataset.mid); else if (typeof openEditProfile === 'function') openEditProfile(btn.dataset.mid); else kvToast('Edit tool unavailable'); } catch(err){ kvToast('Edit tool unavailable'); } }); });
+    body.querySelectorAll('.kv-admin-remove-member').forEach(function(btn){ btn.addEventListener('click', async function(e){
+      e.stopPropagation();
+      var mid = btn.dataset.mid;
+      var flock = currentFlock();
+      var m = null;
+      Object.keys((flock && flock.members) || {}).some(function(k){ if (String(kvMemberId(flock.members[k], k)) === String(mid)) { m = flock.members[k]; return true; } return false; });
+      if (!confirm('Remove ' + memberName(m) + ' from this flock? Their history will stay available in exports.')) return;
+      try { if (typeof removeMemberFromFlock === 'function') await removeMemberFromFlock(mid); else kvToast('Remove tool unavailable'); } catch(err){ console.warn(err); kvToast('Could not remove member'); }
+      try { window.openAdminPanel(); } catch(e2) {}
+    }); });
+  };
+  try { openAdminPanel = window.openAdminPanel; } catch(e) {}
+
+  // Make admin buttons work even if older rendered pages attached stale handlers.
+  document.addEventListener('click', function(e){
+    var adminBtn = e.target && e.target.closest && e.target.closest('[data-open-admin-panel], .open-admin-panel, #admin-panel-btn, .admin-panel-btn');
+    if (adminBtn && kvGlobalAdmin()) { e.preventDefault(); e.stopPropagation(); window.openAdminPanel(); }
+  }, true);
+
+  // Add/repair a visible admin banner + quick Admin Panel button after rendering.
+  function ensureAdminBanner(){
+    if (!kvGlobalAdmin()) return;
+    if (document.querySelector('.kv-global-admin-banner')) return;
+    var wrap = document.querySelector('.page.active') || document.querySelector('.page-wrap') || document.getElementById('app');
+    if (!wrap) return;
+    var banner = document.createElement('div');
+    banner.className = 'kv-global-admin-banner';
+    banner.style.cssText = 'background:#2A1B52;color:#fff;border-radius:14px;padding:11px 12px;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:var(--shadow)';
+    banner.innerHTML = '<div><div style="font-size:10px;font-weight:900;color:var(--gold);text-transform:uppercase;letter-spacing:.08em">Global Admin Mode</div><div style="font-size:12px;color:rgba(255,255,255,.72)">Full access enabled</div></div><button class="admin-panel-btn" style="border:none;background:var(--gold);color:#1E1433;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer">Admin Panel</button>';
+    wrap.insertBefore(banner, wrap.firstChild);
+  }
+  var priorShowPage = window.showPage;
+  if (typeof priorShowPage === 'function') {
+    window.showPage = function(){ var r = priorShowPage.apply(this, arguments); setTimeout(ensureAdminBanner, 50); return r; };
+    try { showPage = window.showPage; } catch(e) {}
+  }
+  setTimeout(ensureAdminBanner, 250);
+  setTimeout(ensureAdminBanner, 1000);
+  console.info('[Kinverly] Sprint 52.4 admin panel/export/restore patch loaded');
+})();
+
 </script>
