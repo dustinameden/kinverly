@@ -15820,6 +15820,236 @@ try {
   };
 })();
 
+
+
+// ═══════════════════════════════════════════════
+//  SPRINT 36: INFORMATION + BRING LIST CLEANUP
+//  Purpose separation:
+//    Overview = status / RSVP / attendance
+//    Information = permanent gathering details, shown near top
+//    Bring List = who is bringing what
+//    Chat = conversation
+//    Photos = memories
+// ═══════════════════════════════════════════════
+function kinActiveInfoItems(g) {
+  g = g || {};
+  var items = [];
+  function add(title, content, meta) {
+    content = (content || '').toString().trim();
+    if (!content) return;
+    items.push(Object.assign({
+      id: 'info_derived_' + items.length,
+      title: title || 'Information',
+      section_title: title || 'Information',
+      content: content,
+      section_content: content,
+      derived: true,
+      created_at: g.created_at || '',
+      updated_at: g.updated_at || '',
+      deleted_at: null
+    }, meta || {}));
+  }
+  (g.information || g.gathering_information || []).forEach(function(i){
+    if (!i || i.deleted_at) return;
+    var title = i.title || i.section_title || i.label || 'Information';
+    var content = i.content || i.section_content || i.text || i.note_text || '';
+    add(title, content, Object.assign({}, i, {derived:false}));
+  });
+  // Legacy notes now read as Information so important details are not hidden.
+  (g.notes || []).forEach(function(n){
+    if (!n || n.deleted_at) return;
+    add(n.title || n.section_title || 'Group update', n.content || n.text || n.note_text || '', Object.assign({}, n, {legacy_note:true, derived:false}));
+  });
+  // Optional legacy fields.
+  add('Details', g.details || g.description || g.notesText || '', {legacy_field:'details'});
+  return items;
+}
+function kinBuildInformationPanel(g, compact) {
+  var items = kinActiveInfoItems(g);
+  var count = items.length;
+  var rows = items.map(function(i){
+    var title = i.title || i.section_title || 'Information';
+    var content = i.content || i.section_content || i.text || '';
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
+      '<div style="font-size:12px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">' + escapeHtml(title) + '</div>' +
+      '<div style="font-size:14px;color:var(--text1);line-height:1.45;font-weight:700">' + escapeHtml(content) + '</div>' +
+    '</div>';
+  }).join('');
+  if (!rows) {
+    rows = '<div style="padding:14px 0;color:var(--text2);font-size:13px;line-height:1.45">No important information has been added yet. Add parking, address details, what to bring, or anything people should know.</div>';
+  }
+  var form = '';
+  if (can && (can('edit_gathering') || can('finalize_gathering'))) {
+    form = '<div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px">' +
+      '<input class="input-field kin-info-title-input" data-gathering-id="' + escapeHtml(String(g.id || '')) + '" placeholder="Title, e.g. Parking" maxlength="40">' +
+      '<div style="display:flex;gap:8px"><input class="input-field kin-info-content-input" data-gathering-id="' + escapeHtml(String(g.id || '')) + '" placeholder="Add important information..." maxlength="220"><button class="btn-primary" style="width:auto;min-width:92px" data-kin-action="info-add" data-gathering-id="' + escapeHtml(String(g.id || '')) + '">Add</button></div>' +
+    '</div>';
+  }
+  return '<div class="card" style="margin-bottom:14px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">' +
+      '<div style="font-size:16px;font-weight:900;color:var(--text1)">Important information</div>' +
+      '<span class="pill pill-brand">' + count + '</span>' +
+    '</div>' +
+    '<div style="font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:4px">Permanent details everyone should know. Use Chat for quick conversation.</div>' +
+    rows + form +
+  '</div>';
+}
+function kinHandleInformationAddButton(btn) {
+  var gid = btn.getAttribute('data-gathering-id') || kinCurrentDetailGatheringId();
+  var root = btn.closest('.card') || document;
+  var titleInput = root.querySelector('.kin-info-title-input[data-gathering-id="' + gid + '"]') || root.querySelector('.kin-info-title-input');
+  var contentInput = root.querySelector('.kin-info-content-input[data-gathering-id="' + gid + '"]') || root.querySelector('.kin-info-content-input');
+  var title = titleInput ? titleInput.value.trim() : '';
+  var content = contentInput ? contentInput.value.trim() : '';
+  if (!content) { if (contentInput) contentInput.focus(); return; }
+  btn.disabled = true;
+  var now = (typeof nowLocal === 'function' ? nowLocal() : new Date().toISOString());
+  var infoId = 'info_' + Date.now().toString(36);
+  patchGatheringById(gid, function(g){
+    if (!Array.isArray(g.information)) g.information = [];
+    g.information.unshift({
+      id: infoId,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+      created_by_user_id: getCurrentActionUserId(),
+      updated_by_user_id: getCurrentActionUserId(),
+      user_id: getCurrentActionUserId(),
+      title: title || 'Information',
+      section_title: title || 'Information',
+      content: content,
+      section_content: content
+    });
+    kinLogUserAction('gathering_information.created', 'gathering_information', infoId, g.id || gid, g.name || g.title || '', ((DATA.me && DATA.me.name) || 'Someone') + ' added information to ' + (g.name || g.title || 'a gathering'), {title:title || 'Information', preview:content});
+  }, 'gathering_information.created').then(function(){
+    if (titleInput) titleInput.value = '';
+    if (contentInput) contentInput.value = '';
+    kinAfterGatheringButtonSave(gid, 'Information added');
+  }).catch(function(err){
+    console.error('[Kinverly] information add failed', err);
+    if (typeof toast === 'function') toast('Could not add information. Try again.');
+  }).finally(function(){ btn.disabled = false; });
+}
+
+// Override coordinator sections: no more Notes at bottom; promote Information to top and keep Bring List as its own tab.
+function buildCoordinatorSections(g) {
+  return kinBuildInformationPanel(g, true) + buildManageGatheringFooter(g);
+}
+
+function kinBuildBringListTab(g) {
+  var bringCount  = (g.bringList||[]).filter(function(b){return b && !b.deleted_at;}).length;
+  var bringClaimed = (g.bringList||[]).filter(function(b){return b && !b.deleted_at && b.claimedBy;}).length;
+  return '<div class="card" style="margin-bottom:14px">' +
+    '<div style="font-size:17px;font-weight:900;color:var(--text1);margin-bottom:4px">Bring List</div>' +
+    '<div style="font-size:13px;color:var(--text2);line-height:1.45">Coordinate who is bringing what. Chat is for conversation; this list is for commitments.</div>' +
+    '<div style="margin-top:10px"><span class="pill ' + (bringCount ? 'pill-brand' : 'pill-gray') + '">' + bringClaimed + '/' + bringCount + ' claimed</span></div>' +
+  '</div>';
+}
+
+// Override renderDetail to make the navigation cleaner: Overview / Bring List / Chat / Photos.
+function renderDetail(g) {
+  window._currentDetailGathering = g;
+  var el = document.getElementById('detail-content');
+  if (!el) return;
+  el.innerHTML = '';
+  var tabs = document.createElement('div');
+  tabs.className = 'gathering-tabs';
+  var bringTotal = (g.bringList||[]).filter(function(b){ return b && !b.deleted_at; }).length;
+  var chatCount = (g.chat||[]).filter(function(c){ return c && !c.deleted_at; }).length;
+  var photoCount = (g.photos||[]).filter(function(p){ return p && !p.deleted_at; }).length;
+  var tabDefs = [
+    {id:'overview', label:'Overview'},
+    {id:'bring', label:'Bring List' + (bringTotal ? ' · ' + bringTotal : '')},
+    {id:'chat', label:'Chat' + (chatCount ? ' · ' + chatCount : '')},
+    {id:'photos', label:'Photos' + (photoCount ? ' · ' + photoCount : '')}
+  ];
+  var requestedTab = window._openToTab || null;
+  window._openToTab = null;
+  var activeTab = requestedTab || 'overview';
+  if (activeTab === 'tasks' || activeTab === 'polls' || activeTab === 'availability' || activeTab === 'planning' || activeTab === 'plans' || activeTab === 'notes') activeTab = 'overview';
+  if (activeTab === 'bring_list') activeTab = 'bring';
+  var contentArea = document.createElement('div');
+  contentArea.id = 'gtab-content';
+  function showTab(tabId) {
+    var liveG = getLiveGathering(g.id) || g;
+    g = liveG;
+    window._currentDetailGathering = liveG;
+    activeTab = tabId;
+    currentDetailTab = tabId;
+    try { rememberGatheringTab(liveG.id, tabId); } catch(_rgt) {}
+    try { updateContextBar({page:'gatherings', gathering:liveG, tab:tabId}); } catch(_ucb) {}
+    tabs.querySelectorAll('.gtab').forEach(function(t){ t.classList.toggle('active', t.dataset.tab === tabId); });
+    contentArea.innerHTML = '';
+    if (tabId === 'overview') {
+      contentArea.innerHTML = liveG.beachMode ? buildBeachDetail(liveG) : buildStandardDetail(liveG);
+      wireDetailButtons(liveG);
+    } else if (tabId === 'bring') {
+      contentArea.innerHTML = kinBuildBringListTab(liveG) + '<div id="bring-tab-list-' + escapeHtml(String(liveG.id || '')) + '"></div>';
+      var mount = contentArea.querySelector('#bring-tab-list-' + CSS.escape(String(liveG.id || '')));
+      if (mount) mount.appendChild(renderBringList(liveG));
+    } else if (tabId === 'chat') {
+      contentArea.appendChild(renderGatheringChat(liveG.id));
+    } else if (tabId === 'photos') {
+      contentArea.appendChild(renderPhotoAlbum(liveG.id));
+    }
+  }
+  tabDefs.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.className = 'gtab' + (t.id === activeTab ? ' active' : '');
+    btn.dataset.tab = t.id;
+    btn.textContent = t.label;
+    btn.addEventListener('click', function(){ showTab(t.id); });
+    tabs.appendChild(btn);
+  });
+  el.appendChild(tabs);
+  el.appendChild(contentArea);
+  showTab(activeTab);
+}
+
+// Ensure the new Information button works after any rerender.
+if (!window.__kinverlyInfoDelegatedButtons) {
+  window.__kinverlyInfoDelegatedButtons = true;
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('button[data-kin-action="info-add"]') : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    kinHandleInformationAddButton(btn);
+  }, true);
+}
+
+// Add Information to admin/export table payloads when those helpers exist.
+(function(){
+  var oldBuild = window.buildKinverlyDataTables;
+  if (typeof oldBuild === 'function' && !window.__kinverlyInfoExportWrapped) {
+    window.__kinverlyInfoExportWrapped = true;
+    window.buildKinverlyDataTables = function(){
+      var tables = oldBuild.apply(this, arguments) || {};
+      var rows = [];
+      var flock = getCurrentFlockRecord && getCurrentFlockRecord();
+      (flock && flock.gatherings || []).forEach(function(g){
+        kinActiveInfoItems(g).forEach(function(i){
+          rows.push({
+            id: i.id || '',
+            created_at: i.created_at || g.created_at || '',
+            updated_at: i.updated_at || g.updated_at || '',
+            deleted_at: i.deleted_at || null,
+            created_by_user_id: i.created_by_user_id || i.user_id || '',
+            updated_by_user_id: i.updated_by_user_id || '',
+            flock_id: flock.id || flock.flock_id || '',
+            gathering_id: g.id || g.gathering_id || '',
+            section_title: i.title || i.section_title || 'Information',
+            section_content: i.content || i.section_content || i.text || '',
+            source: i.legacy_note ? 'legacy_note' : (i.legacy_field || 'information')
+          });
+        });
+      });
+      tables.gathering_information = rows;
+      return tables;
+    };
+  }
+})();
 </script>
 
 </body>
