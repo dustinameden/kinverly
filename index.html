@@ -4288,13 +4288,59 @@ function buildCrossFlockActivity(limit) {
 }
 
 
+
+/* ═══════════════════════════════════════════════
+   SPRINT 43.1 — CANONICAL IDENTITY MODEL
+
+   Kinverly uses three IDs consistently:
+
+   user_id   = the Kinverly-wide person/account. Stable across every flock.
+   member_id = that user's membership row inside one flock. Different per flock.
+   flock_id  = the flock/family/group context the member belongs to.
+
+   Rules:
+   1) Every person-owned row stores user_id.
+   2) Every flock-scoped row also stores member_id and flock_id when the actor/owner is a flock member.
+   3) Schedules, RSVPs, bring-list assignments, chat, photos, ideas, and activity all use user_id for identity and member_id for flock membership context.
+   4) Exports always include both user_id and member_id where a member performed/owns the action.
+═══════════════════════════════════════════════ */
+function kinCanonicalUserId(memberOrUser){
+  try {
+    if (!memberOrUser) return DATA && DATA.me ? (DATA.me.user_id || DATA.me.id || DATA.me.uid || '') : '';
+    if (typeof memberOrUser === 'string' || typeof memberOrUser === 'number') return String(memberOrUser);
+    return String(memberOrUser.user_id || memberOrUser.canonical_user_id || memberOrUser.uid || memberOrUser.id || '');
+  } catch(e){ return ''; }
+}
+function kinCanonicalMemberId(memberOrUser){
+  try {
+    var m = memberOrUser || (DATA && DATA.me) || {};
+    if (m.member_id !== undefined && m.member_id !== null && m.member_id !== '') return m.member_id;
+    if (typeof getNumericMemberIdForExport === 'function') return getNumericMemberIdForExport(m.id || m.user_id || '');
+    return '';
+  } catch(e){ return ''; }
+}
+function kinCanonicalFlockId(flock){
+  try {
+    var f = flock || (currentFlockId && FLOCKS && FLOCKS[currentFlockId]) || {};
+    return String(f.flock_id || f.id || currentFlockId || '');
+  } catch(e){ return ''; }
+}
+function kinStampIdentity(row, memberOrUser, flock){
+  row = row || {};
+  var m = memberOrUser || (DATA && DATA.me) || {};
+  row.user_id = row.user_id || kinCanonicalUserId(m);
+  row.member_id = row.member_id || kinCanonicalMemberId(m);
+  row.flock_id = row.flock_id || kinCanonicalFlockId(flock);
+  return row;
+}
+
 var availabilityState = { offset: 0, selectedKey: null };
 var myWorldCalendarState = availabilityState;
 
 /*
 Data table backing Add To Your Schedule
 Table name: user_schedule_blocks
-Minimum columns: id, created_at, updated_at, deleted_at, user_id, flock_id, schedule_name, schedule_type, start_date, end_date, start_time, end_time, is_all_day, visibility, source.
+Minimum columns: id, created_at, updated_at, deleted_at, user_id, member_id, flock_id, schedule_name, schedule_type, start_date, end_date, start_time, end_time, is_all_day, visibility, source.
 Purpose: each flock-level gathering can score candidate dates by joining to every member schedule block in the same flock and checking date overlap.
 */
 
@@ -4340,13 +4386,14 @@ function promptDateKey(defaultKey, label) {
 }
 function getMemberPersonalCalendarEventsAcrossFlocks() {
   var memberKey = DATA.me && DATA.me.id;
-  var memberNumericId = getCurrentMemberNumericId();
+  var currentUserId = kinCanonicalUserId(DATA.me);
+  var memberNumericId = kinCanonicalMemberId(DATA.me);
   var out = [];
   getMyFlockKeys().forEach(function(fid){
     var flock = FLOCKS[fid];
     ensurePersonalCalendarStore(flock).forEach(function(ev){
       if (!ev || ev.deleted_at) return;
-      var belongs = (ev.member_key && ev.member_key === memberKey) || (ev.member_id && memberNumericId && Number(ev.member_id) === Number(memberNumericId));
+      var belongs = (ev.user_id && currentUserId && String(ev.user_id) === String(currentUserId)) || (ev.member_key && ev.member_key === memberKey) || (ev.member_id && memberNumericId && String(ev.member_id) === String(memberNumericId));
       if (!belongs) return;
       out.push(Object.assign({ fid: fid, flock_name: flock.name || 'Flock' }, ev));
     });
@@ -4402,8 +4449,9 @@ function createPersonalCalendarEvent(opts) {
     id: nextId,
     user_schedule_block_id: nextId,
     calendar_event_id: nextId, // legacy alias for older UI helpers
-    flock_id: flock.id,
-    member_id: getCurrentMemberNumericId(),
+    flock_id: kinCanonicalFlockId(flock),
+    user_id: kinCanonicalUserId(DATA.me),
+    member_id: kinCanonicalMemberId(DATA.me),
     member_key: DATA.me && DATA.me.id,
     schedule_name: (opts && opts.title) || (opts && opts.schedule_name) || 'Schedule item',
     title: (opts && opts.title) || (opts && opts.schedule_name) || 'Schedule item', // legacy display alias
@@ -16299,21 +16347,21 @@ try {
         flocks: common.concat(['name','invite_code','status','owner_user_id']),
         flock_members: common.concat(['flock_id','user_id','member_id','role','membership_status','joined_at','removed_at','removed_by_user_id']),
         gatherings: common.concat(['flock_id','title','description','location','status','gathering_state','confirmed_start_at','confirmed_end_at','archived_at','archived_by_user_id']),
-        gathering_members: common.concat(['gathering_id','flock_id','user_id','access_status','invited_at','responded_at']),
+        gathering_members: common.concat(['gathering_id','flock_id','user_id','member_id','access_status','invited_at','responded_at']),
         gathering_date_options: common.concat(['gathering_id','flock_id','start_at','end_at','label','is_recommended','is_selected']),
-        availability_responses: common.concat(['gathering_id','date_option_id','flock_id','user_id','availability_status','notes','responded_at']),
-        rsvps: common.concat(['gathering_id','flock_id','user_id','rsvp_status','responded_at']),
-        tasks: common.concat(['gathering_id','flock_id','title','description','assigned_to_user_id','status','completed_at','completed_by_user_id']),
-        notes: common.concat(['gathering_id','flock_id','user_id','note_text']),
-        chats: common.concat(['gathering_id','flock_id','user_id','message','message_type']),
+        availability_responses: common.concat(['gathering_id','date_option_id','flock_id','user_id','member_id','availability_status','notes','responded_at']),
+        rsvps: common.concat(['gathering_id','flock_id','user_id','member_id','rsvp_status','responded_at']),
+        tasks: common.concat(['gathering_id','flock_id','title','description','assigned_to_user_id','assigned_to_member_id','status','completed_at','completed_by_user_id','completed_by_member_id']),
+        notes: common.concat(['gathering_id','flock_id','user_id','member_id','note_text']),
+        chats: common.concat(['gathering_id','flock_id','user_id','member_id','message','message_type']),
         polls: common.concat(['gathering_id','flock_id','title','question','status','closes_at']),
         poll_options: common.concat(['poll_id','option_text','sort_order']),
-        poll_votes: common.concat(['poll_id','poll_option_id','user_id','voted_at']),
-        ideas: common.concat(['flock_id','user_id','title','description','status','vote_count']),
-        idea_votes: common.concat(['idea_id','flock_id','user_id','voted_at']),
-        user_schedule_blocks: common.concat(['user_id','flock_id','schedule_name','schedule_type','start_date','end_date','start_time','end_time','is_all_day','visibility','source']),
-        reminders: common.concat(['flock_id','gathering_id','target_user_id','reminder_type','status','scheduled_for','sent_at','sent_by_user_id']),
-        action_log: common.concat(['actor_user_id','flock_id','gathering_id','entity_type','entity_id','action_type','summary','before_json','after_json']),
+        poll_votes: common.concat(['poll_id','poll_option_id','user_id','member_id','voted_at']),
+        ideas: common.concat(['flock_id','user_id','member_id','title','description','status','vote_count']),
+        idea_votes: common.concat(['idea_id','flock_id','user_id','member_id','voted_at']),
+        user_schedule_blocks: common.concat(['user_id','member_id','flock_id','schedule_name','schedule_type','start_date','end_date','start_time','end_time','is_all_day','visibility','source']),
+        reminders: common.concat(['flock_id','gathering_id','target_user_id','target_member_id','reminder_type','status','scheduled_for','sent_at','sent_by_user_id','sent_by_member_id']),
+        action_log: common.concat(['actor_user_id','actor_member_id','flock_id','gathering_id','entity_type','entity_id','action_type','summary','before_json','after_json']),
         action_errors: common.concat(['actor_user_id','flock_id','gathering_id','entity_type','entity_id','action_type','error_message','error_stack'])
       }
     };
@@ -17279,9 +17327,11 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       created_at:new Date().toISOString(),
       updated_at:new Date().toISOString(),
       deleted_at:null,
-      user_id:userId(),
-      created_by_user_id:userId(),
-      updated_by_user_id:userId(),
+      user_id:kinCanonicalUserId(DATA && DATA.me),
+      member_id:kinCanonicalMemberId(DATA && DATA.me),
+      flock_id:kinCanonicalFlockId(f),
+      created_by_user_id:kinCanonicalUserId(DATA && DATA.me),
+      updated_by_user_id:kinCanonicalUserId(DATA && DATA.me),
       schedule_type:'unavailable',
       event_type:'unavailable',
       schedule_name:title,
@@ -18012,6 +18062,258 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 })();
 </script>
 
+
+
+<script>
+/* ── SPRINT 43 — HOME PAGE DASHBOARD REBUILD ────────────────────────────
+   Rebuilds Home around action, not status/debug output:
+   1) Next Gathering hero remains first.
+   2) Your To-Do moves directly under the hero.
+   3) Planning Needs Attention follows To-Do.
+   4) The Flock section is removed from Home; it lives in the Flocks tab.
+   5) Recent Activity is human-readable and grouped.
+   6) View all activity opens the Activity Feed, not Gatherings.
+*/
+(function(){
+  if (window.__kinverlySprint43HomeDashboard) return;
+  window.__kinverlySprint43HomeDashboard = true;
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+  function nowMs(){ return Date.now ? Date.now() : new Date().getTime(); }
+  function toMs(v){
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    var d = Date.parse(v);
+    return isNaN(d) ? 0 : d;
+  }
+  function rel(ms){
+    if (!ms) return '';
+    var diff = Math.max(0, nowMs() - ms);
+    var m = Math.floor(diff / 60000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return m + 'm ago';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    var d = Math.floor(h / 24);
+    if (d < 7) return d + 'd ago';
+    return new Date(ms).toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  }
+  function flock(){
+    try {
+      if (typeof getCurrentFlockRecord === 'function') return getCurrentFlockRecord();
+      if (window.currentFlockId && window.FLOCKS && FLOCKS[currentFlockId]) return FLOCKS[currentFlockId];
+    } catch(e) {}
+    return window.DATA || null;
+  }
+  function gatherings(){
+    var f = flock();
+    var rows = (f && f.gatherings) || (window.DATA && DATA.gatherings) || [];
+    return rows.filter(function(g){ return g && !g.deleted_at && g.status !== 'memory' && g.status !== 'completed_archived'; });
+  }
+  function gid(g){ return g && (g.id || g.gathering_id); }
+  function gById(id){
+    return gatherings().find(function(g){ return String(gid(g)) === String(id); });
+  }
+  function gName(id){ var g = gById(id); return g ? (g.name || g.title || 'Gathering') : ''; }
+  function evtType(a){ return String((a && (a.activity_type || a.action_type || a.type)) || '').toLowerCase(); }
+  function evtTime(a){ return toMs(a && (a.created_at || a.ts || a.updated_at)); }
+  function evtGid(a){ return a && (a.gathering_id || (a.entity_type === 'gathering' ? a.entity_id : '') || a.gid || ''); }
+  function actor(a){
+    if (!a) return 'Someone';
+    var name = a.actor_display || a.actor_name || a.user_name || '';
+    if (name && !/administrator/i.test(name)) return name;
+    var uid = a.user_id || a.member_id || a.member;
+    try {
+      if (uid && typeof getMember === 'function') {
+        var m = getMember(uid);
+        if (m && m.name) return m.name;
+      }
+      if (window.DATA && DATA.me && String(DATA.me.id) === String(uid)) return DATA.me.name || 'You';
+    } catch(e) {}
+    return 'Someone';
+  }
+  function iconFor(a){
+    var t = evtType(a);
+    if (a && a.icon && !/spark|✨/.test(String(a.icon)) && !/bring_item/.test(String(a.title || a.text || ''))) return a.icon;
+    if (/bring/.test(t)) return '🎒';
+    if (/chat|message/.test(t)) return '💬';
+    if (/schedule|availability/.test(t)) return '📅';
+    if (/rsvp/.test(t)) return '✅';
+    if (/photo/.test(t)) return '📷';
+    if (/note|info/.test(t)) return '📌';
+    if (/task/.test(t)) return '📋';
+    if (/memory/.test(t)) return '🖼️';
+    if (/gathering/.test(t)) return '🎉';
+    return '✨';
+  }
+  function rawIsSystem(raw){
+    raw = String(raw || '').trim();
+    return !raw || /^[a-z_]+\.[a-z_]+$/i.test(raw) || /^[a-z_]+_[a-z_]+\.[a-z_]+$/i.test(raw) || /^(activity\.logged|event\.logged|bring_item\.created)$/i.test(raw);
+  }
+  function entityName(a){ return (a && (a.entity_name || a.item_title || a.schedule_name || a.name || a.subject)) || ''; }
+  function titleFor(a, count){
+    count = count || 1;
+    var t = evtType(a);
+    var raw = (a && (a.title || a.summary || a.text)) || '';
+    var ent = entityName(a);
+    if (!rawIsSystem(raw) && !/^bring list updated$/i.test(raw) && !/^flock updated$/i.test(raw)) {
+      return raw;
+    }
+    if (/bring.*claim/.test(t)) return actor(a) + ' claimed ' + (ent || 'a bring-list item');
+    if (/bring.*assign/.test(t)) return actor(a) + ' assigned ' + (ent || 'a bring-list item');
+    if (/bring.*add|bring.*create/.test(t)) return (ent ? ent : 'Item') + ' added to bring list';
+    if (/bring/.test(t)) return count > 1 ? 'Bring list updated' : 'Bring list changed';
+    if (/chat|message/.test(t)) return actor(a) + ' posted a new message';
+    if (/schedule.*add|schedule.*create/.test(t)) return (ent ? ent : 'Schedule item') + ' added to schedule';
+    if (/schedule|availability/.test(t)) return 'Schedule updated';
+    if (/rsvp/.test(t)) return actor(a) + ' updated RSVP';
+    if (/photo/.test(t)) return count > 1 ? count + ' photos added' : 'Photo added';
+    if (/note|info/.test(t)) return ent ? ent + ' updated' : 'Important info updated';
+    if (/task/.test(t)) return ent ? ent + ' task updated' : 'Task updated';
+    if (/memory/.test(t)) return 'Moved to Memories';
+    if (/gathering/.test(t)) return 'Gathering updated';
+    return 'Activity updated';
+  }
+  function tabFor(a){
+    var t = evtType(a);
+    if (/bring/.test(t)) return 'bring';
+    if (/chat|message/.test(t)) return 'chat';
+    if (/photo/.test(t)) return 'photos';
+    if (/activity/.test(t)) return 'activity';
+    return (a && a.tab) || 'overview';
+  }
+  function allEvents(){
+    var f = flock();
+    var rows = [];
+    if (f && Array.isArray(f.activity_events)) rows = rows.concat(f.activity_events);
+    if (window.DATA && Array.isArray(DATA.activity_events) && DATA.activity_events !== (f && f.activity_events)) rows = rows.concat(DATA.activity_events);
+    if (f && Array.isArray(f.event_log)) rows = rows.concat(f.event_log);
+    if (window.DATA && Array.isArray(DATA.activity)) {
+      rows = rows.concat(DATA.activity.map(function(a){ return Object.assign({activity_type:'legacy.activity', title:a.text, created_at:a.created_at || a.ts, user_id:a.member, icon:a.icon}, a); }));
+    }
+    var seen = {};
+    rows = rows.filter(function(a){
+      if (!a || a.deleted_at) return false;
+      var key = [a.id || a.activity_event_id || a.event_id || '', a.created_at || a.ts || '', a.title || a.text || '', evtType(a)].join('|');
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+    rows.sort(function(a,b){ return evtTime(b) - evtTime(a); });
+    return rows;
+  }
+  function groupEvents(rows){
+    var out = [];
+    var map = {};
+    rows.forEach(function(a){
+      var t = evtType(a).replace(/\..*/, '');
+      var day = new Date(evtTime(a) || nowMs()).toISOString().slice(0,10);
+      var key = [t, evtGid(a), day, titleFor(a,1)].join('|');
+      if (!map[key]) { map[key] = {first:a, count:0, sort:evtTime(a), items:[]}; out.push(map[key]); }
+      map[key].count += 1;
+      map[key].sort = Math.max(map[key].sort || 0, evtTime(a));
+      map[key].items.push(a);
+    });
+    out.sort(function(a,b){ return (b.sort || 0) - (a.sort || 0); });
+    return out;
+  }
+
+  // Replace legacy buildFlockActivity so Home cards never show raw event types.
+  window.buildFlockActivity = function(){
+    return groupEvents(allEvents()).map(function(row){
+      var a = row.first;
+      var id = evtGid(a);
+      var meta = [];
+      if (gName(id)) meta.push(gName(id));
+      meta.push(rel(row.sort));
+      return {
+        member:'group',
+        title:titleFor(a, row.count),
+        text:titleFor(a, row.count),
+        meta:meta.filter(Boolean).join(' • '),
+        time:rel(row.sort),
+        sort:row.sort,
+        icon:iconFor(a),
+        gId:id,
+        tab:tabFor(a),
+        count:row.count
+      };
+    }).slice(0, 6);
+  };
+
+  function ensureHomeStyles(){
+    if (document.getElementById('s43-home-style')) return;
+    var st = document.createElement('style');
+    st.id = 's43-home-style';
+    st.textContent = '\n#flock-row{display:none!important}\n.s43-hidden-title{display:none!important}\n#home-todos{margin-bottom:14px}\n#home-live-panel{margin-top:0}\n.s42-attention-card{padding:12px!important}\n.s42-attention-list{gap:6px!important}\n.s42-attention-row{padding:8px 10px!important}\n.activity-feed.clean{background:transparent!important;border:none!important;overflow:visible!important}\n.activity-feed.clean .activity-item.clean{background:#fff;border:1px solid var(--border);border-radius:16px;margin-bottom:10px;padding:12px 14px;box-shadow:0 1px 8px rgba(61,43,110,.05)}\n.activity-open-btn{border:none;background:#ede8ff;color:var(--brand);border-radius:18px;padding:8px 12px;font-size:12px;font-weight:900;white-space:nowrap;font-family:inherit}\n';
+    document.head.appendChild(st);
+  }
+  function moveSection(titleText, block){
+    if (!block) return;
+    var title = block.previousElementSibling;
+    if (title && title.classList && title.classList.contains('section-title')) title.textContent = titleText;
+  }
+  function arrangeHome(){
+    ensureHomeStyles();
+    var hero = document.querySelector('#page-home .hero');
+    var live = document.getElementById('home-live-panel');
+    var todos = document.getElementById('home-todos');
+    var feed = document.getElementById('activity-feed');
+    var flockRow = document.getElementById('flock-row');
+
+    // Hide The Flock title and row on Home. The Flocks tab owns this now.
+    if (flockRow) {
+      var ft = flockRow.previousElementSibling;
+      if (ft && ft.classList && ft.classList.contains('section-title')) ft.classList.add('s43-hidden-title');
+      flockRow.style.display = 'none';
+    }
+
+    // Desired order: Hero → Your To-Do → Planning Needs Attention → Recent Activity.
+    if (hero && todos) {
+      var todoTitle = todos.previousElementSibling;
+      if (todoTitle && todoTitle.classList && todoTitle.classList.contains('section-title')) {
+        todoTitle.textContent = 'Your To-Do';
+        hero.parentNode.insertBefore(todoTitle, hero.nextSibling);
+        hero.parentNode.insertBefore(todos, todoTitle.nextSibling);
+      }
+    }
+    if (todos && live) {
+      var afterTodos = todos.nextSibling;
+      todos.parentNode.insertBefore(live, afterTodos);
+    }
+    if (live && feed) {
+      var feedTitle = feed.previousElementSibling;
+      if (feedTitle && feedTitle.classList && feedTitle.classList.contains('section-title')) feedTitle.textContent = 'Recent Activity';
+      if (feedTitle) live.parentNode.insertBefore(feedTitle, live.nextSibling);
+      live.parentNode.insertBefore(feed, feedTitle ? feedTitle.nextSibling : live.nextSibling);
+    }
+
+    // Make the activity CTA explicit and route to Global Activity Feed.
+    var buttons = document.querySelectorAll('button.home-see-more');
+    buttons.forEach(function(b){
+      if (/view all activity/i.test(b.textContent || '')) {
+        b.textContent = 'View Activity Feed →';
+        b.onclick = function(e){ if(e){e.preventDefault(); e.stopPropagation();} if (typeof showPage === 'function') showPage('activity'); if (typeof renderGlobalActivity === 'function') renderGlobalActivity(); };
+      }
+    });
+  }
+
+  var oldRenderHome = window.renderHome;
+  window.renderHome = function(){
+    if (oldRenderHome) oldRenderHome.apply(this, arguments);
+    try { arrangeHome(); } catch(e) { console.warn('[Kinverly] Sprint 43 home arrange failed:', e && e.message); }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    try { if (typeof renderHome === 'function') renderHome(); } catch(e) {}
+  });
+})();
+</script>
+
 </body>
 </html>
 
@@ -18616,3 +18918,62 @@ if (!window.__kinverlyInfoDelegatedButtons) {
   };
 })();
 </script>
+
+
+---
+
+## Sprint 43.1 — Data Identity Normalization
+
+Kinverly now treats identity consistently across every export and data table:
+
+| Field | Meaning | Example |
+|---|---|---|
+| `user_id` | The Kinverly-wide person/account. Stable across all flocks. | Dustin as a Kinverly user |
+| `member_id` | That user’s membership row inside one flock. A user can have many member IDs across flocks. | Dustin in The Ameden Family |
+| `flock_id` | The flock/family/group context. | The Ameden Family |
+
+### Table rules
+
+- `users` uses `user_id` only.
+- `flock_members` maps `user_id` + `flock_id` to `member_id`.
+- Every flock-scoped action/export includes `flock_id`.
+- Every person-owned flock-scoped row includes both `user_id` and `member_id`.
+- Availability, RSVP, bring-list assignments, chat, photos, ideas, votes, reminders, and activity events all carry the same identity pattern.
+
+### Canonical schema pattern
+
+```sql
+users
+  id as user_id
+
+flocks
+  id as flock_id
+
+flock_members
+  id as member_id
+  user_id
+  flock_id
+  role
+  membership_status
+
+user_schedule_blocks
+  id
+  user_id
+  member_id
+  flock_id
+  schedule_name
+  start_date
+  end_date
+
+activity_events
+  id
+  user_id
+  member_id
+  flock_id
+  gathering_id
+  activity_type
+  entity_type
+  entity_id
+```
+
+This keeps the app simple: `user_id` answers “who is the person?”, `member_id` answers “who are they inside this flock?”, and `flock_id` answers “which family/group does this row belong to?”
