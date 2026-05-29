@@ -10007,6 +10007,91 @@ async function removeMemberFromFlock(memberId) {
   return memberName;
 }
 
+
+// Admin password reset — lets a global admin/organizer set a new temporary password
+// for a real user account without changing flock membership.
+function adminSetUserPasswordForMember(memberId, newPassword) {
+  var flock = FLOCKS[currentFlockId];
+  if (!flock || !flock.members || !flock.members[memberId]) return { error:'Member not found.' };
+  if (!newPassword || String(newPassword).length < 4) return { error:'Password must be at least 4 characters.' };
+
+  var target = flock.members[memberId];
+  var stamp = nowISO();
+  var passwordHash = (typeof demoPasswordHash === 'function') ? demoPasswordHash(newPassword) : simpleHash(newPassword);
+  var legacyHash = (typeof simpleHash === 'function') ? simpleHash(newPassword) : passwordHash;
+  var adminUserId = (typeof getCanonicalUserId === 'function') ? getCanonicalUserId(DATA.me) : (DATA.me && (DATA.me.user_id || DATA.me.id));
+
+  // 1) Update the flock member row for legacy/member-picker logins.
+  saveMemberChange(memberId, {
+    pw: legacyHash,
+    password_hash: passwordHash,
+    password_reset_at: stamp,
+    password_reset_by_user_id: adminUserId,
+    must_change_password: true,
+    updated_at: stamp
+  });
+
+  // 2) Update the canonical users table for username/password login.
+  try {
+    var users = (typeof ensureUsersTable === 'function') ? ensureUsersTable() : (DATA.users || []);
+    var targetUserId = Number(target.user_id || target.kinverly_user_id || target.id);
+    var targetUsername = normalizeUsername(target.username || target.handle || '');
+    var user = users.find(function(u){
+      if (targetUserId && Number(u.user_id || u.id) === targetUserId) return true;
+      if (targetUsername && normalizeUsername(u.username || '') === targetUsername) return true;
+      if (target.firestore_id && String(u.firestore_id || '') === String(target.firestore_id)) return true;
+      return false;
+    });
+    if (user) {
+      user.password_hash = passwordHash;
+      user.must_change_password = true;
+      user.password_reset_at = stamp;
+      user.password_reset_by_user_id = adminUserId;
+      user.updated_at = stamp;
+    }
+  } catch(e) {
+    console.warn('[Kinverly] Could not mirror reset password to users table:', e);
+  }
+
+  try { saveLocal(); } catch(e) {}
+  try { saveFlockState(); } catch(e) {}
+  try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e) {}
+  try {
+    if (window.appendKinverlyActionLog) {
+      window.appendKinverlyActionLog({
+        action_type:'user.password_reset',
+        action_status:'success',
+        entity_type:'user',
+        entity_id:String(target.user_id || target.id || memberId),
+        flock_id: flock && (flock.flock_id || flock.id) || '',
+        visible_to_users:false,
+        summary: ((DATA.me && DATA.me.name) || 'Admin') + ' reset a member password',
+        metadata:{ member_id: memberId, user_id: target.user_id || target.id || '' }
+      });
+    }
+  } catch(e) {}
+  return { ok:true, member:target };
+}
+
+function openAdminResetPassword(memberId) {
+  var flock = FLOCKS[currentFlockId];
+  if (!flock || !flock.members || !flock.members[memberId]) { toast('Member not found'); return; }
+  if (!can('manage_flock') && !can('remove_member')) { toast('Only organizers or global admins can reset passwords'); return; }
+  var target = flock.members[memberId];
+  var memberName = target.name || target.display_name || 'this member';
+  var pw = prompt('Create a new temporary password for ' + memberName + ':');
+  if (pw === null) return;
+  pw = String(pw).trim();
+  if (pw.length < 4) { toast('Password must be at least 4 characters'); return; }
+  var confirmPw = prompt('Confirm the new password for ' + memberName + ':');
+  if (confirmPw === null) return;
+  if (pw !== String(confirmPw).trim()) { toast('Passwords do not match'); return; }
+  var result = adminSetUserPasswordForMember(memberId, pw);
+  if (result && result.error) { toast(result.error); return; }
+  openAdminPanel();
+  toast('Temporary password set for ' + memberName);
+}
+
 function openAdminPanel() {
   if (!can('manage_flock')) { toast('Only organizers or global admins can open admin tools'); return; }
   var body = document.getElementById('edit-body');
@@ -10047,7 +10132,7 @@ function openAdminPanel() {
       (!isMe && !isRemoved ? '<div class="admin-member-actions" data-mid="'+m.id+'" style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:180px">' +
         (normalizeRole(role) !== 'organizer' && normalizeRole(role) !== 'owner' ? '<button class="admin-promote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make organizer</button>' : '') +
         (normalizeRole(role) === 'organizer' ? '<button class="admin-demote" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove organizer</button>' : '') +
-        '<button class="admin-reset-pw" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-family:inherit">Reset pw</button>' +
+        '<button class="admin-reset-pw" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;font-family:inherit">Set password</button>' +
         '<button class="admin-remove" data-mid="'+m.id+'" style="font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit">Remove</button>' +
       '</div>' : '') +
     '</div>';
@@ -10138,17 +10223,11 @@ function openAdminPanel() {
       });
     });
 
-    // Reset password
+    // Set/reset member password
     body.querySelectorAll('.admin-reset-pw').forEach(function(btn){
-      btn.addEventListener('click', async function(e){
+      btn.addEventListener('click', function(e){
         e.stopPropagation();
-        var mid = btn.dataset.mid;
-        var memberName = (flock.members[mid]||{}).name || 'this member';
-        if (confirm('Reset password for ' + memberName + '?')) {
-          saveMemberChange(mid, {pw: ''});
-          openAdminPanel();
-          toast('Password reset');
-        }
+        openAdminResetPassword(btn.dataset.mid);
       });
     });
 
@@ -22553,5 +22632,381 @@ signInKinverlyAccount = function(username, password) {
 
   setTimeout(function(){ if(activeFlock()) go(window.currentPage||'home'); }, 700);
   console.info('[Kinverly] Sprint 50.5 final post-join shell guard loaded');
+})();
+</script>
+
+<script>
+/* ── SPRINT 50.6 — GATHERINGS DEDUPE + LIST HYGIENE ─────────────────────
+   Fixes duplicated gathering cards after join/sync.
+   Root cause: local seed rows + remote rows can both survive after auth/join
+   recovery. The UI must render one canonical gathering per real event.
+*/
+(function(){
+  if (window.__kinverlyGatheringsDedupedV506) return;
+  window.__kinverlyGatheringsDedupedV506 = true;
+
+  function norm(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+  function cleanDatePart(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+  function isRemoved(g){
+    if (!g) return true;
+    var s = norm(g.status);
+    return !!(g.deleted_at || g.archived_at || s === 'archived' || s === 'deleted' || s === 'removed');
+  }
+  function modified(g){
+    if (!g) return 0;
+    var candidates = [g.updatedAt, g.updated_at, g.modified_at, g.createdAt, g.created_at, g._createdAt];
+    for (var i=0;i<candidates.length;i++) {
+      var v = candidates[i];
+      if (!v) continue;
+      if (typeof v === 'number') return v;
+      var t = Date.parse(v);
+      if (!isNaN(t)) return t;
+    }
+    return 0;
+  }
+  function idKey(g){
+    var id = g && (g.gathering_id || g.id || g.uid || g.firestore_id);
+    return id ? 'id:' + String(id) : '';
+  }
+  function signatureKey(g){
+    if (!g) return '';
+    var name = norm(g.name || g.title || g.gathering_name);
+    var loc = norm(g.location || g.city || '');
+    var month = cleanDatePart(g.month || g.start_month || '');
+    var day = cleanDatePart(g.day || g.start_day || '');
+    var start = cleanDatePart(g.start_date || g.date || g.start || '');
+    var end = cleanDatePart(g.end_date || g.end || '');
+    if (!name) return '';
+    return ['sig', name, loc, start, end, month, day].join('|');
+  }
+  function mergeArrays(a,b,keyFn){
+    var out=[], seen={};
+    function put(x){
+      if (!x) return;
+      var k = keyFn ? keyFn(x) : (x.id || x.uid || JSON.stringify(x));
+      k = String(k || JSON.stringify(x));
+      if (seen[k]) return;
+      seen[k]=true; out.push(x);
+    }
+    (a||[]).forEach(put); (b||[]).forEach(put);
+    return out;
+  }
+  function mergeGathering(a,b){
+    // Keep the newest scalar fields, but preserve useful nested arrays from both.
+    var newer = modified(b) >= modified(a) ? b : a;
+    var older = newer === b ? a : b;
+    var out = Object.assign({}, older || {}, newer || {});
+    out.tasks = mergeArrays((older&&older.tasks)||[], (newer&&newer.tasks)||[], function(x){ return x.id || x.title || x.name; });
+    out.bringList = mergeArrays((older&&older.bringList)||[], (newer&&newer.bringList)||[], function(x){ return x.id || x.name || x.title; });
+    out.chat = mergeArrays((older&&older.chat)||[], (newer&&newer.chat)||[], function(x){ return x.id || x.created_at || x.ts || x.text; });
+    out.notes = mergeArrays((older&&older.notes)||[], (newer&&newer.notes)||[], function(x){ return x.id || x.title || x.text; });
+    out.photos = mergeArrays((older&&older.photos)||[], (newer&&newer.photos)||[], function(x){ return x.id || x.photo_id || x.dataUrl || x.url; });
+    out.attending = mergeArrays((older&&older.attending)||[], (newer&&newer.attending)||[], function(x){ return x; });
+    out.polls = mergeArrays((older&&older.polls)||[], (newer&&newer.polls)||[], function(x){ return x.id || x.title; });
+    return out;
+  }
+  function dedupeGatherings(list, opts){
+    opts = opts || {};
+    var byId = {}, idOrder = [], noId = [];
+    (list || []).forEach(function(g){
+      if (!g) return;
+      if (opts.activeOnly && isRemoved(g)) return;
+      var k = idKey(g);
+      if (k) {
+        if (!byId[k]) { byId[k]=g; idOrder.push(k); }
+        else { byId[k]=mergeGathering(byId[k], g); }
+      } else {
+        noId.push(g);
+      }
+    });
+    var firstPass = idOrder.map(function(k){ return byId[k]; }).concat(noId);
+
+    // Second pass catches legacy duplicates with different generated ids but same event details.
+    var bySig = {}, order = [];
+    firstPass.forEach(function(g){
+      if (!g) return;
+      if (opts.activeOnly && isRemoved(g)) return;
+      var sig = signatureKey(g) || idKey(g) || ('row:' + order.length);
+      if (!bySig[sig]) { bySig[sig]=g; order.push(sig); }
+      else { bySig[sig]=mergeGathering(bySig[sig], g); }
+    });
+    return order.map(function(k){ return bySig[k]; }).sort(function(a,b){ return modified(b)-modified(a); });
+  }
+  window.kinverlyDedupeGatherings = dedupeGatherings;
+
+  function normalizeFlockGatherings(){
+    try {
+      if (!window.DATA) return;
+      DATA.gatherings = dedupeGatherings(DATA.gatherings || [], {activeOnly:true});
+      var fid = window.currentFlockId;
+      var flock = fid && window.FLOCKS && (FLOCKS[fid] || FLOCKS[String(fid)]);
+      if (flock && Array.isArray(flock.gatherings)) {
+        // Keep archived records available for export/history, but dedupe active records shown by UI.
+        var archived = (flock.gatherings || []).filter(function(g){ return isRemoved(g); });
+        var active = dedupeGatherings((flock.gatherings || []).filter(function(g){ return !isRemoved(g); }), {activeOnly:true});
+        flock.gatherings = active.concat(archived);
+        DATA.gatherings = active.slice();
+        if (window.FLOCKS) FLOCKS[fid] = flock;
+      }
+    } catch(e) { console.warn('[Kinverly] gathering dedupe normalization failed', e); }
+  }
+
+  // Replace core active gathering helper so every UI surface receives deduped rows.
+  var prevGetActive = window.getActiveGatheringsForUi;
+  window.getActiveGatheringsForUi = function(list){
+    var rows = typeof prevGetActive === 'function' ? prevGetActive(list || []) : (list || []).filter(function(g){ return g && !isRemoved(g); });
+    return dedupeGatherings(rows, {activeOnly:true});
+  };
+
+  // Wrap gathering renderers with normalization before they calculate counts/cards.
+  ['renderGatherings','renderGatheringsList','renderHome','renderPage','saveFlockState','saveLocal'].forEach(function(fn){
+    var prev = window[fn];
+    if (typeof prev !== 'function' || prev.__kinverlyDedupeWrappedV506) return;
+    var wrapped = function(){
+      normalizeFlockGatherings();
+      var result = prev.apply(this, arguments);
+      if (fn === 'saveFlockState' || fn === 'saveLocal') normalizeFlockGatherings();
+      return result;
+    };
+    wrapped.__kinverlyDedupeWrappedV506 = true;
+    window[fn] = wrapped;
+  });
+
+  // If the list is already on screen, fix it immediately.
+  setTimeout(function(){
+    normalizeFlockGatherings();
+    try { if ((window.currentPage || '') === 'gatherings' && typeof renderGatherings === 'function') renderGatherings(); } catch(e) {}
+  }, 250);
+
+  console.info('[Kinverly] Sprint 50.6 gathering dedupe guard loaded');
+})();
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 50.7 — MEMBER DEDUPE + GLOBAL ADMIN TOOLS
+   Fixes duplicate flock members and makes global admin access visible/usable.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinverlySprint507MemberAdminFix) return;
+  window.__kinverlySprint507MemberAdminFix = true;
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+  function num(v){ var n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; }
+  function norm(v){ return String(v || '').trim().toLowerCase().replace(/\s+/g,' '); }
+  function now(){ return (typeof nowISO === 'function') ? nowISO() : new Date().toISOString(); }
+  function roleOf(m){ return (typeof normalizeRole === 'function') ? normalizeRole((m && m.role) || 'member') : String((m && m.role) || 'member').toLowerCase(); }
+  function isGlobalAdmin(){
+    return !!(window.DATA && DATA.me && String(DATA.me.global_role || '').toLowerCase() === 'admin');
+  }
+  function userForMember(m){
+    var uid = num(m && (m.user_id || m.id));
+    if (!uid || !window.DATA || !Array.isArray(DATA.users)) return null;
+    return DATA.users.find(function(u){ return num(u.user_id || u.id) === uid; }) || null;
+  }
+  function isGlobalAdminMember(m){
+    var u = userForMember(m);
+    if (u && String(u.global_role || '').toLowerCase() === 'admin') return true;
+    if (window.DATA && DATA.me && num(m && (m.user_id || m.id)) === num(DATA.me.user_id || DATA.me.id) && isGlobalAdmin()) return true;
+    return false;
+  }
+  function isRemoved(m){ return !!(m && (m.deleted_at || m.status === 'removed' || m.status === 'archived' || roleOf(m) === 'archived')); }
+  function memberPrimaryKey(m){
+    if (!m) return '';
+    var uid = num(m.user_id || m.id);
+    if (uid) return 'u:' + uid;
+    var uname = norm(m.username || m.handle || '');
+    if (uname) return 'username:' + uname;
+    var fs = norm(m.firestore_id || m.legacy_user_id || '');
+    if (fs) return 'fs:' + fs;
+    return '';
+  }
+  function memberPersonSignature(m){
+    var name = norm(m && (m.display_name || m.name));
+    var loc = norm(m && m.location);
+    var animal = norm(m && (m.animal || m.avatar));
+    // This fallback catches the current duplicate legacy rows (multiple Dustin / Administrator)
+    // without affecting the stored data model. Exact same display identity collapses for UI.
+    if (!name) return '';
+    return ['person', name, loc, animal].join('|');
+  }
+  function memberUpdatedAt(m){
+    var t = Date.parse((m && (m.updated_at || m.updatedAt || m.created_at || m.joined_at)) || '');
+    return Number.isFinite(t) ? t : 0;
+  }
+  function richerMember(a,b){
+    if (!a) return b;
+    if (!b) return a;
+    if (isRemoved(a) !== isRemoved(b)) return isRemoved(a) ? b : a;
+    var ar = roleOf(a), br = roleOf(b);
+    var rank = {owner:5, creator:5, organizer:4, admin:4, member:3, guest:2, archived:1};
+    if ((rank[br]||0) !== (rank[ar]||0)) return (rank[br]||0) > (rank[ar]||0) ? b : a;
+    return memberUpdatedAt(b) >= memberUpdatedAt(a) ? b : a;
+  }
+  function cleanMemberRows(members, opts){
+    opts = opts || {};
+    var rows = (members || []).filter(Boolean);
+    if (opts.excludeGlobalAdmins !== false) rows = rows.filter(function(m){ return !isGlobalAdminMember(m); });
+
+    var byPrimary = Object.create(null), order = [];
+    rows.forEach(function(m, idx){
+      var key = memberPrimaryKey(m) || ('row:' + idx);
+      if (!byPrimary[key]) { byPrimary[key] = m; order.push(key); }
+      else byPrimary[key] = richerMember(byPrimary[key], m);
+    });
+
+    var first = order.map(function(k){ return byPrimary[k]; });
+    var byPerson = Object.create(null), order2 = [];
+    first.forEach(function(m, idx){
+      var key = memberPersonSignature(m) || memberPrimaryKey(m) || ('row:' + idx);
+      if (!byPerson[key]) { byPerson[key] = m; order2.push(key); }
+      else byPerson[key] = richerMember(byPerson[key], m);
+    });
+
+    return order2.map(function(k){ return byPerson[k]; }).sort(function(a,b){
+      var ar = roleOf(a), br = roleOf(b);
+      var rank = {owner:1, creator:1, organizer:2, admin:2, member:3, guest:4, archived:5};
+      return (rank[ar]||9) - (rank[br]||9) || String(a.name || a.display_name || '').localeCompare(String(b.name || b.display_name || ''));
+    });
+  }
+  window.kinverlyCleanMemberRows = cleanMemberRows;
+
+  // Global admins should be able to open organizer/admin tools on any flock.
+  var previousCan = window.can;
+  window.can = function(action, memberId){
+    if (isGlobalAdmin()) return true;
+    return (typeof previousCan === 'function') ? previousCan(action, memberId) : false;
+  };
+
+  // Dedupe member lists anywhere Flock page derives family state.
+  var previousDerive = window.deriveFamilyState;
+  window.deriveFamilyState = function(flockId){
+    var state = (typeof previousDerive === 'function') ? previousDerive(flockId) : {flock:null, all_members:[], active_members:[], archived_members:[], organizers:[], multi_flock_members:[], gatherings:[], active_gatherings:[], recent_activity:[]};
+    var all = cleanMemberRows(state.all_members || [], {excludeGlobalAdmins:true});
+    var active = all.filter(function(m){ return !isRemoved(m); });
+    var archived = all.filter(isRemoved);
+    var organizers = active.filter(function(m){ var r = roleOf(m); return r === 'owner' || r === 'creator' || r === 'organizer' || r === 'admin'; });
+    state.all_members = all;
+    state.active_members = active;
+    state.archived_members = archived;
+    state.organizers = organizers;
+    state.multi_flock_members = cleanMemberRows(state.multi_flock_members || [], {excludeGlobalAdmins:true});
+    return state;
+  };
+
+  function adminBannerHtml(){
+    if (!isGlobalAdmin()) return '';
+    return '<div id="global-admin-banner" class="card" style="border:1.5px solid rgba(240,192,48,.45);background:#fff8d8;margin-bottom:12px">'+
+      '<div style="display:flex;gap:10px;align-items:flex-start">'+
+        '<div style="width:36px;height:36px;border-radius:12px;background:#F0C030;display:flex;align-items:center;justify-content:center;flex-shrink:0">🛡️</div>'+ 
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:14px;font-weight:900;color:#2A1B52">Global Admin Access</div>'+ 
+          '<div style="font-size:12px;color:var(--text2);line-height:1.45;margin-top:2px">You can manage members, organizers, exports, and settings for this flock. Admin access does not make you a normal flock member.</div>'+ 
+        '</div>'+ 
+        '<button id="global-admin-open-panel" style="border:none;border-radius:12px;background:var(--brand);color:#fff;font-size:12px;font-weight:900;padding:9px 12px;cursor:pointer;font-family:inherit;white-space:nowrap">Admin Panel</button>'+ 
+      '</div>'+ 
+    '</div>';
+  }
+  function injectAdminBanner(){
+    if (!isGlobalAdmin()) return;
+    var el = document.getElementById('flock-page-content');
+    if (!el || document.getElementById('global-admin-banner')) return;
+    el.insertAdjacentHTML('afterbegin', adminBannerHtml());
+    var btn = document.getElementById('global-admin-open-panel');
+    if (btn) btn.addEventListener('click', function(){ if (typeof openAdminPanel === 'function') openAdminPanel(); });
+  }
+  var previousRenderFlockPage = window.renderFlockPage;
+  if (typeof previousRenderFlockPage === 'function') {
+    window.renderFlockPage = function(){
+      var result = previousRenderFlockPage.apply(this, arguments);
+      injectAdminBanner();
+      return result;
+    };
+  }
+
+  function roleBadge(role, removed){
+    if (removed) return '<span style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">Removed</span>';
+    var r = roleOf({role:role});
+    if (r === 'owner' || r === 'creator') return '<span style="background:var(--gold);color:#1E1433;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">Owner</span>';
+    if (r === 'organizer' || r === 'admin') return '<span style="background:#ede8ff;color:var(--brand);font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">Organizer</span>';
+    return '<span style="background:var(--green-bg);color:var(--green);font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">Member</span>';
+  }
+  function memberRow(m){
+    var mid = String(m.id || m.user_id || m.member_id || '');
+    var removed = isRemoved(m);
+    var isMe = window.DATA && DATA.me && num(DATA.me.user_id || DATA.me.id) === num(m.user_id || m.id);
+    var sub = removed ? ('Removed ' + esc(m.deleted_at || '')) : (esc(m.location || 'Location not set') + ' · Active');
+    var actions = '';
+    if (!removed && !isMe) {
+      var r = roleOf(m);
+      actions = '<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:190px">'+
+        ((r !== 'owner' && r !== 'creator' && r !== 'organizer') ? '<button class="admin-promote" data-mid="'+esc(mid)+'" style="font-size:10px;font-weight:800;padding:5px 8px;border-radius:7px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer;font-family:inherit">Make organizer</button>' : '')+
+        ((r === 'organizer') ? '<button class="admin-demote" data-mid="'+esc(mid)+'" style="font-size:10px;font-weight:800;padding:5px 8px;border-radius:7px;border:1px solid var(--text3);background:transparent;color:var(--text3);cursor:pointer;font-family:inherit">Remove organizer</button>' : '')+
+        '<button class="admin-remove" data-mid="'+esc(mid)+'" style="font-size:10px;font-weight:800;padding:5px 8px;border-radius:7px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;font-family:inherit">Remove</button>'+ 
+      '</div>';
+    }
+    return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);opacity:'+(removed?'.66':'1')+'">'+
+      (typeof makeAv === 'function' ? makeAv(m.animal || m.avatar || 'bear', 38) : '<div></div>')+
+      '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:900;color:var(--text1)">'+esc(m.name || m.display_name || 'Member')+(isMe?' <span style="font-size:10px;color:var(--text3)">(you)</span>':'')+'</div><div style="font-size:11px;color:'+(removed?'var(--red)':'var(--text2)')+';margin-top:2px">'+sub+'</div></div>'+roleBadge(m.role, removed)+actions+
+    '</div>';
+  }
+  function getFlock(){ return window.currentFlockId && window.FLOCKS && (FLOCKS[currentFlockId] || FLOCKS[String(currentFlockId)]); }
+
+  // Replace admin panel with a clean global-admin-capable version that dedupes members and exposes exports.
+  window.openAdminPanel = function(){
+    if (!window.can || !can('manage_flock')) { if (typeof toast === 'function') toast('Only organizers or global admins can open admin tools'); return; }
+    var body = document.getElementById('edit-body');
+    var overlay = document.getElementById('edit-overlay');
+    if (!body || !overlay) return;
+    var titleEl = overlay.querySelector('.sheet-title');
+    if (titleEl) titleEl.textContent = isGlobalAdmin() ? 'Global Admin Panel' : 'Admin Panel';
+    var flock = getFlock();
+    if (!flock) return;
+
+    var rawMembers = Object.values(flock.members || {});
+    var clean = cleanMemberRows(rawMembers, {excludeGlobalAdmins:true});
+    var active = clean.filter(function(m){ return !isRemoved(m); });
+    var archived = clean.filter(isRemoved);
+    var lastSynced = (typeof getLastSyncedAt === 'function' && typeof formatExportDate === 'function') ? formatExportDate(getLastSyncedAt()) : 'Not synced yet';
+    var exportCards = (typeof buildAdminExportCardsHtml === 'function') ? buildAdminExportCardsHtml() : '';
+
+    body.innerHTML = '<div style="padding:4px 0">'+
+      (isGlobalAdmin() ? '<div style="background:#fff8d8;border:1.5px solid rgba(240,192,48,.5);border-radius:14px;padding:12px;margin-bottom:14px"><div style="font-size:13px;font-weight:900;color:#2A1B52">🛡️ Signed in as Global Admin</div><div style="font-size:12px;color:var(--text2);line-height:1.45;margin-top:3px">You can access exports, manage organizers, and remove members across flocks without being listed as a flock member.</div></div>' : '')+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Tools for <strong>'+esc(flock.name || 'this flock')+'</strong>.</div>'+ 
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:16px;max-height:48vh;overflow-y:auto;-webkit-overflow-scrolling:touch">'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px"><div><div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Data exports</div><div style="font-size:11px;color:var(--text2);line-height:1.4;margin-top:3px">Scroll to see every export table.</div></div><div style="font-size:10px;color:var(--text3);font-weight:800;text-align:right;flex-shrink:0">Last synced:<br>'+esc(lastSynced)+'</div></div>'+ 
+        '<button class="admin-export-tables" style="width:100%;padding:12px;border-radius:12px;border:none;background:#2A1B52;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:8px">Export All Data CSVs</button>'+ 
+        '<button class="admin-export-tables-json" style="width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--brand);background:#ede8ff;color:var(--brand);font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;margin-bottom:12px">Export All Data JSON</button>'+ 
+        '<div style="display:flex;flex-direction:column;gap:8px">'+exportCards+'</div>'+ 
+      '</div>'+ 
+      '<div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Active members ('+active.length+')</div>'+ 
+      '<div style="margin-bottom:16px">'+(active.length ? active.map(memberRow).join('') : '<div class="planning-empty">No active members.</div>')+'</div>'+ 
+      (archived.length ? '<div style="font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Removed / archived members ('+archived.length+')</div><div>'+archived.map(memberRow).join('')+'</div>' : '')+
+    '</div>';
+
+    setTimeout(function(){
+      body.querySelectorAll('.admin-export-single-table').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); if (typeof downloadSingleExportTableCsv === 'function') downloadSingleExportTableCsv(btn.dataset.table || 'members'); }); });
+      body.querySelectorAll('.admin-export-single-table-json').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); if (typeof downloadSingleExportTableJson === 'function') downloadSingleExportTableJson(btn.dataset.table || 'members'); }); });
+      var tablesBtn = body.querySelector('.admin-export-tables'); if (tablesBtn) tablesBtn.addEventListener('click', function(e){ e.stopPropagation(); if (typeof downloadExportTableCsvs === 'function') downloadExportTableCsvs('all', null); });
+      var jsonBtn = body.querySelector('.admin-export-tables-json'); if (jsonBtn) jsonBtn.addEventListener('click', function(e){ e.stopPropagation(); if (typeof exportDataTablesJson === 'function') exportDataTablesJson('all', null); });
+      body.querySelectorAll('.admin-promote').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); var mid=btn.dataset.mid; if (typeof saveMemberChange === 'function') saveMemberChange(mid,{role:'organizer',updated_at:now()}); if (typeof saveFlockState === 'function') saveFlockState(); openAdminPanel(); if (typeof toast === 'function') toast('Made organizer'); }); });
+      body.querySelectorAll('.admin-demote').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); var mid=btn.dataset.mid; if (typeof saveMemberChange === 'function') saveMemberChange(mid,{role:'member',updated_at:now()}); if (typeof saveFlockState === 'function') saveFlockState(); openAdminPanel(); if (typeof toast === 'function') toast('Removed organizer access'); }); });
+      body.querySelectorAll('.admin-remove').forEach(function(btn){ btn.addEventListener('click', function(e){ e.stopPropagation(); var mid=btn.dataset.mid; var f=getFlock(); var m=f && f.members && f.members[mid]; var name=(m && (m.name || m.display_name)) || 'this member'; if (!confirm('Remove '+name+' from this flock? Their history will stay in exports.')) return; if (typeof removeMemberFromFlock === 'function') { Promise.resolve(removeMemberFromFlock(mid)).then(function(){ if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); if (typeof renderFlockPage === 'function') renderFlockPage(); openAdminPanel(); if (typeof toast === 'function') toast(name+' removed'); }).catch(function(err){ console.error(err); if (typeof toast === 'function') toast('Could not remove member'); }); } }); });
+    }, 40);
+
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+  };
+
+  // Immediate refresh if already on flock page.
+  setTimeout(function(){
+    try { if (typeof renderFlockPage === 'function') renderFlockPage(); } catch(e) {}
+  }, 250);
+
+  console.info('[Kinverly] Sprint 50.7 member dedupe + global admin tools loaded');
 })();
 </script>
