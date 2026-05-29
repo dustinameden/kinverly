@@ -3490,6 +3490,73 @@ var detailOpen = false;
 var scrollPositions = {};
 var currentDetailTab = null;
 
+// -- NAVIGATION CACHE ---------------------------
+// Keeps users on the same tab/detail after refresh without treating cached UI
+// state as data. Shared data still comes from the current flock / Firebase.
+var NAV_CACHE_KEY = 'kinverly_nav_state_v1';
+var _restoringNavState = false;
+
+function readNavCache() {
+  try { return JSON.parse(localStorage.getItem(NAV_CACHE_KEY) || '{}') || {}; }
+  catch(e) { return {}; }
+}
+
+function writeNavCache(patch) {
+  if (_restoringNavState) return;
+  try {
+    var state = readNavCache();
+    Object.keys(patch || {}).forEach(function(k){ state[k] = patch[k]; });
+    state.flock_key = currentFlockId || state.flock_key || '';
+    state.saved_at = nowISO ? nowISO() : new Date().toISOString();
+    localStorage.setItem(NAV_CACHE_KEY, JSON.stringify(state));
+  } catch(e) {}
+}
+
+function rememberPage(name) {
+  writeNavCache({ page:name || currentPage || 'home', detail_open:false, gathering_id:null, detail_tab:null });
+}
+
+function rememberGatheringTab(gatheringId, tabId) {
+  writeNavCache({ page:'gatherings', detail_open:true, gathering_id:gatheringId || null, detail_tab:tabId || 'overview' });
+}
+
+function restoreNavigationCache(opts) {
+  opts = opts || {};
+  var state = readNavCache();
+  if (!state || !state.page) return false;
+  if (!DATA || !DATA.me || !DATA.me.id) return false;
+  if (state.flock_key && currentFlockId && state.flock_key !== currentFlockId && FLOCKS && FLOCKS[state.flock_key]) {
+    currentFlockId = state.flock_key;
+    window.currentFlockId = state.flock_key;
+    if (typeof loadDataFromFlock === 'function') loadDataFromFlock(state.flock_key);
+  }
+
+  _restoringNavState = true;
+  try {
+    var page = state.page || 'home';
+    if (!['home','myworld','gatherings','ideas','flock','profile'].includes(page)) page = 'home';
+    showPage(page);
+    renderPage(page);
+
+    if (state.detail_open && state.gathering_id) {
+      var g = (DATA.gatherings || []).find(function(x){ return x && String(x.id) === String(state.gathering_id); });
+      if (g) {
+        showPage('gatherings');
+        renderGatherings();
+        showDetail(g.id, state.detail_tab || 'overview');
+      } else if (opts.retry !== false) {
+        // Remote data may not have hydrated yet. Try once more shortly after listeners return.
+        setTimeout(function(){ restoreNavigationCache({retry:false}); }, 600);
+      }
+    }
+  } catch(e) {
+    console.warn('[Kinverly] Navigation restore failed:', e);
+  } finally {
+    _restoringNavState = false;
+  }
+  return true;
+}
+
 function getCurrentFlockNameForContext() {
   var f = FLOCKS && currentFlockId ? FLOCKS[currentFlockId] : null;
   return f && f.name ? f.name : 'My Flock';
@@ -3555,6 +3622,7 @@ function showPage(name) {
   var pg = document.getElementById('page-'+name);
   if (pg) pg.classList.add('active');
   currentPage = name;
+  rememberPage(name);
 
   // Restore scroll position for this page
   if (pw) pw.scrollTop = scrollPositions[name] || 0;
@@ -3578,6 +3646,7 @@ function showDetail(gatheringId, openTab) {
   var pw = document.querySelector('.page-wrap');
   if (pw) scrollPositions['detail_prev'] = pw.scrollTop;
   if (pw) pw.scrollTop = 0;
+  rememberGatheringTab(gatheringId, openTab || 'overview');
   updateContextBar({page:'gatherings', gathering:g, tab:openTab || 'overview'});
 }
 
@@ -3599,6 +3668,7 @@ function closeDetail() {
   var pw = document.querySelector('.page-wrap');
   if (pw && scrollPositions['gatherings']) pw.scrollTop = scrollPositions['gatherings'];
   currentDetailTab = null;
+  rememberPage('gatherings');
   updateContextBar({page:'gatherings'});
 }
 
@@ -5047,6 +5117,7 @@ function renderDetail(g) {
 
     activeTab = tabId;
     currentDetailTab = tabId;
+    rememberGatheringTab(liveG.id, tabId);
     updateContextBar({page:'gatherings', gathering:liveG, tab:tabId});
     tabs.querySelectorAll('.gtab').forEach(function(t){
       t.classList.toggle('active', t.dataset.tab === tabId);
@@ -12002,6 +12073,9 @@ function renderFlockSchedule() {
   renderProfile();
   updateCountdown();
   setInterval(updateCountdown, 60000);
+  if (isLoggedIn) {
+    setTimeout(function(){ restoreNavigationCache(); }, 0);
+  }
 
 
 
@@ -13452,6 +13526,7 @@ try {
       if (typeof renderGatherings === 'function' && document.getElementById('gatherings-list')) renderGatherings();
       if (typeof renderHome === 'function') renderHome();
       if (typeof renderMyWorld === 'function') renderMyWorld();
+      if (typeof restoreNavigationCache === 'function') setTimeout(function(){ restoreNavigationCache({retry:false}); }, 0);
       var overlay = document.getElementById('gather-edit-overlay');
       if (overlay) overlay.classList.add('hidden');
       editingGathering = null;
