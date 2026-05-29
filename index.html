@@ -25013,3 +25013,287 @@ signInKinverlyAccount = function(username, password) {
 })();
 
 </script>
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 52.6 — REMOVED MEMBER ADMIN CONTROLS + SAFE RESTORE
+   Purpose:
+   - Global Admin can edit/reset/restore removed members.
+   - Removed rows render actions instead of becoming dead history rows.
+   - Prevent removing the last active member.
+   - Prevent removing a creator/owner without explicit recovery/transfer path.
+   - Add Restore All / Repair Memberships tools for broken flocks.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinverlySprint526RemovedMemberAdminControls) return;
+  window.__kinverlySprint526RemovedMemberAdminControls = true;
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+  }
+  function now(){ return new Date().toISOString(); }
+  function toastSafe(msg){ try { if (typeof toast === 'function') return toast(msg); } catch(e){} console.info('[Kinverly]', msg); }
+  function normalize(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
+  function getUserId(x){
+    if (!x) return '';
+    try { if (typeof getCanonicalUserId === 'function') return getCanonicalUserId(x) || ''; } catch(e) {}
+    return x.user_id || x.uid || x.account_id || x.id || '';
+  }
+  function getMemberId(x, fallback){ return (x && (x.member_id || x.id || x.memberId)) || fallback || ''; }
+  function isRemoved(m){
+    var s = normalize(m && (m.status || m.membership_status));
+    return !!m && (s === 'removed' || s === 'archived' || s === 'inactive' || !!m.removed_at || !!m.deleted_at);
+  }
+  function isActive(m){ return !!m && !isRemoved(m); }
+  function roleOf(m){ return normalize(m && (m.role || m.flock_role || m.member_role || 'member')) || 'member'; }
+  function isCreatorLike(m){ var r = roleOf(m); return r === 'creator' || r === 'owner'; }
+  function memberName(m){ return (m && (m.display_name || m.name || m.username || m.login_username)) || 'Member'; }
+  function memberLocation(m){ return (m && (m.location || m.city)) || 'Location not set'; }
+  function memberAvatar(m){ return (m && (m.avatar || m.animal)) || 'bear'; }
+  function avatarHtml(m){
+    var a = memberAvatar(m);
+    var emoji = a === 'bunny' ? '🐰' : a === 'deer' ? '🦌' : a === 'panda' ? '🐼' : a === 'mouse' ? '🐭' : a === 'leopard' ? '🐆' : '🐻';
+    try { if (typeof makeAv === 'function') return makeAv(a, 52); } catch(e) {}
+    return '<div class="av" style="width:52px;height:52px;background:#f7f5ff;display:flex;align-items:center;justify-content:center;font-size:28px">'+emoji+'</div>';
+  }
+  function currentFlock(){
+    try { if (window.FLOCKS && window.currentFlockId != null && FLOCKS[currentFlockId]) return FLOCKS[currentFlockId]; } catch(e) {}
+    try { if (window.FLOCKS && typeof currentFlockId !== 'undefined' && FLOCKS[String(currentFlockId)]) return FLOCKS[String(currentFlockId)]; } catch(e) {}
+    try { var keys = Object.keys(window.FLOCKS || {}); return keys.length ? window.FLOCKS[keys[0]] : null; } catch(e) {}
+    return null;
+  }
+  function globalAdmin(){
+    try { if (typeof window.kinverlyIsGlobalAdmin === 'function' && window.kinverlyIsGlobalAdmin()) return true; } catch(e) {}
+    try { if (typeof window.isGlobalAdmin === 'function' && window.isGlobalAdmin()) return true; } catch(e) {}
+    var me = (window.DATA && DATA.me) || window.currentUser || window.current_user || null;
+    if (me && normalize(me.global_role || me.role) === 'admin') return true;
+    var uid = getUserId(me), username = normalize(me && (me.username || me.login_username || me.name));
+    try {
+      var users = JSON.parse(localStorage.getItem('kinverly_users') || localStorage.getItem('users') || '[]');
+      if (!Array.isArray(users) && users && typeof users === 'object') users = Object.values(users);
+      return (users || []).some(function(u){
+        return normalize(u.global_role || u.role) === 'admin' && ((uid && String(getUserId(u)) === String(uid)) || (username && normalize(u.username || u.login_username || u.name) === username));
+      });
+    } catch(e) {}
+    return false;
+  }
+  window.kinverlyIsGlobalAdmin = globalAdmin;
+  window.isGlobalAdmin = globalAdmin;
+
+  function saveAll(){
+    try { if (typeof saveLocal === 'function') saveLocal(); else localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS || {})); } catch(e) {}
+    try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e) { console.warn('[Kinverly] sync failed', e); }
+  }
+  function ensureMembers(flock){
+    if (!flock) return;
+    flock.members = flock.members || {};
+    flock.removedMembers = flock.removedMembers || {};
+    Object.keys(flock.members).forEach(function(k){
+      var m = flock.members[k] || {};
+      if (m.member_id == null) m.member_id = getMemberId(m, k);
+      if (m.id == null) m.id = m.member_id || k;
+      flock.members[k] = m;
+    });
+    Object.keys(flock.removedMembers).forEach(function(k){
+      var m = flock.removedMembers[k] || {};
+      if (m.member_id == null) m.member_id = getMemberId(m, k);
+      if (m.id == null) m.id = m.member_id || k;
+      m.status = m.status || 'removed';
+      m.membership_status = m.membership_status || 'removed';
+      flock.removedMembers[k] = m;
+    });
+  }
+  function allMemberRows(flock){
+    ensureMembers(flock);
+    var rows = [];
+    Object.keys((flock && flock.members) || {}).forEach(function(k){ rows.push(Object.assign({_key:k,_source:'members'}, flock.members[k] || {})); });
+    Object.keys((flock && flock.removedMembers) || {}).forEach(function(k){ rows.push(Object.assign({_key:k,_source:'removedMembers'}, flock.removedMembers[k] || {})); });
+    var by = {};
+    rows.forEach(function(m){
+      var key = getUserId(m) ? 'u:' + getUserId(m) : 'm:' + getMemberId(m, m._key);
+      var old = by[key];
+      if (!old) { by[key] = m; return; }
+      if (isActive(m) && !isActive(old)) { by[key] = m; return; }
+      if (isRemoved(m) === isRemoved(old)) {
+        var mt = Date.parse(m.updated_at || m.created_at || m.removed_at || m.deleted_at || 0) || 0;
+        var ot = Date.parse(old.updated_at || old.created_at || old.removed_at || old.deleted_at || 0) || 0;
+        if (mt >= ot) by[key] = m;
+      }
+    });
+    return Object.values(by).sort(function(a,b){
+      if (isRemoved(a) !== isRemoved(b)) return isRemoved(a) ? 1 : -1;
+      return memberName(a).localeCompare(memberName(b));
+    });
+  }
+  function findMember(mid){
+    var flock = currentFlock(); if (!flock) return null;
+    ensureMembers(flock);
+    var found = null;
+    ['members','removedMembers'].some(function(bucket){
+      return Object.keys(flock[bucket] || {}).some(function(k){
+        var m = flock[bucket][k];
+        if (String(k) === String(mid) || String(getMemberId(m,k)) === String(mid) || String(getUserId(m)) === String(mid)) {
+          found = {bucket:bucket,key:k,row:m}; return true;
+        }
+        return false;
+      });
+    });
+    return found;
+  }
+  function updateCanonicalUser(m, patch){
+    if (!m) return;
+    var uid = getUserId(m);
+    try {
+      var users = JSON.parse(localStorage.getItem('kinverly_users') || '[]');
+      if (!Array.isArray(users)) users = Object.values(users || {});
+      var idx = users.findIndex(function(u){ return uid && String(getUserId(u)) === String(uid); });
+      if (idx >= 0) users[idx] = Object.assign({}, users[idx], patch, {updated_at:now()});
+      else if (uid) users.push(Object.assign({user_id:uid, id:uid, username:m.username || '', display_name:memberName(m), global_role:'user', status:'active', created_at:now()}, patch, {updated_at:now()}));
+      localStorage.setItem('kinverly_users', JSON.stringify(users));
+      if (window.DATA) DATA.users = users;
+    } catch(e) {}
+  }
+  function updateMember(mid, patch){
+    var hit = findMember(mid); var flock = currentFlock(); if (!hit || !flock) return null;
+    var row = Object.assign({}, hit.row, patch, {updated_at:now()});
+    flock[hit.bucket][hit.key] = row;
+    saveAll();
+    return row;
+  }
+  function removeMember(mid){
+    var flock = currentFlock(); var hit = findMember(mid); if (!hit || !flock) return;
+    var active = allMemberRows(flock).filter(function(m){ return isActive(m); });
+    if (active.length <= 1) { toastSafe('Cannot remove the last active member. Restore or add another member first.'); return; }
+    if (isCreatorLike(hit.row)) { toastSafe('Creator/owner cannot be removed until ownership is transferred.'); return; }
+    if (!confirm('Remove ' + memberName(hit.row) + ' from this flock?')) return;
+    var row = Object.assign({}, hit.row, {status:'removed', membership_status:'removed', removed_at:now(), deleted_at:now(), updated_at:now()});
+    flock.removedMembers = flock.removedMembers || {};
+    flock.removedMembers[hit.key] = row;
+    if (hit.bucket === 'members') flock.members[hit.key] = row;
+    saveAll(); toastSafe(memberName(row) + ' removed'); renderAdminFlockPageFinal();
+  }
+  function restoreMember(mid){
+    var flock = currentFlock(); var hit = findMember(mid); if (!hit || !flock) { toastSafe('Member not found'); return; }
+    var row = Object.assign({}, hit.row, {status:'active', membership_status:'active', removed_at:null, deleted_at:null, restored_at:now(), updated_at:now()});
+    delete row.deleted_by; delete row.removed_by;
+    flock.members = flock.members || {};
+    flock.members[hit.key] = row;
+    if (flock.removedMembers) delete flock.removedMembers[hit.key];
+    saveAll(); toastSafe(memberName(row) + ' restored'); renderAdminFlockPageFinal();
+  }
+  function restoreAllMembers(){
+    var flock = currentFlock(); if (!flock) return;
+    allMemberRows(flock).filter(isRemoved).forEach(function(m){
+      var mid = getMemberId(m, m._key);
+      var hit = findMember(mid); if (!hit) return;
+      var row = Object.assign({}, hit.row, {status:'active', membership_status:'active', removed_at:null, deleted_at:null, restored_at:now(), updated_at:now()});
+      flock.members[hit.key] = row;
+      if (flock.removedMembers) delete flock.removedMembers[hit.key];
+    });
+    saveAll(); toastSafe('Removed members restored'); renderAdminFlockPageFinal();
+  }
+  function repairMemberships(){
+    var flock = currentFlock(); if (!flock) return;
+    ensureMembers(flock);
+    var rows = allMemberRows(flock);
+    flock.members = flock.members || {};
+    rows.forEach(function(m){
+      var key = String(getMemberId(m,m._key) || getUserId(m) || m._key || Date.now());
+      flock.members[key] = Object.assign({}, m, {_key:undefined,_source:undefined});
+    });
+    saveAll(); toastSafe('Membership records repaired'); renderAdminFlockPageFinal();
+  }
+
+  function adminMemberRow(m){
+    var removed = isRemoved(m);
+    var mid = esc(getMemberId(m,m._key));
+    var role = roleOf(m);
+    var badge = removed ? 'Removed' : (role === 'creator' || role === 'owner' ? 'Creator' : role === 'organizer' ? 'Organizer' : 'Member');
+    var badgeStyle = removed ? 'background:var(--red-bg);color:var(--red)' : 'background:var(--green-bg);color:var(--green)';
+    var controls = removed
+      ? '<button class="kv-admin-restore-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:none;background:var(--green);color:#fff;font-family:inherit">Restore</button><button class="kv-admin-edit-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#fff;color:var(--brand);font-family:inherit">Edit</button><button class="kv-admin-reset-pw" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--amber);background:#fff;color:var(--amber);font-family:inherit">Reset pw</button>'
+      : '<button class="kv-admin-edit-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#fff;color:var(--brand);font-family:inherit">Edit</button><button class="kv-admin-reset-pw" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--amber);background:#fff;color:var(--amber);font-family:inherit">Reset pw</button><button class="kv-admin-remove-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--red);background:#fff;color:var(--red);font-family:inherit">Remove</button>';
+    return '<div class="kv-admin-member-card" style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid var(--border);'+(removed?'opacity:.9;':'')+'">'+
+      avatarHtml(m)+
+      '<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:900;color:var(--text1)">'+esc(memberName(m))+'</div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+esc(memberLocation(m))+' · '+(removed?'Removed':'Active')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+controls+'</div></div>'+ 
+      '<div style="font-size:10px;font-weight:900;padding:5px 10px;border-radius:20px;white-space:nowrap;'+badgeStyle+'">'+esc(badge)+'</div>'+ 
+    '</div>';
+  }
+
+  function renderAdminFlockPageFinal(){
+    if (!globalAdmin()) return false;
+    var el = document.getElementById('flock-page-content'); if (!el) return false;
+    var flock = currentFlock(); if (!flock) return false;
+    var rows = allMemberRows(flock);
+    var active = rows.filter(isActive);
+    var removed = rows.filter(isRemoved);
+    var organizers = active.filter(function(m){ var r=roleOf(m); return r === 'organizer' || r === 'creator' || r === 'owner'; });
+    var code = flock.invite_code || flock.inviteCode || '—';
+    el.innerHTML =
+      '<div style="background:#fff8d8;border:1.5px solid rgba(240,192,48,.65);border-radius:18px;padding:14px;margin-bottom:14px"><div style="font-size:17px;font-weight:900;color:var(--brand)">🛡️ Global Admin Tools</div><div style="font-size:12px;color:var(--text2);line-height:1.45;margin-top:5px">You can edit accounts, reset passwords, remove/restore members, repair memberships, and export data.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button class="btn-primary" id="kv-open-admin-panel" style="margin:0">Admin Panel</button><button class="btn-secondary" id="kv-export-all-csv" style="margin:0">Export All CSV</button></div></div>'+ 
+      '<div class="hero"><div class="hero-label">Flock Hub</div><div class="hero-title">'+esc(flock.name || flock.flock_name || 'Family Flock')+'</div><div class="hero-sub">Members, organizers, invite code, and flock history all in one place.</div></div>'+ 
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px"><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+active.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Active</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+organizers.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Organizers</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+(((window.DATA&&DATA.gatherings)||[]).filter(function(g){return !g.flock_id || String(g.flock_id)===String(flock.flock_id||window.currentFlockId)}).length)+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Gatherings</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+removed.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Removed</div></div></div>'+ 
+      '<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><div style="font-size:11px;font-weight:900;color:var(--text3);letter-spacing:.08em;text-transform:uppercase">Invite Code</div><div style="font-size:12px;color:var(--text2);margin-top:2px">Share this with flock members.</div></div><div style="font-family:monospace;font-size:24px;font-weight:900;color:var(--brand);letter-spacing:.12em">'+esc(code)+'</div></div></div>'+ 
+      '<div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:13px 14px;margin-bottom:14px"><div style="font-size:11px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px">Admin Recovery Tools</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="kv-restore-all-members" class="btn-secondary" style="margin:0;padding:10px">Restore All</button><button id="kv-repair-memberships" class="btn-secondary" style="margin:0;padding:10px">Repair Memberships</button></div></div>'+ 
+      '<div class="section-title">Organizers ('+organizers.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(organizers.length?organizers.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No organizers assigned yet.</div>')+'</div>'+ 
+      '<div class="section-title">Active Flock Members ('+active.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(active.length?active.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No active members yet.</div>')+'</div>'+ 
+      '<div class="section-title">Removed / Archived Members ('+removed.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(removed.length?removed.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No removed members.</div>')+'</div>';
+    var panel = document.getElementById('kv-open-admin-panel'); if (panel) panel.onclick=function(){ try { if (typeof openAdminPanel === 'function') openAdminPanel(); else toastSafe('Admin panel unavailable'); } catch(e){ toastSafe('Admin panel unavailable'); } };
+    var exp = document.getElementById('kv-export-all-csv'); if (exp) exp.onclick=function(){ try { if (typeof downloadExportTableCsvs === 'function') downloadExportTableCsvs('all', null); else if (typeof exportAllCSV === 'function') exportAllCSV(); else toastSafe('CSV export unavailable'); } catch(e){ toastSafe('CSV export unavailable'); } };
+    var restoreAll = document.getElementById('kv-restore-all-members'); if (restoreAll) restoreAll.onclick=restoreAllMembers;
+    var repair = document.getElementById('kv-repair-memberships'); if (repair) repair.onclick=repairMemberships;
+    return true;
+  }
+  window.renderAdminFlockPageFinal = renderAdminFlockPageFinal;
+
+  function editMember(mid){
+    var hit = findMember(mid); if (!hit) { toastSafe('Member not found'); return; }
+    var m = hit.row;
+    var name = prompt('Display name', m.display_name || m.name || ''); if (name === null) return;
+    var username = prompt('Username', m.username || m.login_username || ''); if (username === null) return;
+    var loc = prompt('Location', m.location || ''); if (loc === null) return;
+    var role = prompt('Flock role: member, organizer, creator', m.role || m.flock_role || 'member'); if (role === null) return;
+    var patch = {display_name:name, name:name, username:username, login_username:username, location:loc, role:normalize(role)||'member', flock_role:normalize(role)||'member'};
+    updateMember(mid, patch); updateCanonicalUser(m, {display_name:name, name:name, username:username, login_username:username, location:loc});
+    toastSafe('Account updated'); renderAdminFlockPageFinal();
+  }
+  function resetPassword(mid){
+    var hit = findMember(mid); if (!hit) { toastSafe('Member not found'); return; }
+    var pass = prompt('New temporary password for ' + memberName(hit.row)); if (!pass) return;
+    updateMember(mid, {password:pass, password_hash:pass, must_change_password:true, last_password_reset_at:now()});
+    updateCanonicalUser(hit.row, {password:pass, password_hash:pass, must_change_password:true, last_password_reset_at:now()});
+    toastSafe('Temporary password set');
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target && e.target.closest && e.target.closest('.kv-admin-restore-member,.kv-admin-edit-member,.kv-admin-reset-pw,.kv-admin-remove-member');
+    if (!t || !globalAdmin()) return;
+    e.preventDefault(); e.stopPropagation();
+    var mid = t.getAttribute('data-mid');
+    if (t.classList.contains('kv-admin-restore-member')) return restoreMember(mid);
+    if (t.classList.contains('kv-admin-edit-member')) return editMember(mid);
+    if (t.classList.contains('kv-admin-reset-pw')) return resetPassword(mid);
+    if (t.classList.contains('kv-admin-remove-member')) return removeMember(mid);
+  }, true);
+
+  var oldRenderFlockPage = window.renderFlockPage;
+  window.renderFlockPage = function(){
+    if (globalAdmin() && renderAdminFlockPageFinal()) return;
+    return typeof oldRenderFlockPage === 'function' ? oldRenderFlockPage.apply(this, arguments) : undefined;
+  };
+  try { renderFlockPage = window.renderFlockPage; } catch(e) {}
+
+  var oldShowPage = window.showPage;
+  if (typeof oldShowPage === 'function') {
+    window.showPage = function(page){
+      var r = oldShowPage.apply(this, arguments);
+      setTimeout(function(){ if (globalAdmin() && (page === 'flock' || document.querySelector('#page-flock.active'))) renderAdminFlockPageFinal(); }, 50);
+      return r;
+    };
+    try { showPage = window.showPage; } catch(e) {}
+  }
+  setTimeout(function(){ if (globalAdmin() && document.querySelector('#page-flock.active')) renderAdminFlockPageFinal(); }, 250);
+  setTimeout(function(){ if (globalAdmin() && document.querySelector('#page-flock.active')) renderAdminFlockPageFinal(); }, 1000);
+  console.info('[Kinverly] Sprint 52.6 removed member admin controls patch loaded');
+})();
+</script>
