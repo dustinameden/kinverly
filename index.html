@@ -20254,4 +20254,92 @@ if (!window.__kinverlyInfoDelegatedButtons) {
   window.__KINVERLY_ONBOARDING_MEMBERSHIP_FINAL_FIX__ = true;
 })();
 
+
+
+/* === SPRINT 44.3 — HARD STOP ON FALSE ONBOARDING ===
+   If ANY flock exists and a user session exists, Kinverly must not show the
+   first-run onboarding screen just because a membership lookup is temporarily
+   out of sync during numeric ID migration. Flock routing recovers by numeric
+   flock_id first, then legacy firestore/storage key, then the first available
+   flock as a last-resort prototype recovery.
+*/
+(function(){
+  if (window.__KINVERLY_HARD_STOP_FALSE_ONBOARDING__) return;
+  function keys(obj){ return obj ? Object.keys(obj) : []; }
+  function s(v){ return v === null || v === undefined ? '' : String(v); }
+  function notRemoved(x){ return x && !x.deleted_at && s(x.status).toLowerCase() !== 'removed' && x.removed !== true; }
+  function pickFirstUsableFlockKey(){
+    var ks = keys(window.FLOCKS || {});
+    if (!ks.length) return null;
+    var current = s(window.currentFlockId || (typeof currentFlockId !== 'undefined' ? currentFlockId : ''));
+    if (current && FLOCKS[current] && notRemoved(FLOCKS[current])) return current;
+    for (var i=0;i<ks.length;i++) {
+      var f = FLOCKS[ks[i]] || {};
+      if (notRemoved(f) && (s(f.flock_id) === current || s(f.id) === current || s(f.firestore_id) === current || s(f.storage_key) === current)) return ks[i];
+    }
+    for (var j=0;j<ks.length;j++) if (notRemoved(FLOCKS[ks[j]])) return ks[j];
+    return ks[0] || null;
+  }
+  function forceRecoverFlock(reason){
+    var fid = pickFirstUsableFlockKey();
+    if (!fid) return false;
+    window.currentFlockId = fid;
+    try { currentFlockId = fid; } catch(e) {}
+    var flock = FLOCKS[fid] || {};
+    if (window.DATA && DATA.me) {
+      DATA.me.current_flock_id = flock.flock_id || flock.id || fid;
+      DATA.me.flock_id = flock.flock_id || flock.id || fid;
+      // If a member row can be found, attach numeric lanes to the session.
+      var members = [];
+      if (Array.isArray(flock.flock_members)) members = members.concat(flock.flock_members);
+      if (Array.isArray(flock.members)) members = members.concat(flock.members);
+      else if (flock.members && typeof flock.members === 'object') {
+        keys(flock.members).forEach(function(k){ var m = flock.members[k]; if (m && typeof m === 'object') { if (m.id === undefined) m.id = k; members.push(m); } });
+      }
+      var meIds = {};
+      [DATA.me.id, DATA.me.user_id, DATA.me.firestore_id, DATA.me.member_id, DATA.me.name, DATA.me.display_name].forEach(function(v){ if (s(v)) meIds[s(v).toLowerCase().replace(/\s+/g,'')] = true; });
+      for (var i=0;i<members.length;i++) {
+        var m = members[i];
+        if (!notRemoved(m)) continue;
+        var vals = [m.id,m.user_id,m.firestore_id,m.member_id,m.name,m.display_name].map(function(v){ return s(v).toLowerCase().replace(/\s+/g,''); });
+        if (vals.some(function(v){ return meIds[v]; })) {
+          if (m.user_id !== undefined) DATA.me.user_id = m.user_id;
+          if (m.member_id !== undefined) DATA.me.member_id = m.member_id;
+          break;
+        }
+      }
+    }
+    var ov = document.getElementById('flock-overlay');
+    if (ov) ov.style.display = 'none';
+    try { if (typeof updateContextBar === 'function') updateContextBar({page: window.currentPage || 'home'}); } catch(e) {}
+    try { if (typeof renderPage === 'function') renderPage(window.currentPage || 'home'); } catch(e) {}
+    return true;
+  }
+  window.forceRecoverFlock = forceRecoverFlock;
+
+  var originalShowFlockOnboarding = window.showFlockOnboarding;
+  window.showFlockOnboarding = function(force){
+    if (!force && forceRecoverFlock('blocked onboarding')) return;
+    if (typeof originalShowFlockOnboarding === 'function') return originalShowFlockOnboarding.apply(this, arguments);
+  };
+
+  var originalRenderFlockWelcome = window.renderFlockWelcome;
+  window.renderFlockWelcome = function(){
+    if (forceRecoverFlock('blocked welcome render')) return;
+    if (typeof originalRenderFlockWelcome === 'function') return originalRenderFlockWelcome.apply(this, arguments);
+  };
+
+  // Guard against delayed setTimeout(showFlockOnboarding) calls and reload race conditions.
+  var guardTicks = 0;
+  var guard = setInterval(function(){
+    guardTicks++;
+    var ov = document.getElementById('flock-overlay');
+    var visible = ov && ov.style.display !== 'none' && window.getComputedStyle && getComputedStyle(ov).display !== 'none';
+    if (visible || guardTicks < 12) forceRecoverFlock('interval guard');
+    if (guardTicks > 40) clearInterval(guard);
+  }, 250);
+
+  window.__KINVERLY_HARD_STOP_FALSE_ONBOARDING__ = true;
+})();
+
 </script>
