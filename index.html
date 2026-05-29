@@ -1832,6 +1832,115 @@ img,svg{display:block}
   .context-current-title{font-size:13px}
 }
 
+
+/* ── SPRINT 38: CLEAN AVAILABILITY PAGE ───────────────── */
+.availability-hero-clean{
+  background:linear-gradient(135deg,var(--brand),#5C4299);
+  border-radius:var(--radius-lg);
+  padding:20px;
+  color:#fff;
+  margin-bottom:16px;
+}
+.availability-hero-clean h1{
+  font-family:'Fredoka One',cursive;
+  font-size:28px;
+  line-height:1.1;
+  margin-bottom:6px;
+}
+.availability-hero-clean p{
+  color:rgba(255,255,255,.72);
+  font-size:13px;
+  line-height:1.45;
+}
+.availability-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:16px;
+  margin-bottom:14px;
+  box-shadow:0 1px 8px rgba(61,43,110,.05);
+}
+.availability-card-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.availability-card-title{
+  font-size:17px;
+  font-weight:900;
+  color:var(--text1);
+}
+.availability-card-sub{
+  font-size:12px;
+  color:var(--text2);
+  line-height:1.45;
+}
+.plan-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.plan-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:var(--surface2);
+  border-radius:14px;
+  padding:11px 12px;
+}
+.plan-icon{
+  width:34px;height:34px;border-radius:12px;
+  background:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.plan-body{flex:1;min-width:0}
+.plan-title{font-size:14px;font-weight:900;color:var(--text1)}
+.plan-date{font-size:12px;color:var(--text2);font-weight:700;margin-top:1px}
+.attention-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:12px;
+  margin-top:8px;
+  cursor:pointer;
+  background:#fff;
+}
+.attention-row:hover{border-color:var(--brand2);background:#fbfaff}
+.attention-main{flex:1;min-width:0}
+.attention-title{font-size:14px;font-weight:900;color:var(--text1)}
+.attention-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.attention-cta{
+  font-size:12px;
+  font-weight:900;
+  color:var(--brand);
+  background:#ede8ff;
+  border-radius:999px;
+  padding:7px 10px;
+}
+.upcoming-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.upcoming-row:last-child{border-bottom:none}
+.upcoming-title{font-size:14px;font-weight:900;color:var(--text1)}
+.upcoming-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.add-plan-sheet .sheet-body{padding-bottom:24px}
+.form-row{margin-bottom:12px}
+.form-label{
+  display:block;
+  font-size:11px;
+  font-weight:900;
+  color:var(--text2);
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  margin-bottom:6px;
+}
+
 </style>
 </head>
 <body>
@@ -1987,7 +2096,7 @@ img,svg{display:block}
     </button>
     <button class="nav-btn" data-page="myworld">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
-      My World
+      Availability
     </button>
     <button class="nav-btn" data-page="gatherings">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -2012,7 +2121,7 @@ img,svg{display:block}
 <div class="overlay hidden" id="avail-overlay">
   <div class="sheet">
     <div class="sheet-header">
-      <div class="sheet-title">Review my availability</div>
+      <div class="sheet-title">Confirm my availability</div>
       <button class="sheet-close" id="avail-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="sheet-body">
@@ -4392,7 +4501,7 @@ function renderAvailability() {
   var unavailable = getUpcomingUnavailableEvents(8);
   var unavailableHtml = unavailable.length ? unavailable.map(function(ev){
     return '<div class="xflock-card" data-fid="' + escapeHtml(ev.fid || '') + '">' +
-      '<div class="xflock-top"><div class="xflock-icon">' + (ev.is_unavailable || ev.is_blackout ? '🚫' : '📌') + '</div><div class="xflock-body">' +
+      '<div class="xflock-top"><div class="xflock-icon">' + (ev.is_unavailable || ev.is_unavailable ? '🚫' : '📌') + '</div><div class="xflock-body">' +
       '<div class="xflock-title">' + escapeHtml(ev.title || 'Unavailable time') + '</div>' +
       '<div class="xflock-meta">' + escapeHtml(formatAvailabilityRange(ev)) + (ev.flock_name ? ' · saved in ' + escapeHtml(ev.flock_name) : '') + '</div>' +
       '</div></div></div>';
@@ -16120,6 +16229,378 @@ if (!window.__kinverlyInfoDelegatedButtons) {
       return tables;
     };
   }
+})();
+</script>
+
+
+<script>
+/* ── SPRINT 38: AVAILABILITY PAGE REBUILD ─────────────────
+   Product intent:
+   Home = what is happening in the flock.
+   Availability = my plans, things needing my response, and my participation.
+   No browser prompts. No Availability language.
+*/
+(function(){
+  function kNow(){
+    return new Date().toISOString();
+  }
+
+  function escapeK(value){
+    return String(value ?? '').replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+    });
+  }
+
+  function getCurrentUserIdSafe(){
+    try{
+      if (typeof getCurrentUserId === 'function') return getCurrentUserId();
+      if (window.currentUser?.user_id) return window.currentUser.user_id;
+      if (window.currentUser?.id) return window.currentUser.id;
+      if (window.state?.currentUser?.user_id) return window.state.currentUser.user_id;
+      if (window.appState?.currentUser?.user_id) return window.appState.currentUser.user_id;
+    }catch(e){}
+    return null;
+  }
+
+  function getFlocksSafe(){
+    try{
+      if (Array.isArray(window.flocks)) return window.flocks;
+      if (Array.isArray(window.state?.flocks)) return window.state.flocks;
+      if (Array.isArray(window.appState?.flocks)) return window.appState.flocks;
+      if (window.state?.flocks && typeof window.state.flocks === 'object') return Object.values(window.state.flocks);
+      if (window.appState?.flocks && typeof window.appState.flocks === 'object') return Object.values(window.appState.flocks);
+    }catch(e){}
+    return [];
+  }
+
+  function getCurrentFlockSafe(){
+    try{
+      if (typeof getCurrentFlock === 'function') return getCurrentFlock();
+      if (window.currentFlock) return window.currentFlock;
+      if (window.state?.currentFlock) return window.state.currentFlock;
+      if (window.appState?.currentFlock) return window.appState.currentFlock;
+      const flocks = getFlocksSafe();
+      return flocks[0] || null;
+    }catch(e){}
+    return null;
+  }
+
+  function allGatheringsSafe(){
+    const flocks = getFlocksSafe();
+    const rows = [];
+    flocks.forEach(f => {
+      const gs = Array.isArray(f.gatherings) ? f.gatherings : Object.values(f.gatherings || {});
+      gs.forEach(g => {
+        if (!g || g.deleted_at || g.archived_at || g.status === 'deleted' || g.status === 'archived') return;
+        rows.push({...g, flock_id: g.flock_id || f.id || f.uid || f.firestore_id, flock_name: f.name || f.flock_name || 'Flock'});
+      });
+    });
+    return rows;
+  }
+
+  function personalPlansSafe(){
+    const userId = getCurrentUserIdSafe();
+    const flocks = getFlocksSafe();
+    const plans = [];
+
+    flocks.forEach(f => {
+      const events = []
+        .concat(Array.isArray(f.calendar_events) ? f.calendar_events : [])
+        .concat(Array.isArray(f.user_calendar_events) ? f.user_calendar_events : [])
+        .concat(Array.isArray(f.personal_events) ? f.personal_events : []);
+      events.forEach(e => {
+        const eUser = e.user_id || e.created_by_user_id || e.member_user_id;
+        const type = String(e.event_type || e.type || '').toLowerCase();
+        if (userId && eUser && String(eUser) !== String(userId)) return;
+        if (e.deleted_at) return;
+        if (!['unavailable','blackout','travel','personal','busy'].includes(type) && !e.is_unavailable) return;
+        plans.push({
+          id: e.id || e.uid || ('plan_' + Math.random().toString(36).slice(2)),
+          title: e.title || e.name || (type === 'travel' ? 'Travel' : 'Unavailable'),
+          start_at: e.start_at || e.start_date || e.date || '',
+          end_at: e.end_at || e.end_date || e.start_at || e.start_date || '',
+          flock_name: f.name || f.flock_name || 'Flock'
+        });
+      });
+    });
+
+    return plans
+      .sort((a,b)=>String(a.start_at).localeCompare(String(b.start_at)))
+      .slice(0,6);
+  }
+
+  function userNeedsAction(g){
+    const userId = getCurrentUserIdSafe();
+    if (!userId || !g) return false;
+
+    const rsvps = Array.isArray(g.rsvps) ? g.rsvps : Object.values(g.rsvps || {});
+    const myRsvp = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id) === String(userId) && !r.deleted_at);
+
+    const availability = Array.isArray(g.availability_responses) ? g.availability_responses : Object.values(g.availability_responses || g.availability || {});
+    const myAvail = availability.find(a => String(a.user_id || a.member_user_id || a.created_by_user_id) === String(userId) && !a.deleted_at);
+
+    const state = String(g.gathering_state || g.state || g.status || '').toLowerCase();
+
+    if (state.includes('availability') && !myAvail) return true;
+    if ((state.includes('rsvp') || g.confirmed_start_at || g.confirmed_date || g.date) && !myRsvp) return true;
+    return false;
+  }
+
+  function pendingRequestsSafe(){
+    return allGatheringsSafe().filter(userNeedsAction).slice(0,5);
+  }
+
+  function upcomingGatheringsSafe(){
+    const userId = getCurrentUserIdSafe();
+    return allGatheringsSafe()
+      .filter(g => g.confirmed_start_at || g.confirmed_date || g.date || g.start_at)
+      .slice(0,5)
+      .map(g => {
+        const rsvps = Array.isArray(g.rsvps) ? g.rsvps : Object.values(g.rsvps || {});
+        const my = rsvps.find(r => String(r.user_id || r.member_user_id || r.created_by_user_id) === String(userId) && !r.deleted_at);
+        return {...g, my_status: my?.rsvp_status || my?.status || 'upcoming'};
+      });
+  }
+
+  function formatRange(start, end){
+    const s = String(start || '').slice(0,10);
+    const e = String(end || '').slice(0,10);
+    if (!s && !e) return 'Date not set';
+    if (s && e && s !== e) return `${s} → ${e}`;
+    return s || e;
+  }
+
+  function availabilityPageHTML(){
+    const plans = personalPlansSafe();
+    const pending = pendingRequestsSafe();
+    const upcoming = upcomingGatheringsSafe();
+
+    return `
+      <div class="availability-hero-clean">
+        <h1>Availability</h1>
+        <p>Keep track of your plans and quickly answer gathering requests.</p>
+      </div>
+
+      <div class="availability-card">
+        <div class="availability-card-head">
+          <div>
+            <div class="availability-card-title">Your upcoming plans</div>
+            <div class="availability-card-sub">Trips, busy weekends, and unavailable time that Kinverly uses when gatherings are planned.</div>
+          </div>
+        </div>
+
+        <div class="plan-list">
+          ${plans.length ? plans.map(p => `
+            <div class="plan-row">
+              <div class="plan-icon">🚫</div>
+              <div class="plan-body">
+                <div class="plan-title">${escapeK(p.title)}</div>
+                <div class="plan-date">${escapeK(formatRange(p.start_at,p.end_at))} · saved in ${escapeK(p.flock_name)}</div>
+              </div>
+            </div>
+          `).join('') : `
+            <div class="planning-empty">No plans added yet.</div>
+          `}
+        </div>
+
+        <button class="btn-primary" data-action="open-add-unavailable-sheet" style="margin-top:12px;">+ Add plans</button>
+      </div>
+
+      <div class="availability-card">
+        <div class="availability-card-head">
+          <div>
+            <div class="availability-card-title">Needs your attention</div>
+            <div class="availability-card-sub">Gatherings waiting on your availability or RSVP.</div>
+          </div>
+        </div>
+
+        ${pending.length ? pending.map(g => `
+          <div class="attention-row" data-action="open-gathering" data-gathering-id="${escapeK(g.id || g.uid)}">
+            <div class="plan-icon">🎉</div>
+            <div class="attention-main">
+              <div class="attention-title">${escapeK(g.title || g.name || 'Gathering')}</div>
+              <div class="attention-sub">${escapeK(g.flock_name)} · Waiting for your response</div>
+            </div>
+            <div class="attention-cta">Review</div>
+          </div>
+        `).join('') : `
+          <div class="planning-empty">✓ You're all caught up.</div>
+        `}
+      </div>
+
+      <div class="availability-card">
+        <div class="availability-card-head">
+          <div>
+            <div class="availability-card-title">Upcoming gatherings</div>
+            <div class="availability-card-sub">Your next flock plans at a glance.</div>
+          </div>
+        </div>
+
+        ${upcoming.length ? upcoming.map(g => `
+          <div class="upcoming-row">
+            <div>
+              <div class="upcoming-title">${escapeK(g.title || g.name || 'Gathering')}</div>
+              <div class="upcoming-sub">${escapeK(formatRange(g.confirmed_start_at || g.confirmed_date || g.date || g.start_at, g.confirmed_end_at || g.end_at))}</div>
+            </div>
+            <span class="pill pill-brand">${escapeK(g.my_status)}</span>
+          </div>
+        `).join('') : `
+          <div class="planning-empty">No upcoming gatherings yet.</div>
+        `}
+      </div>
+    `;
+  }
+
+  function findAvailabilityPageEl(){
+    return document.querySelector('#availability-page, #myworld-page, [data-page="availability"], [data-page="myworld"]');
+  }
+
+  function renderAvailabilityPageClean(){
+    const el = findAvailabilityPageEl();
+    if (!el) return false;
+    el.innerHTML = availabilityPageHTML();
+    return true;
+  }
+
+  window.renderAvailabilityPageClean = renderAvailabilityPageClean;
+
+  // Wrap common existing render names so any navigation to old Availability renders the new page.
+  ['renderMyWorld','renderMyWorldPage','renderAvailability','renderAvailabilityPage'].forEach(name => {
+    const old = window[name];
+    window[name] = function(){
+      const rendered = renderAvailabilityPageClean();
+      if (!rendered && typeof old === 'function') return old.apply(this, arguments);
+    };
+  });
+
+  function openAddUnavailableSheet(){
+    const existing = document.getElementById('add-unavailable-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'add-unavailable-overlay';
+    overlay.innerHTML = `
+      <div class="sheet add-plan-sheet">
+        <div class="sheet-header">
+          <div class="sheet-title">Add plans</div>
+          <button class="sheet-close" data-action="close-add-unavailable-sheet">×</button>
+        </div>
+        <div class="sheet-body">
+          <div class="form-row">
+            <label class="form-label">Title</label>
+            <input class="input-field" id="unavailable-title-input" placeholder="e.g. California trip">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Start date</label>
+            <input class="input-field" id="unavailable-start-input" type="date">
+          </div>
+          <div class="form-row">
+            <label class="form-label">End date</label>
+            <input class="input-field" id="unavailable-end-input" type="date">
+          </div>
+          <button class="btn-primary" data-action="save-unavailable-plan">Save plans</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  async function saveUnavailablePlan(){
+    const title = document.getElementById('unavailable-title-input')?.value?.trim() || 'Unavailable';
+    const start = document.getElementById('unavailable-start-input')?.value;
+    const end = document.getElementById('unavailable-end-input')?.value || start;
+
+    if (!start){
+      if (typeof showToast === 'function') showToast('Choose a start date.');
+      return;
+    }
+
+    const flock = getCurrentFlockSafe();
+    if (!flock){
+      if (typeof showToast === 'function') showToast('No flock found.');
+      return;
+    }
+
+    const userId = getCurrentUserIdSafe();
+    const event = {
+      id: 'cal_' + Date.now(),
+      created_at: kNow(),
+      updated_at: kNow(),
+      deleted_at: null,
+      created_by_user_id: userId,
+      updated_by_user_id: userId,
+      user_id: userId,
+      flock_id: flock.id || flock.uid || flock.firestore_id,
+      event_type: 'unavailable',
+      title,
+      start_at: start,
+      end_at: end,
+      visibility: 'private_to_user',
+      source: 'availability_page'
+    };
+
+    flock.calendar_events = Array.isArray(flock.calendar_events) ? flock.calendar_events : [];
+    flock.calendar_events.push(event);
+
+    try{
+      if (typeof performFlockAction === 'function'){
+        await performFlockAction('CALENDAR_EVENT_CREATED', {flock, entity: event, summary: `${title} added to plans`}, async()=>{});
+      } else if (typeof saveFlockState === 'function'){
+        await saveFlockState();
+      } else if (typeof saveCurrentFlock === 'function'){
+        await saveCurrentFlock();
+      }
+      document.getElementById('add-unavailable-overlay')?.remove();
+      renderAvailabilityPageClean();
+      if (typeof showToast === 'function') showToast('Plans saved.');
+    }catch(err){
+      console.error('Could not save plans', err);
+      if (typeof showToast === 'function') showToast('Could not save plans.');
+    }
+  }
+
+  document.addEventListener('click', function(e){
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+    const action = target.getAttribute('data-action');
+
+    if (action === 'open-add-unavailable-sheet'){
+      e.preventDefault();
+      openAddUnavailableSheet();
+    }
+
+    if (action === 'close-add-unavailable-sheet'){
+      e.preventDefault();
+      document.getElementById('add-unavailable-overlay')?.remove();
+    }
+
+    if (action === 'save-unavailable-plan'){
+      e.preventDefault();
+      saveUnavailablePlan();
+    }
+  });
+
+  // Ensure the bottom nav label is corrected even if rendered dynamically later.
+  function relabelAvailabilityNav(){
+    document.querySelectorAll('.nav-btn, .bottom-nav button, [data-page], [data-nav]').forEach(btn => {
+      if (btn.textContent && btn.textContent.includes('Availability')){
+        btn.innerHTML = btn.innerHTML.replace(/Availability/g, 'Availability');
+      }
+      const page = btn.getAttribute('data-page') || btn.getAttribute('data-nav') || '';
+      if (page === 'myworld'){
+        btn.setAttribute('data-page','availability');
+        btn.setAttribute('data-nav','availability');
+      }
+    });
+  }
+
+  setInterval(relabelAvailabilityNav, 750);
+  document.addEventListener('DOMContentLoaded', function(){
+    relabelAvailabilityNav();
+    setTimeout(renderAvailabilityPageClean, 250);
+    setTimeout(renderAvailabilityPageClean, 1000);
+  });
 })();
 </script>
 
