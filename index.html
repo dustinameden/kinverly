@@ -2313,7 +2313,7 @@ img,svg{display:block}
       <div class="avail-review-section-title">2. Your schedule</div>
       <div class="avail-review-card">
         <div id="avail-conflicts"></div>
-        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add to your schedule</button>
+        <button class="avail-mini-btn" id="avail-add-unavailable">+ Add To Your Schedule</button>
       </div>
 
       <div class="avail-review-section-title">3. Confirm for this gathering</div>
@@ -4353,6 +4353,8 @@ function getMemberPersonalCalendarEventsAcrossFlocks() {
   });
   return out;
 }
+var lastScheduleSaveFeedback = null;
+
 function createPersonalCalendarEvent(opts) {
   var flock = currentFlockId && FLOCKS[currentFlockId] ? FLOCKS[currentFlockId] : null;
   if (!flock) { toast('Choose a flock first'); return null; }
@@ -4378,14 +4380,14 @@ function createPersonalCalendarEvent(opts) {
     start_time: (opts && opts.start_time) || null,
     end_time: (opts && opts.end_time) || null,
     is_all_day: opts && opts.is_all_day === false ? false : true,
-    visibility: 'private',
-    source: 'my_calendar',
+    visibility: (opts && opts.visibility) || 'flock',
+    source: (opts && opts.source) || 'manual',
     created_at: now,
     updated_at: now,
     deleted_at: null
   }, now);
   list.push(ev);
-  recordEvent('user_schedule_block.created', 'user_schedule_block', ev.id, null, ev, 'Added schedule item: ' + ev.title, ev.is_unavailable ? '🚫' : '📌');
+  recordEvent('user_schedule_block.created', 'user_schedule_block', ev.id, null, ev, 'Added to schedule: ' + ev.title, '📅');
   saveFlockState();
   // Loop-closer: a new unavailable may now clash with a date this member
   // already greenlit on a planning gathering — flag it immediately.
@@ -4429,13 +4431,13 @@ function openAvailabilityConflictSheet(opts) {
   overlay.innerHTML =
     '<div class="sheet">' +
       '<div class="sheet-header">' +
-        '<div class="sheet-title">' + (mode === 'edit' ? 'Edit schedule item' : 'Add to your schedule') + '</div>' +
+        '<div class="sheet-title">' + (mode === 'edit' ? 'Edit Schedule Item' : 'Add To Your Schedule') + '</div>' +
         '<button class="sheet-close" data-action="close-availability-conflict">×</button>' +
       '</div>' +
       '<div class="sheet-body">' +
         '<div class="avail-review-card">' +
-          '<div class="avail-review-title">Add anything that helps your family plan around you.</div>' +
-          '<div class="avail-review-sub" style="margin-bottom:0">Examples: vacation, work trip, kids sports, wedding, school break, or a weekend you prefer to protect.</div>' +
+          '<div class="avail-review-title">Add anything that helps Kinverly find the best gathering days.</div>' +
+          '<div class="avail-review-sub" style="margin-bottom:0">Examples: vacation, work trip, kids sports, wedding, school break, or a weekend you prefer to protect. Saved items write to the user_schedule_blocks table.</div>' +
         '</div>' +
         '<div class="field-group">' +
           '<label class="field-label">What should we call it?</label>' +
@@ -4445,7 +4447,7 @@ function openAvailabilityConflictSheet(opts) {
           '<div class="field-group"><label class="field-label">Start date</label><input class="input-field" id="availability-conflict-start" type="date" value="' + escapeHtml(ev.start_date || opts.date || isoDateKey(new Date())) + '"></div>' +
           '<div class="field-group"><label class="field-label">End date</label><input class="input-field" id="availability-conflict-end" type="date" value="' + escapeHtml(ev.end_date || ev.start_date || opts.date || isoDateKey(new Date())) + '"></div>' +
         '</div>' +
-        '<button class="btn-primary" data-action="save-availability-conflict">' + (mode === 'edit' ? 'Save changes' : 'Save to schedule') + '</button>' +
+        '<button class="btn-primary" data-action="save-availability-conflict">' + (mode === 'edit' ? 'Save Changes' : 'Save To Schedule') + '</button>' +
         (mode === 'edit' ? '<button class="btn-secondary" data-action="delete-availability-conflict" style="margin-top:8px;color:var(--red);border-color:rgba(216,90,48,.25)">Delete schedule item</button>' : '') +
       '</div>' +
     '</div>';
@@ -4488,9 +4490,18 @@ function saveAvailabilityConflictFromSheet() {
 
   var created = createPersonalCalendarEvent({ title: title, schedule_name: title, start_date: start, end_date: end, schedule_type: 'unavailable', event_type: 'unavailable', is_unavailable: true });
   if (created) {
+    lastScheduleSaveFeedback = {
+      id: String(created.id || created.user_schedule_block_id || created.calendar_event_id || ''),
+      title: created.title || created.schedule_name || 'Schedule item',
+      at: nowISO()
+    };
     closeAvailabilityConflictSheet();
     renderAvailability();
-    toast('Added to your schedule');
+    setTimeout(function(){
+      var savedCard = document.querySelector('.availability-edit-card[data-event-id="' + CSS.escape(String(created.id || created.user_schedule_block_id || created.calendar_event_id || '')) + '"]');
+      if (savedCard && savedCard.scrollIntoView) savedCard.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 60);
+    toast('Saved to your schedule');
   }
 }
 
@@ -4905,7 +4916,7 @@ function renderAvailabilityFallback(message) {
   '</div>' +
   '<div class="section-title">Your schedule</div>' +
   '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>' +
-  '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add to your schedule</button>' +
+  '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add To Your Schedule</button>' +
   '<div class="section-title">Needs your response</div>' +
   '<div class="xflock-empty">No availability or RSVP requests right now.</div>' +
   '<div class="section-title">Upcoming commitments</div>' +
@@ -4934,6 +4945,9 @@ function renderAvailability() {
         '<div class="xflock-link">Tap to edit →</div>' +
         '</div></div></div>';
     }).join('') : '<div class="xflock-empty">Nothing on your schedule yet. Add travel, work blocks, kids sports, busy weekends, or dates you want the family to plan around.</div>';
+
+    var scheduleSaveHtml = lastScheduleSaveFeedback ?
+      '<div class="avail-review-card" style="border-color:rgba(59,138,74,.25);background:var(--green-bg)"><div class="avail-review-title">Saved to your schedule</div><div class="avail-review-sub" style="margin-bottom:0">' + escapeHtml(lastScheduleSaveFeedback.title || 'Schedule item') + ' was added to <strong>user_schedule_blocks</strong> and will now be used when ranking gathering dates.</div></div>' : '';
 
     var requests = [];
     try { requests = getAvailabilityRequests(); } catch(reqErr) { console.warn('[Kinverly] availability requests failed', reqErr); }
@@ -4987,8 +5001,9 @@ function renderAvailability() {
           '<button class="chip ' + (pattern === 'rarely' ? 'selected' : '') + '" data-pattern="rarely">Rarely available</button>' +
         '</div>' +
       '</div>' +
-      '<div class="section-title">Your schedule</div>' + unavailableHtml +
-      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add to your schedule</button>' +
+      '<div class="section-title">Your schedule</div>' + scheduleSaveHtml + unavailableHtml +
+      '<button class="btn-primary" id="availability-add-unavailable" style="margin-bottom:14px">+ Add To Your Schedule</button>' +
+      '<div class="avail-review-card"><div class="avail-review-title">Schedule data table</div><div class="avail-review-sub">Every saved item writes to <strong>user_schedule_blocks</strong>: created_at, updated_at, user_id, flock_id, schedule_name, start_date, end_date, start_time, end_time, is_all_day, visibility, source.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn-secondary" id="availability-export-schedule-csv" style="margin:0">Export CSV</button><button class="btn-secondary" id="availability-export-schedule-json" style="margin:0">Export JSON</button></div></div>' +
       '<div class="section-title">Needs your response</div>' + requestsHtml +
       '<div class="section-title">Upcoming commitments</div>' + commitmentsHtml +
       '<div class="section-title">Family scheduler insights</div>' +
@@ -5007,6 +5022,16 @@ function bindAvailabilityPageEvents(el) {
   var addBtn = el.querySelector('#availability-add-unavailable');
   if (addBtn) addBtn.addEventListener('click', function(){
     openAvailabilityConflictSheet({ mode: 'add', date: isoDateKey(new Date()) });
+  });
+  var exportCsvBtn = el.querySelector('#availability-export-schedule-csv');
+  if (exportCsvBtn) exportCsvBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    downloadUserScheduleBlocksCsv();
+  });
+  var exportJsonBtn = el.querySelector('#availability-export-schedule-json');
+  if (exportJsonBtn) exportJsonBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    exportUserScheduleBlocksJson();
   });
   el.querySelectorAll('.availability-edit-card').forEach(function(card){
     card.addEventListener('click', function(){
@@ -9007,14 +9032,18 @@ function buildExportTables(payload) {
       updated_at: ev.updated_at || '',
       deleted_at: ev.deleted_at || '',
       flock_id: payload.flock.id,
+      user_id: ev.member_key || ev.user_id || ev.member_id || '',
       member_id: ev.member_id || '',
       member_name: getMemberNameForExport(ev.member_key || ev.member_id || ''),
-      schedule_type: ev.schedule_type || ev.event_type || '',
       schedule_name: ev.schedule_name || ev.title || '',
+      schedule_type: ev.schedule_type || ev.event_type || '',
       description: ev.description || '',
-      is_unavailable: ev.is_unavailable ? 'yes' : 'no',
       start_date: ev.start_date || '',
       end_date: ev.end_date || '',
+      start_time: ev.start_time || '',
+      end_time: ev.end_time || '',
+      is_all_day: ev.is_all_day === false ? 'no' : 'yes',
+      is_unavailable: ev.is_unavailable ? 'yes' : 'no',
       visibility: ev.visibility || '',
       source: ev.source || ''
     });
@@ -9048,6 +9077,28 @@ function downloadExportTableCsvs(scope, gatheringId) {
   logActivity(DATA.me.id, 'exported clean data tables', '🧾');
   saveFlockState();
   toast('Data tables downloaded');
+}
+
+function downloadUserScheduleBlocksCsv() {
+  var payload = buildExportPayload('all', null);
+  var tables = buildExportTables(payload);
+  var rows = tables.user_schedule_blocks || [];
+  var base = sanitizeFilenamePart((payload.flock && payload.flock.name) || 'kinverly');
+  downloadTextFile(base + '-user_schedule_blocks.csv', buildCsv(rows, csvColumnsForRows(rows)), 'text/csv;charset=utf-8');
+  logActivity(DATA.me.id, 'exported user_schedule_blocks table', '📅');
+  saveFlockState();
+  toast('Schedule table CSV downloaded');
+}
+
+function exportUserScheduleBlocksJson() {
+  var payload = buildExportPayload('all', null);
+  var tables = buildExportTables(payload);
+  var rows = tables.user_schedule_blocks || [];
+  var base = sanitizeFilenamePart((payload.flock && payload.flock.name) || 'kinverly');
+  downloadTextFile(base + '-user_schedule_blocks.json', JSON.stringify(rows, null, 2), 'application/json;charset=utf-8');
+  logActivity(DATA.me.id, 'exported user_schedule_blocks JSON', '📅');
+  saveFlockState();
+  toast('Schedule table JSON downloaded');
 }
 
 function exportDataTablesJson(scope, gatheringId) {
@@ -9369,8 +9420,8 @@ function openAdminPanel() {
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
           '<button class="admin-export-members" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Members table</button>'+
           '<button class="admin-export-activity" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Activity table</button>'+ 
-          '<button class="admin-export-tables" style="padding:9px;border-radius:10px;border:none;background:#2A1B52;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Download data tables</button>'+ 
-          '<button class="admin-export-tables-json" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Tables JSON</button>'+ 
+          '<button class="admin-export-tables" style="padding:9px;border-radius:10px;border:none;background:#2A1B52;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Download all tables</button>'+ 
+          '<button class="admin-export-tables-json" style="padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">All tables JSON</button>'+ 
         '</div>'+ 
         '<div style="font-size:10.5px;color:var(--text3);line-height:1.4;margin-top:8px">Clean tables export uses normalized rows: flocks, members, gatherings, gathering_members, windows, availability, tasks, chat, photos, ideas, user_schedule_blocks, activity, and event_log. Every table starts with id, created_at, updated_at, deleted_at.</div>'+ 
       '</div>'+ 
@@ -16889,7 +16940,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
               </div>
             </div>
           `).join('') : `<div class="availability-safe-empty">No plans added yet.</div>`}
-          <button class="btn-primary" data-action="open-add-plans-sheet" style="margin-top:10px;">+ Add to your schedule</button>
+          <button class="btn-primary" data-action="open-add-plans-sheet" style="margin-top:10px;">+ Add To Your Schedule</button>
         </div>
 
         <div class="availability-safe-card">
