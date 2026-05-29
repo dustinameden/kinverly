@@ -21314,3 +21314,487 @@ signInKinverlyAccount = function(username, password) {
   console.info('[Kinverly] Sprint 50 auth/membership lifecycle patch loaded');
 })();
 </script>
+
+<script>
+/* ═══════════════════════════════════════════════
+   SPRINT 50.1 — FULLY OPERATIONAL AUTH / ONBOARDING RESET
+   Applied to Sprint 49 app source without replacing app UI.
+
+   Guarantees:
+   1) Login is username/password only. No legacy profile picker.
+   2) Create Account creates a numeric user_id and persists it.
+   3) Logout/Switch Account clears session only.
+   4) Create Flock immediately creates numeric flock_id + flock_members member_id.
+   5) Join Flock creates/restores numeric member_id.
+   6) Admin users route to Admin Flock Directory and do not need memberships.
+   7) Onboarding appears only for signed-in non-admin users with zero memberships.
+═══════════════════════════════════════════════ */
+(function(){
+  if (window.__kinverlySprint501OperationalAuth) return;
+  window.__kinverlySprint501OperationalAuth = true;
+
+  function now(){ return (typeof nowISO === 'function') ? nowISO() : new Date().toISOString(); }
+  function n(v){ var x = Number(v); return Number.isFinite(x) && x > 0 ? x : null; }
+  function cleanUsername(v){ return String(v || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, ''); }
+  function hashPassword(v){ return (typeof demoPasswordHash === 'function') ? demoPasswordHash(v) : ('demo$' + String(v || '')); }
+  function safe(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  function overlay(){ return document.getElementById('flock-overlay'); }
+  function inner(){ return document.getElementById('flock-inner'); }
+  function showOverlay(){ var o = overlay(); if (o){ o.classList.remove('hidden'); o.style.display = 'flex'; } }
+  function hideOverlay(){ var o = overlay(); if (o){ o.classList.add('hidden'); o.style.display = 'none'; } }
+  function appEl(){ return document.getElementById('app'); }
+  function showApp(){ var a = appEl(); if (a) a.style.display = ''; }
+  function hideApp(){ var a = appEl(); if (a) a.style.display = 'none'; }
+
+  function storageGetJSON(key, fallback){ try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch(e){ return fallback; } }
+  function storageSetJSON(key, value){ try { localStorage.setItem(key, JSON.stringify(value)); } catch(e){} }
+
+  function persistedUsers(){ return storageGetJSON('kinverly_users', []); }
+  function persistUsers(){ if (!window.DATA) window.DATA = {}; if (!DATA.users) DATA.users = []; storageSetJSON('kinverly_users', DATA.users); }
+
+  function flockEntries(){ return Object.keys(window.FLOCKS || {}).map(function(key){ return { key:key, flock:FLOCKS[key] }; }).filter(function(x){ return !!x.flock && !x.flock.deleted_at; }); }
+  function maxNumeric(values){ var max = 0; (values || []).forEach(function(v){ var x = n(v); if (x && x > max) max = x; }); return max; }
+
+  function ensureUsers(){
+    if (!window.DATA) window.DATA = {};
+    var saved = persistedUsers();
+    var existing = Array.isArray(DATA.users) ? DATA.users : [];
+    var byUsername = {};
+    saved.concat(existing).forEach(function(u){
+      if (!u) return;
+      var uname = cleanUsername(u.username || u.firestore_id || u.display_name || u.name);
+      if (!uname) return;
+      var uid = n(u.user_id || u.id);
+      byUsername[uname] = Object.assign({}, byUsername[uname] || {}, u, {
+        username: uname,
+        user_id: uid,
+        id: uid,
+        display_name: u.display_name || u.name || uname,
+        global_role: u.global_role || 'user',
+        status: u.status || 'active',
+        deleted_at: u.deleted_at || null,
+        updated_at: u.updated_at || now()
+      });
+    });
+    DATA.users = Object.keys(byUsername).map(function(k){ return byUsername[k]; }).filter(function(u){ return u.user_id; });
+    persistUsers();
+    return DATA.users;
+  }
+
+  function nextUserId(){
+    ensureUsers();
+    var vals = [];
+    (DATA.users || []).forEach(function(u){ vals.push(u.user_id, u.id); });
+    flockEntries().forEach(function(e){ Object.values(e.flock.members || {}).forEach(function(m){ vals.push(m.user_id, m.id); }); });
+    return maxNumeric(vals) + 1;
+  }
+  function nextFlockId(){ return maxNumeric(flockEntries().map(function(e){ return e.flock.flock_id || e.flock.id; })) + 1; }
+  function nextMemberId(flock){ var vals = []; Object.values((flock && flock.members) || {}).forEach(function(m){ vals.push(m.member_id); }); return maxNumeric(vals) + 1; }
+
+  function currentUserId(){ return n(DATA && DATA.me && (DATA.me.user_id || DATA.me.id)); }
+  function setCurrentUser(user){
+    if (!user) return null;
+    if (!window.DATA) window.DATA = {};
+    if (!DATA.me) DATA.me = {};
+    var uid = n(user.user_id || user.id) || nextUserId();
+    user.user_id = uid; user.id = uid;
+    user.username = cleanUsername(user.username || ('user' + uid));
+    user.display_name = user.display_name || user.name || user.username;
+    user.global_role = user.global_role || 'user';
+    user.status = user.status || 'active';
+    user.updated_at = now();
+
+    DATA.me.id = uid;
+    DATA.me.user_id = uid;
+    DATA.me.username = user.username;
+    DATA.me.name = user.display_name;
+    DATA.me.display_name = user.display_name;
+    DATA.me.animal = user.avatar || user.animal || DATA.me.animal || 'bear';
+    DATA.me.global_role = user.global_role;
+    DATA.me.deleted_at = null;
+    DATA.me.updated_at = now();
+
+    ensureUsers();
+    var idx = DATA.users.findIndex(function(u){ return n(u.user_id) === uid || cleanUsername(u.username) === user.username; });
+    if (idx >= 0) DATA.users[idx] = Object.assign({}, DATA.users[idx], user);
+    else DATA.users.push(user);
+    persistUsers();
+    try {
+      localStorage.setItem('kinverly_current_user_id', String(uid));
+      localStorage.setItem('kinverly_current_username', user.username || '');
+    } catch(e){}
+    return user;
+  }
+
+  function normalizeFlock(key, flock){
+    if (!flock) return null;
+    var fid = n(flock.flock_id || flock.id);
+    if (!fid) fid = nextFlockId();
+    var legacyKey = String(key || flock.firestore_id || flock.storage_key || flock.uid || ('flock_' + fid));
+    flock.flock_id = fid;
+    flock.id = fid;
+    flock.firestore_id = flock.firestore_id || (/^\d+$/.test(legacyKey) ? null : legacyKey);
+    flock.storage_key = flock.storage_key || legacyKey;
+    flock.name = flock.name || ('Flock ' + fid);
+    flock.emoji = flock.emoji || '🏠';
+    flock.created_by_user_id = n(flock.created_by_user_id || flock.createdBy) || null;
+    flock.members = flock.members || {};
+
+    var rebuilt = {};
+    Object.keys(flock.members).forEach(function(memberKey){
+      var m = flock.members[memberKey] || {};
+      var uid = n(m.user_id || m.id || memberKey);
+      if (!uid && m.username) {
+        var match = ensureUsers().find(function(u){ return cleanUsername(u.username) === cleanUsername(m.username); });
+        if (match) uid = n(match.user_id);
+      }
+      if (!uid) return;
+      rebuilt[String(uid)] = Object.assign({}, m, {
+        id: uid,
+        user_id: uid,
+        flock_id: fid,
+        member_id: n(m.member_id) || nextMemberId({members:rebuilt}),
+        name: m.name || m.display_name || m.username || ('User ' + uid),
+        role: m.role || (uid === flock.created_by_user_id ? 'creator' : 'member'),
+        status: m.status || 'active',
+        created_at: m.created_at || m.joined_at || now(),
+        updated_at: now(),
+        deleted_at: m.deleted_at || null,
+        firestore_id: m.firestore_id || (/^\d+$/.test(String(memberKey)) ? null : String(memberKey))
+      });
+    });
+    flock.members = rebuilt;
+    flock.memberIds = Object.keys(rebuilt).map(function(k){ return n(k); }).filter(Boolean);
+    return flock;
+  }
+
+  function normalizeFlocks(){
+    var original = window.FLOCKS || {};
+    var normalized = {};
+    Object.keys(original).forEach(function(key){
+      var f = normalizeFlock(key, original[key]);
+      if (!f) return;
+      var fid = String(f.flock_id);
+      normalized[fid] = f;
+      // Keep legacy key as alias for Firebase/doc compatibility, but numeric key is primary.
+      if (key && key !== fid) normalized[key] = f;
+    });
+    window.FLOCKS = FLOCKS = normalized;
+    try { localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS)); } catch(e){}
+    return FLOCKS;
+  }
+
+  function findFlock(ref){
+    normalizeFlocks();
+    var target = String(ref == null ? '' : ref);
+    var entries = flockEntries();
+    return entries.find(function(e){
+      var f = e.flock || {};
+      return String(e.key) === target || String(f.flock_id) === target || String(f.id) === target || String(f.firestore_id) === target || String(f.storage_key) === target;
+    }) || null;
+  }
+
+  function membershipsFor(uid){
+    uid = n(uid || currentUserId());
+    if (!uid) return [];
+    normalizeFlocks();
+    return flockEntries().map(function(e){
+      var f = e.flock || {};
+      var m = (f.members || {})[String(uid)] || Object.values(f.members || {}).find(function(mm){ return mm && n(mm.user_id || mm.id) === uid && !mm.deleted_at; });
+      return m && !m.deleted_at ? { key:String(f.flock_id || e.key), flock:f, member:m } : null;
+    }).filter(Boolean);
+  }
+
+  function isAdmin(){ return String(DATA && DATA.me && DATA.me.global_role || '').toLowerCase() === 'admin'; }
+
+  function setActiveFlock(entry){
+    if (!entry || !entry.flock) return false;
+    var f = normalizeFlock(entry.key, entry.flock);
+    var fid = String(f.flock_id);
+    FLOCKS[fid] = f;
+    currentFlockId = fid;
+    try {
+      localStorage.setItem('kinverly_current_flock', fid);
+      if (currentUserId()) localStorage.setItem('kinverly_last_active_flock_id_' + currentUserId(), fid);
+      localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
+    } catch(e){}
+    showApp();
+    hideOverlay();
+    if (typeof switchToFlock === 'function') { try { switchToFlock(fid); } catch(e2){} }
+    if (typeof renderAll === 'function') { try { renderAll(); } catch(e3){} }
+    return true;
+  }
+
+  function renderAccountGate(mode){
+    showOverlay();
+    hideApp();
+    var root = inner();
+    if (!root) return;
+    root.innerHTML = ''+
+      '<div class="flock-onboard-card">'+
+        '<div class="flock-onboard-logo">Kinverly.</div>'+
+        '<div class="flock-onboard-tag">Your people. Your place. Your turn.</div>'+
+        '<div class="flock-onboard-mascot" aria-hidden="true">🐆</div>'+
+        '<div class="flock-onboard-title">Sign in to Kinverly</div>'+
+        '<div class="flock-onboard-copy">Use your account first. Kinverly will then find your flocks or admin access using numeric IDs.</div>'+
+        '<div class="flock-onboard-actions">'+
+          '<button type="button" class="flock-onboard-action primary" id="auth-signin"><span class="flock-onboard-action-icon">🔐</span><span><span class="flock-onboard-action-title">Sign in</span><span class="flock-onboard-action-sub">Username and password</span></span></button>'+
+          '<button type="button" class="flock-onboard-action secondary" id="auth-create"><span class="flock-onboard-action-icon">✨</span><span><span class="flock-onboard-action-title">Create account</span><span class="flock-onboard-action-sub">Creates numeric user_id</span></span></button>'+
+          '<button type="button" class="flock-onboard-action secondary" id="auth-admin"><span class="flock-onboard-action-icon">🛡️</span><span><span class="flock-onboard-action-title">Create admin login</span><span class="flock-onboard-action-sub">Global access to all flocks</span></span></button>'+
+        '</div>'+
+      '</div>';
+    var s = document.getElementById('auth-signin'); if (s) s.onclick = function(){ renderSignInForm(mode || 'join'); };
+    var c = document.getElementById('auth-create'); if (c) c.onclick = function(){ renderCreateAccountForm(mode || 'join'); };
+    var a = document.getElementById('auth-admin'); if (a) a.onclick = function(){ renderCreateAdminForm(mode || 'join'); };
+  }
+
+  function field(label, id, type, placeholder){
+    return '<div class="flock-field-label">'+safe(label)+'</div><input id="'+safe(id)+'" class="flock-input" type="'+safe(type||'text')+'" placeholder="'+safe(placeholder||'')+'" autocapitalize="none">';
+  }
+  function formShell(title, copy, body){
+    var root = inner();
+    if (!root) return;
+    root.innerHTML = '<div class="flock-onboard-card"><div class="flock-onboard-logo">Kinverly.</div><div class="flock-onboard-title">'+safe(title)+'</div><div class="flock-onboard-copy">'+copy+'</div>'+body+'<div id="auth-form-error" class="flock-err" style="display:none"></div></div>';
+  }
+  function showErr(msg){ var e = document.getElementById('auth-form-error'); if (e){ e.textContent = msg; e.style.display = 'block'; } }
+
+  function renderSignInForm(next){
+    showOverlay(); hideApp();
+    formShell('Sign in', 'After sign-in, Kinverly routes you by <strong>global_role</strong> or <strong>flock_members</strong>.',
+      field('Username','auth-username','text','username') + field('Password','auth-password','password','password') +
+      '<button type="button" class="flock-btn" id="auth-submit-signin">Sign in</button><button type="button" class="flock-btn-outline" id="auth-back">Back</button>');
+    document.getElementById('auth-submit-signin').onclick = function(){
+      var res = window.signInKinverlyAccount(document.getElementById('auth-username').value, document.getElementById('auth-password').value);
+      if (res && res.error) return showErr(res.error);
+      routeAfterAuth('signin');
+    };
+    document.getElementById('auth-back').onclick = function(){ renderAccountGate(next); };
+  }
+  function renderCreateAccountForm(next){
+    showOverlay(); hideApp();
+    formShell('Create account', 'This creates your permanent numeric <strong>user_id</strong>. You can join or create a flock after this.',
+      field('Username','new-username','text','e.g. dustin') + field('Password','new-password','password','at least 4 characters') + field('Display name','new-name','text','e.g. Dustin') +
+      '<button type="button" class="flock-btn" id="auth-submit-create">Create account</button><button type="button" class="flock-btn-outline" id="auth-back">Back</button>');
+    document.getElementById('auth-submit-create').onclick = function(){
+      var res = window.createKinverlyAccount(document.getElementById('new-username').value, document.getElementById('new-password').value, document.getElementById('new-name').value);
+      if (res && res.error) return showErr(res.error);
+      routeAfterAuth('create_account');
+    };
+    document.getElementById('auth-back').onclick = function(){ renderAccountGate(next); };
+  }
+  function renderCreateAdminForm(next){
+    showOverlay(); hideApp();
+    formShell('Create admin login', 'Admin access uses <strong>users.global_role = admin</strong> and does not create fake flock memberships.',
+      field('Admin username','admin-username-501','text','admin') + field('Admin password','admin-password-501','password','at least 6 characters') + field('Display name','admin-name-501','text','Kinverly Admin') +
+      '<button type="button" class="flock-btn" id="auth-submit-admin">Create admin login</button><button type="button" class="flock-btn-outline" id="auth-back">Back</button>');
+    document.getElementById('auth-submit-admin').onclick = function(){
+      var res = window.createKinverlyAdminAccount(document.getElementById('admin-username-501').value, document.getElementById('admin-password-501').value, document.getElementById('admin-name-501').value);
+      if (res && res.error) return showErr(res.error);
+      routeAfterAuth('create_admin');
+    };
+    document.getElementById('auth-back').onclick = function(){ renderAccountGate(next); };
+  }
+
+  function renderJoinCreate(){
+    showOverlay(); hideApp();
+    var root = inner(); if (!root) return;
+    root.innerHTML = '<div class="flock-onboard-card"><div class="flock-onboard-logo">Kinverly.</div><div class="flock-onboard-title">Join or create a flock</div><div class="flock-onboard-copy">Signed in as <strong>'+safe(DATA.me && (DATA.me.name || DATA.me.username))+'</strong>. A member_id is created only when you join or create a flock.</div><div class="flock-onboard-actions"><button type="button" class="flock-onboard-action primary" id="auth-join-flock"><span class="flock-onboard-action-icon">🔑</span><span><span class="flock-onboard-action-title">Join with a code</span><span class="flock-onboard-action-sub">Creates member_id in that flock</span></span></button><button type="button" class="flock-onboard-action secondary" id="auth-create-flock"><span class="flock-onboard-action-icon">🏠</span><span><span class="flock-onboard-action-title">Create a new flock</span><span class="flock-onboard-action-sub">Creates flock_id + creator member_id</span></span></button></div><button type="button" class="flock-recovery-link" id="auth-switch-user">Switch account</button></div>';
+    document.getElementById('auth-join-flock').onclick = function(){ if (typeof renderFlockJoin === 'function') renderFlockJoin(); };
+    document.getElementById('auth-create-flock').onclick = function(){ if (typeof renderFlockCreate === 'function') renderFlockCreate(); };
+    document.getElementById('auth-switch-user').onclick = function(){ logoutKinverly(); };
+  }
+
+  function renderAdminDirectory(){
+    showOverlay(); hideApp();
+    var flocks = flockEntries();
+    var root = inner(); if (!root) return;
+    root.innerHTML = '<div class="flock-onboard-card"><div class="flock-onboard-logo">Kinverly.</div><div class="flock-onboard-tag">Admin</div><div class="flock-onboard-title">Admin Flock Directory</div><div class="flock-onboard-copy">Choose any flock. Admin access comes from your user account, not flock membership.</div><div style="max-height:360px;overflow-y:auto;margin-top:12px">'+
+      (flocks.length ? flocks.map(function(e){ var f=e.flock; return '<button type="button" class="flock-list-item" data-admin-open="'+safe(f.flock_id)+'"><span class="flock-list-icon">'+safe(f.emoji||'🏠')+'</span><span style="flex:1;text-align:left"><span class="flock-list-name">'+safe(f.name)+'</span><span class="flock-list-sub">flock_id '+safe(f.flock_id)+' · '+Object.keys(f.members||{}).length+' members</span></span></button>'; }).join('') : '<div class="planning-empty">No flocks exist yet.</div>')+
+      '</div><button type="button" class="flock-btn" id="admin-create-flock-501">Create new flock</button><button type="button" class="flock-btn-outline" id="admin-logout-501">Log out</button></div>';
+    root.querySelectorAll('[data-admin-open]').forEach(function(btn){ btn.onclick = function(){ var e=findFlock(btn.getAttribute('data-admin-open')); if(e) setActiveFlock(e); }; });
+    var cf = document.getElementById('admin-create-flock-501'); if (cf) cf.onclick = function(){ if (typeof renderFlockCreate === 'function') renderFlockCreate(); };
+    var lo = document.getElementById('admin-logout-501'); if (lo) lo.onclick = function(){ logoutKinverly(); };
+  }
+
+  function routeAfterAuth(reason){
+    ensureUsers(); normalizeFlocks();
+    var uid = currentUserId();
+    if (!uid) { renderAccountGate('join'); return 'account_gate'; }
+    if (isAdmin()) { renderAdminDirectory(); return 'admin_directory'; }
+    var memberships = membershipsFor(uid);
+    if (memberships.length) {
+      var preferred = null;
+      try {
+        var last = localStorage.getItem('kinverly_last_active_flock_id_' + uid) || localStorage.getItem('kinverly_current_flock');
+        preferred = memberships.find(function(m){ return String(m.key) === String(last) || String(m.flock.flock_id) === String(last); });
+      } catch(e){}
+      setActiveFlock(preferred || memberships[0]);
+      return 'enter_flock';
+    }
+    renderJoinCreate();
+    return 'join_create';
+  }
+
+  window.createKinverlyAccount = function(username, password, displayName){
+    ensureUsers();
+    var uname = cleanUsername(username);
+    if (!uname) return { error:'Choose a username.' };
+    if (!password || String(password).length < 4) return { error:'Use at least 4 characters for the password.' };
+    if (!String(displayName || '').trim()) return { error:'Add your display name.' };
+    if (DATA.users.some(function(u){ return cleanUsername(u.username) === uname && !u.deleted_at; })) return { error:'That username already exists. Sign in instead.' };
+    var user = { user_id: nextUserId(), id:null, username: uname, password_hash: hashPassword(password), display_name: String(displayName).trim(), avatar:'bear', global_role:'user', status:'active', created_at:now(), updated_at:now(), deleted_at:null, firestore_id:null };
+    user.id = user.user_id;
+    setCurrentUser(user);
+    return { user:user };
+  };
+
+  window.createKinverlyAdminAccount = function(username, password, displayName){
+    ensureUsers();
+    var uname = cleanUsername(username);
+    if (!uname) return { error:'Choose an admin username.' };
+    if (!password || String(password).length < 6) return { error:'Use at least 6 characters for the admin password.' };
+    if (!String(displayName || '').trim()) return { error:'Add the admin display name.' };
+    if (DATA.users.some(function(u){ return cleanUsername(u.username) === uname && !u.deleted_at; })) return { error:'That username already exists.' };
+    var alreadyAdmin = DATA.users.some(function(u){ return String(u.global_role).toLowerCase() === 'admin' && !u.deleted_at; });
+    if (alreadyAdmin && !isAdmin()) return { error:'Only a signed-in admin can create another admin account.' };
+    var user = { user_id: nextUserId(), id:null, username: uname, password_hash: hashPassword(password), display_name: String(displayName).trim(), avatar:'leopard', global_role:'admin', status:'active', created_at:now(), updated_at:now(), deleted_at:null, firestore_id:null };
+    user.id = user.user_id;
+    setCurrentUser(user);
+    return { user:user };
+  };
+
+  window.signInKinverlyAccount = function(username, password){
+    ensureUsers();
+    var uname = cleanUsername(username);
+    var user = DATA.users.find(function(u){ return cleanUsername(u.username) === uname && !u.deleted_at; });
+    if (!user) return { error:'No account found for that username.' };
+    if (user.password_hash && user.password_hash !== hashPassword(password)) return { error:'Password does not match.' };
+    setCurrentUser(user);
+    return { user:user };
+  };
+
+  function createMembership(flock, role){
+    var uid = currentUserId();
+    if (!uid || !flock) return null;
+    var fid = n(flock.flock_id || flock.id) || nextFlockId();
+    flock.flock_id = fid; flock.id = fid;
+    flock.members = flock.members || {};
+    var existing = flock.members[String(uid)] || {};
+    var member = Object.assign({}, existing, {
+      id: uid,
+      user_id: uid,
+      flock_id: fid,
+      member_id: n(existing.member_id) || nextMemberId(flock),
+      name: DATA.me.name || DATA.me.display_name || DATA.me.username || ('User ' + uid),
+      animal: DATA.me.animal || existing.animal || 'bear',
+      role: existing.role || role || 'member',
+      status:'active',
+      created_at: existing.created_at || now(),
+      updated_at: now(),
+      deleted_at:null
+    });
+    flock.members[String(uid)] = member;
+    flock.memberIds = Object.keys(flock.members).map(function(k){ return n(k); }).filter(Boolean);
+    return member;
+  }
+
+  var originalCreateFlock = window.__kinverlySprint501OriginalCreateFlock || window.createFlock || createFlock;
+  window.__kinverlySprint501OriginalCreateFlock = originalCreateFlock;
+  window.createFlock = createFlock = function(name, emoji){
+    if (!currentUserId()) { renderAccountGate('create'); return null; }
+    var original = null;
+    try { original = originalCreateFlock(name, emoji); } catch(e) {}
+    var fid = n(original && (original.flock_id || original.id)) || nextFlockId();
+    var legacyKey = (original && (original.firestore_id || original.storage_key || original.uid)) || ('flock_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+    var flock = normalizeFlock(legacyKey, original || {});
+    flock.flock_id = fid;
+    flock.id = fid;
+    flock.name = String(name || flock.name || ('Flock ' + fid)).trim();
+    flock.emoji = emoji || flock.emoji || '🏠';
+    flock.inviteCode = flock.inviteCode || (typeof generateCode === 'function' ? generateCode() : String(Math.random()).slice(2,8).toUpperCase());
+    flock.created_by_user_id = currentUserId();
+    flock.createdBy = currentUserId();
+    createMembership(flock, 'creator');
+    FLOCKS[String(fid)] = flock;
+    if (legacyKey) FLOCKS[legacyKey] = flock;
+    currentFlockId = String(fid);
+    try {
+      localStorage.setItem('kinverly_current_flock', String(fid));
+      localStorage.setItem('kinverly_last_active_flock_id_' + currentUserId(), String(fid));
+      localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
+    } catch(e){}
+    if (typeof saveFlockState === 'function') { try { saveFlockState(); } catch(e2){} }
+    setTimeout(function(){ routeAfterAuth('create_flock'); }, 0);
+    return flock;
+  };
+
+  var originalAddMe = window.__kinverlySprint501OriginalAddMeToFlock || window.addMeToFlock || addMeToFlock;
+  window.__kinverlySprint501OriginalAddMeToFlock = originalAddMe;
+  window.addMeToFlock = addMeToFlock = function(flockRef){
+    if (!currentUserId()) { renderAccountGate('join'); return null; }
+    var found = findFlock(flockRef);
+    if (!found) { try { return originalAddMe(flockRef); } catch(e) { return null; } }
+    var flock = normalizeFlock(found.key, found.flock);
+    var member = createMembership(flock, 'member');
+    FLOCKS[String(flock.flock_id)] = flock;
+    currentFlockId = String(flock.flock_id);
+    try {
+      localStorage.setItem('kinverly_current_flock', currentFlockId);
+      localStorage.setItem('kinverly_last_active_flock_id_' + currentUserId(), currentFlockId);
+      localStorage.setItem('kinverly_flocks', JSON.stringify(FLOCKS));
+    } catch(e){}
+    if (typeof saveFlockState === 'function') { try { saveFlockState(); } catch(e2){} }
+    setTimeout(function(){ routeAfterAuth('join_flock'); }, 0);
+    return member;
+  };
+
+  window.logoutKinverly = function(){
+    var uid = currentUserId();
+    try {
+      if (uid && currentFlockId) localStorage.setItem('kinverly_last_active_flock_id_' + uid, String(currentFlockId));
+      localStorage.removeItem('kinverly_current_user_id');
+      localStorage.removeItem('kinverly_current_username');
+      localStorage.removeItem('kinverly_user_id');
+    } catch(e){}
+    if (DATA && DATA.me) { DATA.me.id = null; DATA.me.user_id = null; DATA.me.username = ''; DATA.me.name = ''; DATA.me.global_role = 'user'; }
+    currentFlockId = null;
+    renderAccountGate('join');
+  };
+  window.switchKinverlyUser = function(){ window.logoutKinverly(); };
+  window.showLoginScreen = function(){ renderAccountGate('join'); };
+  window.renderLoginMembers = function(){ renderAccountGate('join'); };
+  window.showFlockOnboarding = function(){ return routeAfterAuth('show_onboarding'); };
+  window.kinverlyAuthRouteDecision = routeAfterAuth;
+  window.normalizeAllKinverlyIdentityTables = function(){ ensureUsers(); normalizeFlocks(); return {users:DATA.users, flocks:FLOCKS}; };
+
+  document.addEventListener('click', function(e){
+    var target = e.target && e.target.closest ? e.target.closest('#logout-btn,#switch-user-btn') : null;
+    if (!target) return;
+    e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (target.id === 'switch-user-btn') window.switchKinverlyUser();
+    else if (confirm('Log out of this account? Your flocks and memberships will stay saved.')) window.logoutKinverly();
+  }, true);
+
+  // Make legacy Create/Sign-in screens route correctly if their buttons still call old renderers.
+  window.renderAccountGate = renderAccountGate;
+  window.renderSignIn = function(next){ renderSignInForm(next || 'join'); };
+  window.renderCreateAccount = function(next){ renderCreateAccountForm(next || 'join'); };
+  window.renderCreateAdminAccount = function(next){ renderCreateAdminForm(next || 'join'); };
+
+  setTimeout(function(){
+    ensureUsers(); normalizeFlocks();
+    var uid = null;
+    try { uid = n(localStorage.getItem('kinverly_current_user_id')); } catch(e){}
+    if (uid) {
+      var user = DATA.users.find(function(u){ return n(u.user_id) === uid && !u.deleted_at; });
+      if (user) setCurrentUser(user);
+      routeAfterAuth('startup');
+    } else {
+      renderAccountGate('join');
+    }
+  }, 120);
+
+  console.info('[Kinverly] Sprint 50.1 operational auth reset loaded');
+})();
+</script>
+
