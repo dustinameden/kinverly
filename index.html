@@ -20124,188 +20124,71 @@ if (!window.__kinverlyInfoDelegatedButtons) {
 
 
 
-<!-- Sprint 52.8 — Hard Shell Navigation Restore
-     Purpose: permanently restore bottom tabs and page navigation after admin/recovery renders.
-     This patch is intentionally shell-only: it does not change data, members, flocks, or admin permissions. -->
-<style id="kv-hard-shell-nav-css">
-  #app{padding-bottom:72px!important;}
-  .bottom-nav{
-    position:fixed!important;
-    left:50%!important;
-    bottom:0!important;
-    transform:translateX(-50%)!important;
-    width:100%!important;
-    max-width:430px!important;
-    height:62px!important;
-    display:flex!important;
-    visibility:visible!important;
-    opacity:1!important;
-    z-index:2147483000!important;
-    pointer-events:auto!important;
-    background:#fff!important;
-    border-top:1px solid rgba(61,43,110,.12)!important;
-  }
-  .bottom-nav .nav-btn{
-    display:flex!important;
-    visibility:visible!important;
-    opacity:1!important;
-    pointer-events:auto!important;
-    position:relative!important;
-    z-index:2147483001!important;
-  }
-  .page-wrap{padding-bottom:84px!important;pointer-events:auto!important;}
-  .page,.subpage{pointer-events:auto!important;}
-  .overlay.hidden,
-  .task-detail-overlay.hidden,
-  .photo-lightbox.hidden,
-  #login-screen.hidden,
-  #flock-overlay.hidden,
-  #edit-overlay.hidden,
-  #auth-overlay.hidden,
-  #welcome-overlay.hidden{
-    display:none!important;
-    visibility:hidden!important;
-    opacity:0!important;
-    pointer-events:none!important;
-  }
-  body.kv-shell-ready #login-screen.hidden,
-  body.kv-shell-ready #flock-overlay.hidden,
-  body.kv-shell-ready #edit-overlay.hidden,
-  body.kv-shell-ready #auth-overlay.hidden,
-  body.kv-shell-ready #welcome-overlay.hidden{
-    display:none!important;
-    pointer-events:none!important;
+<!-- Sprint 52.10 — Stable Navigation No-Freeze Patch
+     Goal: fix tab clicks without MutationObserver, setInterval, DOM rebuild loops, or emergency nav duplication. -->
+<style id="kv-stable-nav-no-freeze-css">
+  .bottom-nav{display:flex!important;pointer-events:auto!important;z-index:1000!important;}
+  .bottom-nav .nav-btn{pointer-events:auto!important;}
+  .overlay.hidden,.task-detail-overlay.hidden,.photo-lightbox.hidden,#login-screen.hidden{
+    display:none!important;pointer-events:none!important;
   }
 </style>
-<script id="kv-hard-shell-nav-restore-patch">
+<script id="kv-stable-nav-no-freeze-patch">
 (function(){
-  if (window.__kvHardShellNavRestorePatch) return;
-  window.__kvHardShellNavRestorePatch = true;
+  if (window.__kvStableNavNoFreezePatch) return;
+  window.__kvStableNavNoFreezePatch = true;
 
-  var NAV_HTML = ''+
-    '<nav class="bottom-nav" id="kv-bottom-nav-restored">'+
-      '<button class="nav-btn" data-page="home"><span style="font-size:22px;line-height:1">⌂</span><span>Home</span></button>'+
-      '<button class="nav-btn" data-page="myworld"><span style="font-size:21px;line-height:1">◎</span><span>Availability</span></button>'+
-      '<button class="nav-btn" data-page="gatherings"><span style="font-size:21px;line-height:1">▣</span><span>Gatherings</span></button>'+
-      '<button class="nav-btn" data-page="ideas"><span style="font-size:21px;line-height:1">♢</span><span>Ideas</span></button>'+
-      '<button class="nav-btn" data-page="flock"><span style="font-size:21px;line-height:1">♟</span><span>Flocks</span></button>'+
-      '<button class="nav-btn" data-page="profile"><span style="font-size:21px;line-height:1">♙</span><span>Profile</span></button>'+
-    '</nav>';
-
-  function qsa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function pageKey(p){ return p === 'myworld' ? 'availability' : (p || 'home'); }
-  function navKey(p){ return p === 'availability' ? 'myworld' : (p || 'home'); }
-  function safe(fn){ try { return fn && fn(); } catch(e){ console.warn('[Kinverly] hard shell safe error', e); } }
-
-  function appRoot(){ return document.getElementById('app') || document.body; }
-
-  function ensureBottomNav(){
-    var nav = document.querySelector('.bottom-nav');
-    if (!nav) {
-      appRoot().insertAdjacentHTML('beforeend', NAV_HTML);
-      nav = document.querySelector('.bottom-nav');
-    }
-    if (!nav.id) nav.id = 'kv-bottom-nav-restored';
-    nav.style.display = 'flex';
-    nav.style.visibility = 'visible';
-    nav.style.opacity = '1';
-    nav.style.pointerEvents = 'auto';
-    nav.style.zIndex = '2147483000';
-    return nav;
-  }
-
-  function unblockHiddenOverlays(){
-    ['login-screen','flock-overlay','edit-overlay','auth-overlay','welcome-overlay'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (!el) return;
-      if (el.classList.contains('hidden') || el.getAttribute('aria-hidden') === 'true' || el.style.display === 'none') {
-        el.classList.add('hidden');
-        el.style.display = 'none';
-        el.style.pointerEvents = 'none';
-        el.style.visibility = 'hidden';
-      }
-    });
-    qsa('.overlay,.task-detail-overlay,.photo-lightbox').forEach(function(el){
-      if (el.classList.contains('hidden') || el.style.display === 'none' || el.getAttribute('aria-hidden') === 'true') {
-        el.classList.add('hidden');
-        el.style.display = 'none';
-        el.style.pointerEvents = 'none';
-        el.style.visibility = 'hidden';
-      }
+  function safe(fn){ try { return fn && fn(); } catch(e){ console.warn('[Kinverly] stable nav:', e); } }
+  function pageName(page){ return page === 'myworld' ? 'availability' : (page || 'home'); }
+  function closeHiddenOverlays(){
+    document.querySelectorAll('.overlay.hidden,.task-detail-overlay.hidden,.photo-lightbox.hidden,#login-screen.hidden').forEach(function(el){
+      el.style.display = 'none';
+      el.style.pointerEvents = 'none';
     });
   }
-
-  function forcePageActive(page){
-    var p = pageKey(page);
-    var targetId = 'page-' + p;
-    if (p === 'availability') targetId = document.getElementById('page-availability') ? 'page-availability' : 'page-myworld';
-    qsa('.page').forEach(function(el){ el.classList.remove('active'); });
-    var target = document.getElementById(targetId);
-    if (target) {
-      target.classList.add('active');
-      target.style.display = 'block';
-    }
-    qsa('.bottom-nav .nav-btn').forEach(function(btn){
-      btn.classList.toggle('active', pageKey(btn.dataset.page) === p);
+  function markActive(page){
+    var p = pageName(page);
+    document.querySelectorAll('.bottom-nav .nav-btn').forEach(function(btn){
+      var bp = pageName(btn.getAttribute('data-page'));
+      btn.classList.toggle('active', bp === p);
     });
-    window.currentPage = p;
   }
-
-  function renderPage(page){
-    var p = pageKey(page);
+  function renderKnownPage(page){
+    var p = pageName(page);
     safe(function(){ if (typeof window.renderPage === 'function') window.renderPage(p); });
     safe(function(){ if (p === 'home' && typeof window.renderHome === 'function') window.renderHome(); });
-    safe(function(){ if (p === 'availability' && typeof window.renderMyWorld === 'function') window.renderMyWorld(); });
+    safe(function(){ if (p === 'availability' && typeof window.renderAvailability === 'function') window.renderAvailability(); });
     safe(function(){ if (p === 'availability' && typeof window.renderAvailabilityPage === 'function') window.renderAvailabilityPage(); });
+    safe(function(){ if (p === 'availability' && typeof window.renderMyWorld === 'function') window.renderMyWorld(); });
     safe(function(){ if (p === 'gatherings' && typeof window.renderGatherings === 'function') window.renderGatherings(); });
     safe(function(){ if (p === 'ideas' && typeof window.renderIdeas === 'function') window.renderIdeas(); });
     safe(function(){ if (p === 'flock' && typeof window.renderFlockPage === 'function') window.renderFlockPage(); });
     safe(function(){ if (p === 'profile' && typeof window.renderProfile === 'function') window.renderProfile(); });
   }
-
-  function go(page){
-    var p = pageKey(page);
-    document.body.classList.add('kv-shell-ready');
-    ensureBottomNav();
-    unblockHiddenOverlays();
-    if (typeof window.showPage === 'function') safe(function(){ window.showPage(p); });
-    else if (typeof showPage === 'function') safe(function(){ showPage(p); });
-    forcePageActive(p);
-    renderPage(p);
-    setTimeout(function(){ ensureBottomNav(); unblockHiddenOverlays(); forcePageActive(p); }, 0);
-    setTimeout(function(){ ensureBottomNav(); unblockHiddenOverlays(); }, 150);
+  function stableGo(page){
+    var p = pageName(page);
+    closeHiddenOverlays();
+    // Use original app navigation first, then repair active nav state. Do not rebuild nav or re-enter loops.
+    safe(function(){ if (typeof window.showPage === 'function') window.showPage(p); else if (typeof showPage === 'function') showPage(p); });
+    markActive(p);
+    renderKnownPage(p);
+    window.currentPage = p;
+    closeHiddenOverlays();
   }
-
-  window.kvGoPage = go;
-  window.kvRestoreShellNavigation = function(){
-    ensureBottomNav();
-    unblockHiddenOverlays();
-    qsa('.bottom-nav .nav-btn').forEach(function(btn){
-      btn.onclick = function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        go(btn.dataset.page || 'home');
-        return false;
-      };
-    });
-  };
+  window.kvStableGoPage = stableGo;
 
   document.addEventListener('click', function(e){
-    var btn = e.target && e.target.closest ? e.target.closest('.bottom-nav .nav-btn') : null;
+    var btn = e.target && e.target.closest && e.target.closest('.bottom-nav .nav-btn');
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-    go(btn.dataset.page || 'home');
-    return false;
+    stableGo(btn.getAttribute('data-page') || 'home');
   }, true);
 
-  // Browser Freeze Fix: do not run a MutationObserver/polling loop here.
-  // Restore the shell once after load and once after the next render tick only.
-  window.kvRestoreShellNavigation();
-  setTimeout(window.kvRestoreShellNavigation, 50);
-  setTimeout(window.kvRestoreShellNavigation, 250);
-  console.info('[Kinverly] Sprint 52.8 hard shell navigation restore loaded');
+  // One-time startup cleanup only. No timers, no observers, no repeated nav rebuilds.
+  closeHiddenOverlays();
+  markActive(window.currentPage || 'home');
+  console.info('[Kinverly] Sprint 52.10 stable no-freeze navigation patch loaded');
 })();
 </script>
 
@@ -21086,7 +20969,7 @@ if (!window.__kinverlyInfoDelegatedButtons) {
     setTimeout(rescueIfStuck, 250);
     setTimeout(rescueIfStuck, 1000);
   });
-  setInterval(rescueIfStuck, 1000);
+  // Browser safety: no repeating availability watchdog. One-shot recovery only.
 })();
 </script>
 
@@ -25200,438 +25083,3 @@ signInKinverlyAccount = function(username, password) {
 })();
 
 </script>
-
-<script>
-/* ═══════════════════════════════════════════════
-   SPRINT 52.6 — REMOVED MEMBER ADMIN CONTROLS + SAFE RESTORE
-   Purpose:
-   - Global Admin can edit/reset/restore removed members.
-   - Removed rows render actions instead of becoming dead history rows.
-   - Prevent removing the last active member.
-   - Prevent removing a creator/owner without explicit recovery/transfer path.
-   - Add Restore All / Repair Memberships tools for broken flocks.
-═══════════════════════════════════════════════ */
-(function(){
-  if (window.__kinverlySprint526RemovedMemberAdminControls) return;
-  window.__kinverlySprint526RemovedMemberAdminControls = true;
-
-  function esc(v){
-    return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
-  }
-  function now(){ return new Date().toISOString(); }
-  function toastSafe(msg){ try { if (typeof toast === 'function') return toast(msg); } catch(e){} console.info('[Kinverly]', msg); }
-  function normalize(v){ return String(v == null ? '' : v).trim().toLowerCase(); }
-  function getUserId(x){
-    if (!x) return '';
-    try { if (typeof getCanonicalUserId === 'function') return getCanonicalUserId(x) || ''; } catch(e) {}
-    return x.user_id || x.uid || x.account_id || x.id || '';
-  }
-  function getMemberId(x, fallback){ return (x && (x.member_id || x.id || x.memberId)) || fallback || ''; }
-  function isRemoved(m){
-    var s = normalize(m && (m.status || m.membership_status));
-    return !!m && (s === 'removed' || s === 'archived' || s === 'inactive' || !!m.removed_at || !!m.deleted_at);
-  }
-  function isActive(m){ return !!m && !isRemoved(m); }
-  function roleOf(m){ return normalize(m && (m.role || m.flock_role || m.member_role || 'member')) || 'member'; }
-  function isCreatorLike(m){ var r = roleOf(m); return r === 'creator' || r === 'owner'; }
-  function memberName(m){ return (m && (m.display_name || m.name || m.username || m.login_username)) || 'Member'; }
-  function memberLocation(m){ return (m && (m.location || m.city)) || 'Location not set'; }
-  function memberAvatar(m){ return (m && (m.avatar || m.animal)) || 'bear'; }
-  function avatarHtml(m){
-    var a = memberAvatar(m);
-    var emoji = a === 'bunny' ? '🐰' : a === 'deer' ? '🦌' : a === 'panda' ? '🐼' : a === 'mouse' ? '🐭' : a === 'leopard' ? '🐆' : '🐻';
-    try { if (typeof makeAv === 'function') return makeAv(a, 52); } catch(e) {}
-    return '<div class="av" style="width:52px;height:52px;background:#f7f5ff;display:flex;align-items:center;justify-content:center;font-size:28px">'+emoji+'</div>';
-  }
-  function currentFlock(){
-    try { if (window.FLOCKS && window.currentFlockId != null && FLOCKS[currentFlockId]) return FLOCKS[currentFlockId]; } catch(e) {}
-    try { if (window.FLOCKS && typeof currentFlockId !== 'undefined' && FLOCKS[String(currentFlockId)]) return FLOCKS[String(currentFlockId)]; } catch(e) {}
-    try { var keys = Object.keys(window.FLOCKS || {}); return keys.length ? window.FLOCKS[keys[0]] : null; } catch(e) {}
-    return null;
-  }
-  function globalAdmin(){
-    try { if (typeof window.kinverlyIsGlobalAdmin === 'function' && window.kinverlyIsGlobalAdmin()) return true; } catch(e) {}
-    try { if (typeof window.isGlobalAdmin === 'function' && window.isGlobalAdmin()) return true; } catch(e) {}
-    var me = (window.DATA && DATA.me) || window.currentUser || window.current_user || null;
-    if (me && normalize(me.global_role || me.role) === 'admin') return true;
-    var uid = getUserId(me), username = normalize(me && (me.username || me.login_username || me.name));
-    try {
-      var users = JSON.parse(localStorage.getItem('kinverly_users') || localStorage.getItem('users') || '[]');
-      if (!Array.isArray(users) && users && typeof users === 'object') users = Object.values(users);
-      return (users || []).some(function(u){
-        return normalize(u.global_role || u.role) === 'admin' && ((uid && String(getUserId(u)) === String(uid)) || (username && normalize(u.username || u.login_username || u.name) === username));
-      });
-    } catch(e) {}
-    return false;
-  }
-  window.kinverlyIsGlobalAdmin = globalAdmin;
-  window.isGlobalAdmin = globalAdmin;
-
-  function saveAll(){
-    try { if (typeof saveLocal === 'function') saveLocal(); else localStorage.setItem('kinverly_flocks', JSON.stringify(window.FLOCKS || {})); } catch(e) {}
-    try { if (typeof syncFlockToFirebase === 'function') syncFlockToFirebase(); } catch(e) { console.warn('[Kinverly] sync failed', e); }
-  }
-  function ensureMembers(flock){
-    if (!flock) return;
-    flock.members = flock.members || {};
-    flock.removedMembers = flock.removedMembers || {};
-    Object.keys(flock.members).forEach(function(k){
-      var m = flock.members[k] || {};
-      if (m.member_id == null) m.member_id = getMemberId(m, k);
-      if (m.id == null) m.id = m.member_id || k;
-      flock.members[k] = m;
-    });
-    Object.keys(flock.removedMembers).forEach(function(k){
-      var m = flock.removedMembers[k] || {};
-      if (m.member_id == null) m.member_id = getMemberId(m, k);
-      if (m.id == null) m.id = m.member_id || k;
-      m.status = m.status || 'removed';
-      m.membership_status = m.membership_status || 'removed';
-      flock.removedMembers[k] = m;
-    });
-  }
-  function allMemberRows(flock){
-    ensureMembers(flock);
-    var rows = [];
-    Object.keys((flock && flock.members) || {}).forEach(function(k){ rows.push(Object.assign({_key:k,_source:'members'}, flock.members[k] || {})); });
-    Object.keys((flock && flock.removedMembers) || {}).forEach(function(k){ rows.push(Object.assign({_key:k,_source:'removedMembers'}, flock.removedMembers[k] || {})); });
-    var by = {};
-    rows.forEach(function(m){
-      var key = getUserId(m) ? 'u:' + getUserId(m) : 'm:' + getMemberId(m, m._key);
-      var old = by[key];
-      if (!old) { by[key] = m; return; }
-      if (isActive(m) && !isActive(old)) { by[key] = m; return; }
-      if (isRemoved(m) === isRemoved(old)) {
-        var mt = Date.parse(m.updated_at || m.created_at || m.removed_at || m.deleted_at || 0) || 0;
-        var ot = Date.parse(old.updated_at || old.created_at || old.removed_at || old.deleted_at || 0) || 0;
-        if (mt >= ot) by[key] = m;
-      }
-    });
-    return Object.values(by).sort(function(a,b){
-      if (isRemoved(a) !== isRemoved(b)) return isRemoved(a) ? 1 : -1;
-      return memberName(a).localeCompare(memberName(b));
-    });
-  }
-  function findMember(mid){
-    var flock = currentFlock(); if (!flock) return null;
-    ensureMembers(flock);
-    var found = null;
-    ['members','removedMembers'].some(function(bucket){
-      return Object.keys(flock[bucket] || {}).some(function(k){
-        var m = flock[bucket][k];
-        if (String(k) === String(mid) || String(getMemberId(m,k)) === String(mid) || String(getUserId(m)) === String(mid)) {
-          found = {bucket:bucket,key:k,row:m}; return true;
-        }
-        return false;
-      });
-    });
-    return found;
-  }
-  function updateCanonicalUser(m, patch){
-    if (!m) return;
-    var uid = getUserId(m);
-    try {
-      var users = JSON.parse(localStorage.getItem('kinverly_users') || '[]');
-      if (!Array.isArray(users)) users = Object.values(users || {});
-      var idx = users.findIndex(function(u){ return uid && String(getUserId(u)) === String(uid); });
-      if (idx >= 0) users[idx] = Object.assign({}, users[idx], patch, {updated_at:now()});
-      else if (uid) users.push(Object.assign({user_id:uid, id:uid, username:m.username || '', display_name:memberName(m), global_role:'user', status:'active', created_at:now()}, patch, {updated_at:now()}));
-      localStorage.setItem('kinverly_users', JSON.stringify(users));
-      if (window.DATA) DATA.users = users;
-    } catch(e) {}
-  }
-  function updateMember(mid, patch){
-    var hit = findMember(mid); var flock = currentFlock(); if (!hit || !flock) return null;
-    var row = Object.assign({}, hit.row, patch, {updated_at:now()});
-    flock[hit.bucket][hit.key] = row;
-    saveAll();
-    return row;
-  }
-  function removeMember(mid){
-    var flock = currentFlock(); var hit = findMember(mid); if (!hit || !flock) return;
-    var active = allMemberRows(flock).filter(function(m){ return isActive(m); });
-    if (active.length <= 1) { toastSafe('Cannot remove the last active member. Restore or add another member first.'); return; }
-    if (isCreatorLike(hit.row)) { toastSafe('Creator/owner cannot be removed until ownership is transferred.'); return; }
-    if (!confirm('Remove ' + memberName(hit.row) + ' from this flock?')) return;
-    var row = Object.assign({}, hit.row, {status:'removed', membership_status:'removed', removed_at:now(), deleted_at:now(), updated_at:now()});
-    flock.removedMembers = flock.removedMembers || {};
-    flock.removedMembers[hit.key] = row;
-    if (hit.bucket === 'members') flock.members[hit.key] = row;
-    saveAll(); toastSafe(memberName(row) + ' removed'); renderAdminFlockPageFinal();
-  }
-  function restoreMember(mid){
-    var flock = currentFlock(); var hit = findMember(mid); if (!hit || !flock) { toastSafe('Member not found'); return; }
-    var row = Object.assign({}, hit.row, {status:'active', membership_status:'active', removed_at:null, deleted_at:null, restored_at:now(), updated_at:now()});
-    delete row.deleted_by; delete row.removed_by;
-    flock.members = flock.members || {};
-    flock.members[hit.key] = row;
-    if (flock.removedMembers) delete flock.removedMembers[hit.key];
-    saveAll(); toastSafe(memberName(row) + ' restored'); renderAdminFlockPageFinal();
-  }
-  function restoreAllMembers(){
-    var flock = currentFlock(); if (!flock) return;
-    allMemberRows(flock).filter(isRemoved).forEach(function(m){
-      var mid = getMemberId(m, m._key);
-      var hit = findMember(mid); if (!hit) return;
-      var row = Object.assign({}, hit.row, {status:'active', membership_status:'active', removed_at:null, deleted_at:null, restored_at:now(), updated_at:now()});
-      flock.members[hit.key] = row;
-      if (flock.removedMembers) delete flock.removedMembers[hit.key];
-    });
-    saveAll(); toastSafe('Removed members restored'); renderAdminFlockPageFinal();
-  }
-  function repairMemberships(){
-    var flock = currentFlock(); if (!flock) return;
-    ensureMembers(flock);
-    var rows = allMemberRows(flock);
-    flock.members = flock.members || {};
-    rows.forEach(function(m){
-      var key = String(getMemberId(m,m._key) || getUserId(m) || m._key || Date.now());
-      flock.members[key] = Object.assign({}, m, {_key:undefined,_source:undefined});
-    });
-    saveAll(); toastSafe('Membership records repaired'); renderAdminFlockPageFinal();
-  }
-
-  function adminMemberRow(m){
-    var removed = isRemoved(m);
-    var mid = esc(getMemberId(m,m._key));
-    var role = roleOf(m);
-    var badge = removed ? 'Removed' : (role === 'creator' || role === 'owner' ? 'Creator' : role === 'organizer' ? 'Organizer' : 'Member');
-    var badgeStyle = removed ? 'background:var(--red-bg);color:var(--red)' : 'background:var(--green-bg);color:var(--green)';
-    var controls = removed
-      ? '<button class="kv-admin-restore-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:none;background:var(--green);color:#fff;font-family:inherit">Restore</button><button class="kv-admin-edit-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#fff;color:var(--brand);font-family:inherit">Edit</button><button class="kv-admin-reset-pw" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--amber);background:#fff;color:var(--amber);font-family:inherit">Reset pw</button>'
-      : '<button class="kv-admin-edit-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--brand);background:#fff;color:var(--brand);font-family:inherit">Edit</button><button class="kv-admin-reset-pw" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--amber);background:#fff;color:var(--amber);font-family:inherit">Reset pw</button><button class="kv-admin-remove-member" data-mid="'+mid+'" style="font-size:11px;font-weight:900;padding:7px 10px;border-radius:10px;border:1.5px solid var(--red);background:#fff;color:var(--red);font-family:inherit">Remove</button>';
-    return '<div class="kv-admin-member-card" style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid var(--border);'+(removed?'opacity:.9;':'')+'">'+
-      avatarHtml(m)+
-      '<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:900;color:var(--text1)">'+esc(memberName(m))+'</div><div style="font-size:12px;color:var(--text2);margin-top:2px">'+esc(memberLocation(m))+' · '+(removed?'Removed':'Active')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+controls+'</div></div>'+ 
-      '<div style="font-size:10px;font-weight:900;padding:5px 10px;border-radius:20px;white-space:nowrap;'+badgeStyle+'">'+esc(badge)+'</div>'+ 
-    '</div>';
-  }
-
-  function renderAdminFlockPageFinal(){
-    if (!globalAdmin()) return false;
-    var el = document.getElementById('flock-page-content'); if (!el) return false;
-    var flock = currentFlock(); if (!flock) return false;
-    var rows = allMemberRows(flock);
-    var active = rows.filter(isActive);
-    var removed = rows.filter(isRemoved);
-    var organizers = active.filter(function(m){ var r=roleOf(m); return r === 'organizer' || r === 'creator' || r === 'owner'; });
-    var code = flock.invite_code || flock.inviteCode || '—';
-    el.innerHTML =
-      '<div style="background:#fff8d8;border:1.5px solid rgba(240,192,48,.65);border-radius:18px;padding:14px;margin-bottom:14px"><div style="font-size:17px;font-weight:900;color:var(--brand)">🛡️ Global Admin Tools</div><div style="font-size:12px;color:var(--text2);line-height:1.45;margin-top:5px">You can edit accounts, reset passwords, remove/restore members, repair memberships, and export data.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button class="btn-primary" id="kv-open-admin-panel" style="margin:0">Admin Panel</button><button class="btn-secondary" id="kv-export-all-csv" style="margin:0">Export All CSV</button></div></div>'+ 
-      '<div class="hero"><div class="hero-label">Flock Hub</div><div class="hero-title">'+esc(flock.name || flock.flock_name || 'Family Flock')+'</div><div class="hero-sub">Members, organizers, invite code, and flock history all in one place.</div></div>'+ 
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px"><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+active.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Active</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+organizers.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Organizers</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+(((window.DATA&&DATA.gatherings)||[]).filter(function(g){return !g.flock_id || String(g.flock_id)===String(flock.flock_id||window.currentFlockId)}).length)+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Gatherings</div></div><div class="card" style="text-align:center;margin:0"><div style="font-size:24px;font-weight:300;color:var(--brand)">'+removed.length+'</div><div style="font-size:10px;font-weight:900;color:var(--text2)">Removed</div></div></div>'+ 
-      '<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><div style="font-size:11px;font-weight:900;color:var(--text3);letter-spacing:.08em;text-transform:uppercase">Invite Code</div><div style="font-size:12px;color:var(--text2);margin-top:2px">Share this with flock members.</div></div><div style="font-family:monospace;font-size:24px;font-weight:900;color:var(--brand);letter-spacing:.12em">'+esc(code)+'</div></div></div>'+ 
-      '<div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:13px 14px;margin-bottom:14px"><div style="font-size:11px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px">Admin Recovery Tools</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="kv-restore-all-members" class="btn-secondary" style="margin:0;padding:10px">Restore All</button><button id="kv-repair-memberships" class="btn-secondary" style="margin:0;padding:10px">Repair Memberships</button></div></div>'+ 
-      '<div class="section-title">Organizers ('+organizers.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(organizers.length?organizers.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No organizers assigned yet.</div>')+'</div>'+ 
-      '<div class="section-title">Active Flock Members ('+active.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(active.length?active.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No active members yet.</div>')+'</div>'+ 
-      '<div class="section-title">Removed / Archived Members ('+removed.length+')</div><div class="card" style="padding:0;overflow:hidden">'+(removed.length?removed.map(adminMemberRow).join(''):'<div style="padding:18px;text-align:center;color:var(--text3);font-weight:800">No removed members.</div>')+'</div>';
-    var panel = document.getElementById('kv-open-admin-panel'); if (panel) panel.onclick=function(){ try { if (typeof openAdminPanel === 'function') openAdminPanel(); else toastSafe('Admin panel unavailable'); } catch(e){ toastSafe('Admin panel unavailable'); } };
-    var exp = document.getElementById('kv-export-all-csv'); if (exp) exp.onclick=function(){ try { if (typeof downloadExportTableCsvs === 'function') downloadExportTableCsvs('all', null); else if (typeof exportAllCSV === 'function') exportAllCSV(); else toastSafe('CSV export unavailable'); } catch(e){ toastSafe('CSV export unavailable'); } };
-    var restoreAll = document.getElementById('kv-restore-all-members'); if (restoreAll) restoreAll.onclick=restoreAllMembers;
-    var repair = document.getElementById('kv-repair-memberships'); if (repair) repair.onclick=repairMemberships;
-    return true;
-  }
-  window.renderAdminFlockPageFinal = renderAdminFlockPageFinal;
-
-  function editMember(mid){
-    var hit = findMember(mid); if (!hit) { toastSafe('Member not found'); return; }
-    var m = hit.row;
-    var name = prompt('Display name', m.display_name || m.name || ''); if (name === null) return;
-    var username = prompt('Username', m.username || m.login_username || ''); if (username === null) return;
-    var loc = prompt('Location', m.location || ''); if (loc === null) return;
-    var role = prompt('Flock role: member, organizer, creator', m.role || m.flock_role || 'member'); if (role === null) return;
-    var patch = {display_name:name, name:name, username:username, login_username:username, location:loc, role:normalize(role)||'member', flock_role:normalize(role)||'member'};
-    updateMember(mid, patch); updateCanonicalUser(m, {display_name:name, name:name, username:username, login_username:username, location:loc});
-    toastSafe('Account updated'); renderAdminFlockPageFinal();
-  }
-  function resetPassword(mid){
-    var hit = findMember(mid); if (!hit) { toastSafe('Member not found'); return; }
-    var pass = prompt('New temporary password for ' + memberName(hit.row)); if (!pass) return;
-    updateMember(mid, {password:pass, password_hash:pass, must_change_password:true, last_password_reset_at:now()});
-    updateCanonicalUser(hit.row, {password:pass, password_hash:pass, must_change_password:true, last_password_reset_at:now()});
-    toastSafe('Temporary password set');
-  }
-
-  document.addEventListener('click', function(e){
-    var t = e.target && e.target.closest && e.target.closest('.kv-admin-restore-member,.kv-admin-edit-member,.kv-admin-reset-pw,.kv-admin-remove-member');
-    if (!t || !globalAdmin()) return;
-    e.preventDefault(); e.stopPropagation();
-    var mid = t.getAttribute('data-mid');
-    if (t.classList.contains('kv-admin-restore-member')) return restoreMember(mid);
-    if (t.classList.contains('kv-admin-edit-member')) return editMember(mid);
-    if (t.classList.contains('kv-admin-reset-pw')) return resetPassword(mid);
-    if (t.classList.contains('kv-admin-remove-member')) return removeMember(mid);
-  }, true);
-
-  var oldRenderFlockPage = window.renderFlockPage;
-  window.renderFlockPage = function(){
-    if (globalAdmin() && renderAdminFlockPageFinal()) return;
-    return typeof oldRenderFlockPage === 'function' ? oldRenderFlockPage.apply(this, arguments) : undefined;
-  };
-  try { renderFlockPage = window.renderFlockPage; } catch(e) {}
-
-  var oldShowPage = window.showPage;
-  if (typeof oldShowPage === 'function') {
-    window.showPage = function(page){
-      var r = oldShowPage.apply(this, arguments);
-      setTimeout(function(){ if (globalAdmin() && (page === 'flock' || document.querySelector('#page-flock.active'))) renderAdminFlockPageFinal(); }, 50);
-      return r;
-    };
-    try { showPage = window.showPage; } catch(e) {}
-  }
-  setTimeout(function(){ if (globalAdmin() && document.querySelector('#page-flock.active')) renderAdminFlockPageFinal(); }, 250);
-  setTimeout(function(){ if (globalAdmin() && document.querySelector('#page-flock.active')) renderAdminFlockPageFinal(); }, 1000);
-  console.info('[Kinverly] Sprint 52.6 removed member admin controls patch loaded');
-})();
-</script>
-
-<!-- Sprint 52.7 — Shell Click Recovery Patch
-     Purpose: make tab navigation and gathering cards clickable again after admin/recovery overlays render. -->
-<style id="kv-shell-click-recovery-css">
-  .bottom-nav{pointer-events:auto!important;z-index:9999!important;}
-  .bottom-nav .nav-btn{pointer-events:auto!important;position:relative!important;z-index:10000!important;}
-  .page-wrap{pointer-events:auto!important;}
-  .overlay.hidden,
-  .task-detail-overlay.hidden,
-  .photo-lightbox.hidden,
-  #login-screen.hidden{display:none!important;pointer-events:none!important;}
-  .kv-click-through-blocker{pointer-events:none!important;}
-</style>
-<script id="kv-shell-click-recovery-patch">
-(function(){
-  if (window.__kvShellClickRecoveryPatch) return;
-  window.__kvShellClickRecoveryPatch = true;
-
-  function qsa(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
-  function safe(fn){ try { return fn && fn(); } catch(e){ console.warn('[Kinverly] shell recovery safe error', e); } }
-  function normalizePage(p){ return p === 'myworld' ? 'availability' : p; }
-
-  function closeBlockingChrome(){
-    // Only close overlays that are truly modal and currently visible. This prevents invisible shells from blocking taps.
-    qsa('#login-screen.hidden,.overlay.hidden,.task-detail-overlay.hidden,.photo-lightbox.hidden').forEach(function(el){
-      el.style.display = 'none';
-      el.style.pointerEvents = 'none';
-    });
-    qsa('.overlay,.task-detail-overlay,.photo-lightbox').forEach(function(el){
-      if (el.classList.contains('hidden')) {
-        el.style.display = 'none';
-        el.style.pointerEvents = 'none';
-      }
-    });
-  }
-
-  function renderPageSafe(page){
-    var p = normalizePage(page);
-    safe(function(){ if (typeof window.renderPage === 'function') window.renderPage(p); });
-    safe(function(){ if (p === 'home' && typeof window.renderHome === 'function') window.renderHome(); });
-    safe(function(){ if (p === 'availability' && typeof window.renderMyWorld === 'function') window.renderMyWorld(); });
-    safe(function(){ if (p === 'availability' && typeof window.renderAvailabilityPage === 'function') window.renderAvailabilityPage(); });
-    safe(function(){ if (p === 'gatherings' && typeof window.renderGatherings === 'function') window.renderGatherings(); });
-    safe(function(){ if (p === 'ideas' && typeof window.renderIdeas === 'function') window.renderIdeas(); });
-    safe(function(){ if (p === 'flock' && typeof window.renderFlockPage === 'function') window.renderFlockPage(); });
-    safe(function(){ if (p === 'profile' && typeof window.renderProfile === 'function') window.renderProfile(); });
-  }
-
-  function goPage(page){
-    var p = normalizePage(page || 'home');
-    closeBlockingChrome();
-    safe(function(){ if (typeof window.saveFlockState === 'function') window.saveFlockState(); });
-    if (typeof window.showPage === 'function') {
-      safe(function(){ window.showPage(p); });
-    } else if (typeof showPage === 'function') {
-      safe(function(){ showPage(p); });
-    } else {
-      qsa('.page').forEach(function(el){ el.classList.remove('active'); });
-      var target = document.getElementById('page-' + p);
-      if (target) target.classList.add('active');
-      qsa('.nav-btn').forEach(function(btn){ btn.classList.toggle('active', normalizePage(btn.dataset.page) === p); });
-    }
-    renderPageSafe(p);
-    setTimeout(closeBlockingChrome, 0);
-  }
-
-  function findGatheringIdFromCard(card){
-    if (!card) return null;
-    return card.getAttribute('data-gathering-id') || card.getAttribute('data-gid') || card.getAttribute('data-id') || card.dataset.gatheringId || card.dataset.gid || card.dataset.id || null;
-  }
-
-  function openGatheringFromCard(card){
-    var gid = findGatheringIdFromCard(card);
-    if (!gid && window.DATA && Array.isArray(DATA.gatherings)) {
-      // Last-resort fallback: infer from visible title/date if card has no data id.
-      var txt = (card.textContent || '').trim();
-      var hit = DATA.gatherings.find(function(g){
-        var name = String(g.name || g.title || '');
-        return name && txt.indexOf(name) >= 0;
-      });
-      gid = hit && (hit.id || hit.gathering_id);
-    }
-    if (!gid) return false;
-    closeBlockingChrome();
-    if (typeof window.showDetail === 'function') {
-      safe(function(){ window.showDetail(gid, 'overview'); });
-      return true;
-    }
-    if (typeof showDetail === 'function') {
-      safe(function(){ showDetail(gid, 'overview'); });
-      return true;
-    }
-    return false;
-  }
-
-  // Capture-phase nav rescue. Runs before broken bubble handlers or stale admin overlays can swallow clicks.
-  document.addEventListener('click', function(e){
-    var navBtn = e.target && e.target.closest ? e.target.closest('.bottom-nav .nav-btn') : null;
-    if (navBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      goPage(navBtn.dataset.page || 'home');
-      return false;
-    }
-
-    var detailBack = e.target && e.target.closest ? e.target.closest('#detail-back,.back-btn[data-page],.context-back') : null;
-    if (detailBack && detailBack.id === 'detail-back' && typeof window.closeDetail === 'function') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      safe(function(){ window.closeDetail(); });
-      return false;
-    }
-
-    var card = e.target && e.target.closest ? e.target.closest('.g-card,.gathering-card,[data-gathering-id],[data-gid]') : null;
-    if (card && !e.target.closest('button,input,textarea,select,a')) {
-      var inGatheringsPage = document.querySelector('#page-gatherings.active') || card.closest('#page-gatherings');
-      if (inGatheringsPage && openGatheringFromCard(card)) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-        return false;
-      }
-    }
-  }, true);
-
-  // Re-attach simple click handlers after any render that replaces nav/card DOM.
-  function bindShellClicks(){
-    closeBlockingChrome();
-    qsa('.bottom-nav .nav-btn').forEach(function(btn){
-      if (btn.__kvShellClickBound) return;
-      btn.__kvShellClickBound = true;
-      btn.addEventListener('click', function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        goPage(btn.dataset.page || 'home');
-      });
-    });
-  }
-  bindShellClicks();
-  // Browser Freeze Fix: bind once, then once more after render settles.
-  setTimeout(bindShellClicks, 1000);
-  setTimeout(function(){ goPage((window.currentPage || 'home')); }, 100);
-  console.info('[Kinverly] Sprint 52.7 shell click recovery patch loaded');
-})();
-</script>
-
-<!-- Sprint 52.9 — Browser Freeze Fix
-     Removed the emergency out-of-band bottom nav patch because its MutationObserver + setInterval
-     repeatedly rebuilt navigation and could make the browser stop responding. -->
